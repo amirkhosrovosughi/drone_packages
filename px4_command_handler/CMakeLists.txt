@@ -15,6 +15,7 @@ find_package(px4_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(drone_msgs REQUIRED)
+find_package(common_utilities REQUIRED)
 
 include_directories(include/${PROJECT_NAME})
 
@@ -47,7 +48,8 @@ ament_target_dependencies(${PROJECT_NAME}
   px4_msgs
   drone_msgs
   geometry_msgs
-  sensor_msgs)
+  sensor_msgs
+  common_utilities)
 
 # Install
 install(TARGETS ${PROJECT_NAME}

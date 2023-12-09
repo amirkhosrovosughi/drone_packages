@@ -3,6 +3,8 @@
 #define PX4_COMMAND_HANDLER_HPP_
 
 #include "rclcpp/rclcpp.hpp"
+#include "common_utilities/transform_util.hpp"
+
 #include "geometry_msgs/msg/twist.hpp"
 #include <px4_msgs/msg/vehicle_command.hpp>
 #include <px4_msgs/msg/vehicle_control_mode.hpp>
@@ -25,22 +27,28 @@ private:
   // Function prototypes
   void publishVehicleCommand(uint16_t command, float param1 = 0.0, float param2 = 0.0);
   void publishtopics();
-  void publish_trajectory_setpoint();
-  void directionCallback(drone_msgs::msg::DroneDirectionCommand command);
+  void publishTrajectorySetpoint();
+  void publishOffboardControlMode();
+  void directionCallback(const drone_msgs::msg::DroneDirectionCommand command);
   void generalCommandService(const std::shared_ptr<drone_msgs::srv::DroneMode::Request> request,
                              std::shared_ptr<drone_msgs::srv::DroneMode::Response> response);
   void publishSetpointConfig(bool automatic);
   void activateDrone(bool automated);
   void positionCallback(px4_msgs::msg::VehicleLocalPosition position);
+  char* getStringFromVector(const Eigen::Vector3f& vector);
 
   // Member variables
   rclcpp::Publisher<px4_msgs::msg::VehicleCommand>::SharedPtr _vehicleCommandPublisher;
   rclcpp::Publisher<px4_msgs::msg::VehicleControlMode>::SharedPtr _configControlPublisher;
+  rclcpp::Publisher<px4_msgs::msg::OffboardControlMode>::SharedPtr _offboardControlModePublisher;
+  rclcpp::Publisher<px4_msgs::msg::TrajectorySetpoint>::SharedPtr _trajectorySetpointPublisher;
 
   rclcpp::Subscription<drone_msgs::msg::DroneDirectionCommand>::SharedPtr _moveCommandSubscriber;
   rclcpp::Subscription<px4_msgs::msg::VehicleLocalPosition>::SharedPtr _localPositionSubscriber;
   rclcpp::Service<drone_msgs::srv::DroneMode>::SharedPtr _generalCommandServer;
   rclcpp::TimerBase::SharedPtr _timer;
+  Eigen::Vector4f _targetPostion;
+  Eigen::Vector4f _currentPostion;
 };
 
 #endif // PX4_COMMAND_HANDLER_HPP_
