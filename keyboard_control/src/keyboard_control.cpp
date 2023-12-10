@@ -4,15 +4,15 @@
 #include <iostream>
 // #include <rclcpp/executors.hpp>
 
-static const float defaultStepDisplace = 2.0f;
-static const float maxStepDisplace = 10.0f;
-static const float minStepDisplace = 0.5f;
-static const float changeStepDisplace = 0.5f;
+static const float defaultStepDisplace = 0.2f;
+static const float maxStepDisplace = 2.0f;
+static const float minStepDisplace = 0.05f;
+static const float changeStepDisplace = 0.05f;
 
-static const float defaultStepRotate = 0.2f;
-static const float maxStepRotate = 1.0f;
-static const float minStepRotate = 0.05f;
-static const float changeStepRotate = 0.05f;
+static const float defaultStepRotate = 0.05f;
+static const float maxStepRotate = 0.5f;
+static const float minStepRotate = 0.01f;
+static const float changeStepRotate = 0.01f;
 
 
 KeyboardControl::KeyboardControl() : Node("keyboard_control") {

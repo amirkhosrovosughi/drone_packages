@@ -35,7 +35,9 @@ private:
   void publishSetpointConfig(bool automatic);
   void activateDrone(bool automated);
   void positionCallback(px4_msgs::msg::VehicleLocalPosition position);
-  char* getStringFromVector(const Eigen::Vector3f& vector);
+  // char* getStringFromVector(const Eigen::Vector3f& vector);
+  template<typename Derived>
+  std::string getStringFromVector(const Eigen::MatrixBase<Derived>& vector);
 
   // Member variables
   rclcpp::Publisher<px4_msgs::msg::VehicleCommand>::SharedPtr _vehicleCommandPublisher;

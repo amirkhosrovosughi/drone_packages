@@ -50,12 +50,9 @@ void Px4CommandHandlerNode::publishtopics()
 
 void Px4CommandHandlerNode::publishTrajectorySetpoint()
 {
-  // see what is the correct position
-
-  // see what command we have had |||--> NO, apply it as it comes
   
-  // based of those, decide where to go
   Eigen::Vector3f targetNED = TransformUtil::enuToNed(_targetPostion.head(3));
+  RCLCPP_DEBUG(this->get_logger(), "targetNED is (%s)", getStringFromVector(targetNED).c_str());
 
   px4_msgs::msg::TrajectorySetpoint msg{};
   	msg.position = {targetNED[0], targetNED[1], targetNED[2]};
@@ -99,26 +96,25 @@ void Px4CommandHandlerNode::directionCallback(const drone_msgs::msg::DroneDirect
     RCLCPP_INFO(this->get_logger(), "Stop: %s", command.stop ? "true" : "false");
     if (vertical_step != 0.0f)
     {
-      _targetPostion = _currentPostion + Eigen::Vector4f(0.0f, 0.0f, vertical_step, 0.0f);
+      _targetPostion = _targetPostion + Eigen::Vector4f(0.0f, 0.0f, vertical_step, 0.0f);
+      RCLCPP_DEBUG(this->get_logger(), "_targetPostion is (%s)", getStringFromVector(_targetPostion).c_str());
       RCLCPP_INFO(this->get_logger(), "Vertical Step: %f", vertical_step);
     }
     if (forward_step != 0.0f || lateral_step != 0.0f)
     {
+      // calculate needed rotation:
+      Eigen::Vector2f relativeTarget = TransformUtil::rotate2D(Eigen::Vector2f(forward_step, lateral_step), _currentPostion[3]);
+
+      _targetPostion = _targetPostion + Eigen::Vector4f(relativeTarget[0], relativeTarget[1], 0.0f, 0.0f);
+      RCLCPP_DEBUG(this->get_logger(), "_targetPostion is (%s)", getStringFromVector(_targetPostion).c_str());
       RCLCPP_INFO(this->get_logger(), "Forward Step: %f", forward_step);
       RCLCPP_INFO(this->get_logger(), "Lateral Step: %f", lateral_step);
-
-      // calculate needed rotation:
-      Eigen::Vector2f relativeTarget = TransformUtil::rotate2D(Eigen::Vector2f(forward_step, lateral_step),angular_step);
-
-      _targetPostion = _currentPostion + Eigen::Vector4f(relativeTarget[0], relativeTarget[1], 0.0f, 0.0f);
-
-
-
     }
     if (angular_step != 0.0f)
     {
       float targetHeading = std::max(std::min(angular_step, maxHeading), minHeading);
-      _targetPostion = _currentPostion + Eigen::Vector4f(0.0f, 0.0f, 0.0f, targetHeading);
+      _targetPostion = _targetPostion + Eigen::Vector4f(0.0f, 0.0f, 0.0f, targetHeading);
+      RCLCPP_DEBUG(this->get_logger(), "_targetPostion is (%s)", getStringFromVector(_targetPostion).c_str());
       RCLCPP_INFO(this->get_logger(), "Angular Step: %f", angular_step);
     }
 }
@@ -170,20 +166,15 @@ void Px4CommandHandlerNode::positionCallback(px4_msgs::msg::VehicleLocalPosition
 
   float yaw_angle = local_position_msg.heading;
 
-  _targetPostion = Eigen::Vector4f(enu_coordinates[0], enu_coordinates[1], enu_coordinates[2], local_position_msg.heading);
-
+  _currentPostion = Eigen::Vector4f(enu_coordinates[0], enu_coordinates[1], enu_coordinates[2], local_position_msg.heading);
 }
 
-char* Px4CommandHandlerNode::getStringFromVector(const Eigen::Vector3f& vector)
+template<typename Derived>
+std::string Px4CommandHandlerNode::getStringFromVector(const Eigen::MatrixBase<Derived>& vector)
 {
     std::stringstream ss;
     ss << vector.transpose();
-    
-    std::string str = ss.str();
-    char* result = new char[str.size() + 1]; // +1 for the null terminator
-    std::strcpy(result, str.c_str());
-    
-    return result;
+    return ss.str();
 }
 
 void Px4CommandHandlerNode::publishSetpointConfig(bool automatic)
