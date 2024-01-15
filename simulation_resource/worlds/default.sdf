@@ -147,5 +147,41 @@
         <falloff>0</falloff>
       </spot>
     </light>
+
+    <include>
+      <uri>../models/cylinder_model.sdf</uri>
+      <!-- Specify a different unique name for each instance -->
+      <name>cylinder_1</name>
+      <pose>1 2 1 0 0 0</pose>
+    </include>
+
+    <include>
+      <uri>../models/cylinder_model.sdf</uri>
+      <!-- Specify a different unique name for each instance -->
+      <name>cylinder_2</name>
+      <pose>-2 -3 1 0 0 0</pose>
+    </include>
+
+    <include>
+      <uri>../models/cylinder_model.sdf</uri>
+      <!-- Specify a different unique name for each instance -->
+      <name>cylinder_3</name>
+      <pose>-2 -3 1 0 0 0</pose>
+    </include>
+
+    <include>
+      <uri>../models/cylinder_model.sdf</uri>
+      <!-- Specify a different unique name for each instance -->
+      <name>cylinder_4</name>
+      <pose>-1 2 1 0 0 0</pose>
+    </include>
+
+    <include>
+      <uri>../models/cylinder_model.sdf</uri>
+      <!-- Specify a different unique name for each instance -->
+      <name>cylinder_5</name>
+      <pose>4 3 7 0 0 0</pose>
+    </include>
+
   </world>
 </sdf>

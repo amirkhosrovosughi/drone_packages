@@ -1,23 +1,26 @@
 <sdf version='1.9'>
-  <model name='cylinder_model'>
+  <model name='__MODEL_NAME__'>
     <link name='cylinder_link'>
       <collision name='collision'>
         <geometry>
           <cylinder>
-            <radius>1.0</radius>
-            <length>2.0</length>
+            <radius>0.25</radius>
+            <length>0.50</length>
           </cylinder>
         </geometry>
       </collision>
       <visual name='visual'>
         <geometry>
           <cylinder>
-            <radius>1.0</radius>
-            <length>2.0</length>
+            <radius>0.25</radius>
+            <length>0.5</length>
           </cylinder>
         </geometry>
         <material>
-          <!-- Add your material properties here -->
+          <ambient>0.8 0.1 0.1 1</ambient>
+          <diffuse>0.8 0.1 0.1 1</diffuse>
+          <specular>0.8 0.1 0.1 1</specular>
+          <emissive>0.1 0.1 0.1 1</emissive>
         </material>
       </visual>
     </link>
