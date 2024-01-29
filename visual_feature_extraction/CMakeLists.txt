@@ -5,6 +5,12 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+option(DEBUG_FEATURE "Enable debug features" ON)
+
+if(DEBUG_FEATURE)
+    add_compile_definitions(DEBUG_FEATURE)
+endif()
+
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -18,6 +24,7 @@ include_directories(include/${PROJECT_NAME})
 set(SOURCES
   src/visual_feature_extraction.cpp
   src/visual_feature_extraction_node.cpp
+  src/feature_extract_classic.cpp
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES})

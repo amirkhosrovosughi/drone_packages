@@ -11,6 +11,13 @@ VisualFeatureExtraction::VisualFeatureExtraction()
 
   // Initialize CvBridge
   _cvPtr = std::make_shared<cv_bridge::CvImage>();
+
+// Decide which FeatureExtract child to use based on CMAKE flags
+#ifndef DEEP_DETECTION
+  _featureExtractor = std::make_unique<FeatureExtractClassic>();
+#else
+  _featureExtractor = std::make_unique<FeatureExtractDeep>();  
+#endif
 }
 
 void VisualFeatureExtraction::listenerCallback(const sensor_msgs::msg::Image::SharedPtr msg)
@@ -25,9 +32,7 @@ void VisualFeatureExtraction::listenerCallback(const sensor_msgs::msg::Image::Sh
   // Object Detection (Replace with your own tool)
   // Placeholder: Replace this block with your feature detection logic
   // Example: cv::Mat detectedImage = your_feature_detection_function(_currentFrame);
-  cv::Mat detectedImage = _currentFrame;
+  std::vector<cv::Point> detectedCoordinates = _featureExtractor->extract(_currentFrame);
 
-  // Show Results
-  cv::imshow("Detected Frame", detectedImage);
-  cv::waitKey(1);
+  // publish the points
 }
