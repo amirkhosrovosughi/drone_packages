@@ -1,6 +1,8 @@
 #ifndef FEATURE_EXTRACT_CLASSIC_HPP
 #define FEATURE_EXTRACT_CLASSIC_HPP
 
+#include "rclcpp/rclcpp.hpp"
+
 #include "feature_extract.hpp"
 
 class FeatureExtractClassic : public FeatureExtract {

@@ -8,6 +8,8 @@ VisualFeatureExtraction::VisualFeatureExtraction()
   // Create the subscriber
   _subscription = create_subscription<sensor_msgs::msg::Image>(
     "camera", 10, std::bind(&VisualFeatureExtraction::listenerCallback, this, std::placeholders::_1));
+  // create publisher
+  _featureCoordinatePublisher = this->create_publisher<drone_msgs::msg::DetectedFeatureList>("/featureDetection/coordinate", 10);
 
   // Initialize CvBridge
   _cvPtr = std::make_shared<cv_bridge::CvImage>();
@@ -23,7 +25,7 @@ VisualFeatureExtraction::VisualFeatureExtraction()
 void VisualFeatureExtraction::listenerCallback(const sensor_msgs::msg::Image::SharedPtr msg)
 {
   // Display the message on the console
-  RCLCPP_INFO(get_logger(), "Receiving video frame");
+  RCLCPP_INFO(get_logger(), "Receiving video frame ");
 
   // Convert ROS Image message to OpenCV image
   _cvPtr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
@@ -31,8 +33,18 @@ void VisualFeatureExtraction::listenerCallback(const sensor_msgs::msg::Image::Sh
 
   // Object Detection (Replace with your own tool)
   // Placeholder: Replace this block with your feature detection logic
-  // Example: cv::Mat detectedImage = your_feature_detection_function(_currentFrame);
   std::vector<cv::Point> detectedCoordinates = _featureExtractor->extract(_currentFrame);
 
-  // publish the points
+  auto featureList = drone_msgs::msg::DetectedFeatureList();
+
+  for (const auto &point : detectedCoordinates) {
+        drone_msgs::msg::DetectedFeature feature;
+        feature.x = point.x;
+        feature.y = point.y;
+        feature.depth= -1;
+        featureList.features.push_back(feature);
+    }
+
+    // Publish the feature
+    _featureCoordinatePublisher->publish(std::move(featureList));
 }

@@ -8,6 +8,8 @@ find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/DroneDirectionCommand.msg"
+  "msg/DetectedFeature.msg"
+  "msg/DetectedFeatureList.msg"
   "srv/DroneMode.srv"
 )
 

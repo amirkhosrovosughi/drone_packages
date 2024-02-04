@@ -17,6 +17,7 @@ find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED)
+find_package(drone_msgs REQUIRED)
 
 
 include_directories(include/${PROJECT_NAME})
@@ -41,7 +42,8 @@ ament_target_dependencies(${PROJECT_NAME}
   geometry_msgs
   sensor_msgs
   cv_bridge
-  OpenCV)
+  OpenCV
+  drone_msgs)
 
 # Install
 install(TARGETS ${PROJECT_NAME}

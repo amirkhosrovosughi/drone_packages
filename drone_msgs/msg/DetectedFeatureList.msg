@@ -1,0 +1,2 @@
+# DetectedFeatureList.msg
+DetectedFeature[] features

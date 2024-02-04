@@ -8,6 +8,8 @@
 
 #include "feature_extract.hpp"
 #include "feature_extract_classic.hpp"
+#include <drone_msgs/msg/detected_feature.hpp>
+#include <drone_msgs/msg/detected_feature_list.hpp>
 
 class VisualFeatureExtraction : public rclcpp::Node {
 public:
@@ -15,6 +17,7 @@ public:
 
 private:
   void listenerCallback(const sensor_msgs::msg::Image::SharedPtr msg);
+  rclcpp::Publisher<drone_msgs::msg::DetectedFeatureList>::SharedPtr _featureCoordinatePublisher;
 
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr _subscription;
   cv_bridge::CvImagePtr _cvPtr;
