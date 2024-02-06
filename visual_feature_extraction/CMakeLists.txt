@@ -18,6 +18,7 @@ find_package(sensor_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(drone_msgs REQUIRED)
+find_package(message_filters REQUIRED)
 
 
 include_directories(include/${PROJECT_NAME})
@@ -43,7 +44,8 @@ ament_target_dependencies(${PROJECT_NAME}
   sensor_msgs
   cv_bridge
   OpenCV
-  drone_msgs)
+  drone_msgs
+  message_filters)
 
 # Install
 install(TARGETS ${PROJECT_NAME}

@@ -2,7 +2,7 @@
 
 static const cv::Scalar COLOR_FILTER_LOWER_LIMIT(0, 100, 20);
 static const cv::Scalar COLOR_FILTER_UPPER_LIMIT(10, 255, 255);
-static double AREA_LIMIT = 20.0;
+static double AREA_LIMIT = 100.0;
 
 /**
  * @brief Constructor for FeatureExtractClassic.
@@ -25,7 +25,7 @@ void FeatureExtractClassic::config(double threshold) {
  * @param inputImage The input image for feature extraction.
  * @return Vector of cv::Point representing detected object coordinates.
  */
-std::vector<cv::Point> FeatureExtractClassic::extract(const cv::Mat& inputImage)
+std::vector<std::vector<double>> FeatureExtractClassic::extract(const cv::Mat& inputImage)
 {
   RCLCPP_INFO(rclcpp::get_logger("visual_feature_extraction"), "Extracting feature based on color filteration ...");
   
@@ -34,7 +34,7 @@ std::vector<cv::Point> FeatureExtractClassic::extract(const cv::Mat& inputImage)
 
 #ifdef DEBUG_FEATURE
     _processedImage = inputImage.clone();
-    RCLCPP_INFO(rclcpp::get_logger("visual_feature_extraction"), "Debug feature is defined! ...");
+    RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "Debug feature is defined! ...");
 #else
   cv::imshow("Input Frame", inputImage);
 #endif
@@ -43,22 +43,21 @@ std::vector<cv::Point> FeatureExtractClassic::extract(const cv::Mat& inputImage)
     cv::cvtColor(inputImage, hsv, cv::COLOR_BGR2HSV); //AMIR, change for test
 
     // Extract circle coordinates
-    cv::Mat1b circleMask;
-    cv::inRange(hsv, COLOR_FILTER_LOWER_LIMIT, COLOR_FILTER_UPPER_LIMIT, circleMask);
+    cv::Mat1b colorMask;
+    cv::inRange(hsv, COLOR_FILTER_LOWER_LIMIT, COLOR_FILTER_UPPER_LIMIT, colorMask);
 
 #ifdef DEBUG_FEATURE
-    cv::imshow("Color Filtered Image", circleMask);
+    cv::imshow("Color Filtered Image", colorMask);
 #endif
 
     std::vector<std::vector<cv::Point>> circleContours;
-    cv::findContours(circleMask, circleContours, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
+    cv::findContours(colorMask, circleContours, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
 
     RCLCPP_INFO(rclcpp::get_logger("visual_feature_extraction"), "Number of counter: %ld", circleContours.size());
+    RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "Width of colorMask: %d", colorMask.cols);
+    RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "Height of colorMask: %d", colorMask.rows);
 
-    std::vector<cv::Point> circleCoordinates = getContourCenter(circleContours);
-
-    std::vector<cv::Point> detectedCoordinates;
-    detectedCoordinates.insert(detectedCoordinates.end(), circleCoordinates.begin(), circleCoordinates.end());
+    std::vector<cv::Point> detectedCoordinates = getContourCenter(circleContours);
 
 #ifdef DEBUG_FEATURE
     for (const auto& c : circleContours)
@@ -83,10 +82,20 @@ std::vector<cv::Point> FeatureExtractClassic::extract(const cv::Mat& inputImage)
     cv::imshow("Detected Frame", _processedImage);
 #endif
 
+    double colorMaskWidth = colorMask.cols;
+    double colorMaskHeight = colorMask.rows;
+    std::vector<std::vector<double>> relativeCoordinate;
+    for (cv::Point point : detectedCoordinates)
+    {
+      std::vector<double> relativePoint;
+      relativePoint.push_back( point.x / colorMaskWidth - 0.5);
+      relativePoint.push_back( point.y / colorMaskHeight - 0.5);
+
+      relativeCoordinate.push_back(relativePoint);
+    }
     
     cv::waitKey(1);
-
-    return circleCoordinates;
+    return relativeCoordinate;
 }
 
 /**

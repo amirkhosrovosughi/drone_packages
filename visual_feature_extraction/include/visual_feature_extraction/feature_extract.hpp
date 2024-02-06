@@ -7,7 +7,7 @@ class FeatureExtract {
 public:
   virtual ~FeatureExtract() {}
 
-  virtual std::vector<cv::Point> extract(const cv::Mat& inputImage) = 0;
+  virtual std::vector<std::vector<double>> extract(const cv::Mat& inputImage) = 0;
   virtual void config(double threshold) = 0;
 
 protected:

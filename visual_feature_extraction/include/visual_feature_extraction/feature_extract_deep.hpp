@@ -8,7 +8,7 @@ public:
   FeatureExtractDeep();
   virtual ~FeatureExtractDeep();
 
-  virtual std::vector<cv::Point> extract(const cv::Mat& inputImage) override {}
+  virtual std::vector<std::vector<double>> extract(const cv::Mat& inputImage) override {}
   virtual void config(double threshold) override
   {
     std::vector<cv::Point> detectedCoordinates;
