@@ -44,6 +44,13 @@ def generate_launch_description():
             executable='visual_feature_extraction',
             name='visual_feature_extraction',
             output='screen'
-        )
+        ),
+
+        Node(
+            package='camera_info_publisher',
+            executable='camera_info_publisher',
+            name='camera_info_publisher_node',
+            output='screen',
+        ),
     ])
 

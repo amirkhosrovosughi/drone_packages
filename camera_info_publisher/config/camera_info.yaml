@@ -1,0 +1,20 @@
+# The values are comupted manually from https://app.gazebosim.org/RudisLaboratories/fuel/models/OakD-Lite
+
+header:
+  seq: 0
+  stamp:
+    sec: 0
+    nanosec: 0
+  frame_id: "camera_link"
+
+height: 480
+width: 848
+
+distortion_model: "plumb_bob"
+D: [0.0, 0.0, 0.0, 0.0, 0.0]
+
+K: [440.07, 0.0, 424.0, 0.0, 440.07, 240.0, 0.0, 0.0, 1.0]
+
+R: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+
+P: [440.07, 0.0, 424.0, 0.0, 0.0, 440.07, 240.0, 0.0, 0.0, 0.0, 1.0, 0.0]
