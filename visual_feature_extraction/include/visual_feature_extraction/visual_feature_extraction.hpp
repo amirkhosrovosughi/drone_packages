@@ -32,6 +32,7 @@ private:
   std::shared_ptr<message_filters::TimeSynchronizer<sensor_msgs::msg::Image, sensor_msgs::msg::Image>> cameraSync;
 
   cv_bridge::CvImagePtr _cvPtr;
+  cv_bridge::CvImageConstPtr _cvDepthPtr;
   cv::Mat _currentFrame;
   std::unique_ptr<FeatureExtract> _featureExtractor;
 };

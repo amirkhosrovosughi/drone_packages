@@ -36,13 +36,20 @@ VisualFeatureExtraction::VisualFeatureExtraction()
 
   size_t depthWidth = imageDepth->width;
   size_t depthHeight = imageDepth->height;
-  size_t depthStep = imageDepth->step;
 
   // Convert ROS Image message to OpenCV image
-  _cvPtr = cv_bridge::toCvCopy(imageColor, sensor_msgs::image_encodings::BGR8);
-  _currentFrame = _cvPtr->image;
+  try
+  {
+    _cvPtr = cv_bridge::toCvCopy(imageColor, sensor_msgs::image_encodings::BGR8);
+    _currentFrame = _cvPtr->image;
 
-  const float* image_data = reinterpret_cast<const float*>(imageDepth->data.data());
+    _cvDepthPtr = cv_bridge::toCvShare(imageDepth, sensor_msgs::image_encodings::TYPE_32FC1);
+    cv::Mat _depthFrame = _cvDepthPtr->image;
+  }
+  catch (cv_bridge::Exception& e)
+  {
+      RCLCPP_ERROR(get_logger(), "Error in cv conversion ");
+  }
 
   // Object Detection (Replace with your own tool)
   // Placeholder: Replace this block with your feature detection logic
@@ -61,8 +68,8 @@ VisualFeatureExtraction::VisualFeatureExtraction()
         u_int16_t depthPixelY = (point[1] + 0.5) * depthHeight;
         RCLCPP_DEBUG(get_logger(), "feature depth coordinate is: (%d,%d)", depthPixelX, depthPixelY);
 
-        size_t pixel_index = depthPixelY * depthStep + depthPixelX * (depthStep / depthWidth);
-        double depthValue = image_data[pixel_index];
+        float depthValue = _depthFrame.at<float>(depthPixelY, depthPixelX); 
+        RCLCPP_DEBUG(get_logger(), "depth is: (%f)",  depthValue);
 
         feature.depth= depthValue;
         featureList.features.push_back(feature);
@@ -70,4 +77,4 @@ VisualFeatureExtraction::VisualFeatureExtraction()
 
     // Publish the feature
     _featureCoordinatePublisher->publish(std::move(featureList));
-  }
+}
