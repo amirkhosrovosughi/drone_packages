@@ -13,6 +13,7 @@
 #include <drone_msgs/msg/detected_feature_list.hpp>
 #include <drone_msgs/msg/point_list.hpp>
 #include "common_utilities/transform_util.hpp"
+#include <px4_msgs/msg/vehicle_odometry.hpp>
 
 class Feature2DTo3DTransfer : public rclcpp::Node {
   typedef Eigen::Matrix<double, 3, 4> Matrix3x4;
@@ -28,10 +29,12 @@ private:
   void coordinate2DCallback(const drone_msgs::msg::DetectedFeatureList cooerdinate2DList);
   void cameraInfoCallback(const sensor_msgs::msg::CameraInfo cameraInfo);
   void updateTransform();
+  void droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odometry);
 
 private:
   rclcpp::Subscription<drone_msgs::msg::DetectedFeatureList>::SharedPtr _featureCoordinateSubscriber;
   rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr _cameraInfoSubscriber;
+  rclcpp::Subscription<px4_msgs::msg::VehicleOdometry>::SharedPtr _droneOdometrySubscriber;
 
   rclcpp::Publisher<drone_msgs::msg::PointList>::SharedPtr _feature3DcoordinateCameraPublisher;
   rclcpp::Publisher<drone_msgs::msg::PointList>::SharedPtr _feature3DcoordinateBasePublisher;
@@ -42,6 +45,9 @@ private:
 
   Matrix4x3 _kInverse;
   Matrix4x4 _base2Camera;
+  Matrix4x4 _droneOdom;
+  float _droneHeight;
+  rclcpp::Time _odomTimeStamp;
   bool _cameraInfoLoaded = false;
   bool _cameraTransformLoaded = false;
 };

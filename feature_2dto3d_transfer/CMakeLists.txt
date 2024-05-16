@@ -15,6 +15,7 @@ find_package(rclcpp REQUIRED)
 find_package(common_utilities REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(px4_msgs REQUIRED)
 
 include_directories(include/${PROJECT_NAME})
 
@@ -38,7 +39,8 @@ ament_target_dependencies(${PROJECT_NAME}
   sensor_msgs
   common_utilities
   tf2
-  tf2_ros)
+  tf2_ros
+  px4_msgs)
 
 # Install
 install(TARGETS ${PROJECT_NAME}

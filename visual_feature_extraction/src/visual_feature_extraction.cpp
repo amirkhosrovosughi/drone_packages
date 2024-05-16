@@ -44,7 +44,7 @@ VisualFeatureExtraction::VisualFeatureExtraction()
     _currentFrame = _cvPtr->image;
 
     _cvDepthPtr = cv_bridge::toCvShare(imageDepth, sensor_msgs::image_encodings::TYPE_32FC1);
-    cv::Mat _depthFrame = _cvDepthPtr->image;
+    _depthFrame = _cvDepthPtr->image;
   }
   catch (cv_bridge::Exception& e)
   {
@@ -76,5 +76,7 @@ VisualFeatureExtraction::VisualFeatureExtraction()
     }
 
     // Publish the feature
+    rclcpp::Time now = this->get_clock()->now();
+    featureList.header.stamp = now;
     _featureCoordinatePublisher->publish(std::move(featureList));
 }

@@ -34,6 +34,7 @@ private:
   cv_bridge::CvImagePtr _cvPtr;
   cv_bridge::CvImageConstPtr _cvDepthPtr;
   cv::Mat _currentFrame;
+  cv::Mat _depthFrame;
   std::unique_ptr<FeatureExtract> _featureExtractor;
 };
 

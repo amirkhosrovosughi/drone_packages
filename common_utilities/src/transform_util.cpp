@@ -57,4 +57,50 @@ Eigen::Vector2f TransformUtil::rotate2D(const Eigen::Vector2f& coordinate, const
     return rotationMatrix * coordinate;
 }
 
+Eigen::Matrix4f TransformUtil::rotateAround(const Eigen::Matrix4f& matrix, const float value, const Orientation direction)
+{
+    Eigen::Matrix3f rotationMatrix;
+    switch (direction) {
+        case PITCH:
+            rotationMatrix = createRotationMatrix(value, 0.0, 0.0);
+            break;
+        case ROLL:
+            rotationMatrix = createRotationMatrix(0.0, value, 0.0);
+            break;
+        case YAW:
+            rotationMatrix = createRotationMatrix(0.0, 0.0, value);
+            break;
+        default:
+            rotationMatrix = createRotationMatrix(0.0, 0.0, 0.0);
+            break;
+    }
+    Eigen::Matrix4f transitionMatrix;
+    transitionMatrix.block<3, 3>(0, 0) = rotationMatrix;
+    transitionMatrix(3,3) = 1;
+    return matrix * transitionMatrix;
+}
+
+Eigen::Matrix3f TransformUtil::createRotationMatrix(double pitch, double roll, double yaw)
+{
+    Eigen::AngleAxisd rotation_pitch(pitch, Eigen::Vector3d::UnitX());
+    Eigen::AngleAxisd rotation_roll(roll, Eigen::Vector3d::UnitY());
+    Eigen::AngleAxisd rotation_yaw(yaw, Eigen::Vector3d::UnitZ());
+
+    Eigen::Quaterniond quaternion = rotation_yaw * rotation_roll * rotation_pitch;
+    Eigen::Matrix3d rotation_matrix = quaternion.matrix();
+    Eigen::Matrix3f result = rotation_matrix.cast<float>();;
+
+    return result;
+}
+
+Eigen::Matrix4f TransformUtil::nedToEnu(const Eigen::Matrix4f& ned_matrix)
+{
+    return nedToEnuTransform()*ned_matrix;
+}
+
+Eigen::Matrix4f TransformUtil::enuToNed(const Eigen::Matrix4f& enu_matrix)
+{
+    return enuToNedTransform()*enu_matrix;
+}
+
 
