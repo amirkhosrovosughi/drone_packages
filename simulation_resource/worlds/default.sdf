@@ -183,5 +183,12 @@
       <pose>4 3 7 0 0 0</pose>
     </include>
 
+    <include>
+      <uri>../models/cylinder_model.sdf</uri>
+      <!-- Specify a different unique name for each instance -->
+      <name>cylinder_6</name>
+      <pose>2.5 0 1 0 0 0</pose>
+    </include>
+
   </world>
 </sdf>

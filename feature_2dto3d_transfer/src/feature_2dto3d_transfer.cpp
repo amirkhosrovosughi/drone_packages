@@ -35,19 +35,29 @@ void Feature2DTo3DTransfer::coordinate2DCallback(const drone_msgs::msg::Detected
 {
   if (_cameraInfoLoaded)
   {
+    RCLCPP_INFO(this->get_logger(), "get a new 2D coordinates messages");
     rclcpp::Time sampleTime = rclcpp::Clock().now();
 
     drone_msgs::msg::PointList pointListCamera;
     drone_msgs::msg::PointList pointListBase;
     for (drone_msgs::msg::DetectedFeature cooerdinate2D : cooerdinate2DList.features)
     {
+      RCLCPP_DEBUG(this->get_logger(), "2D coordinate: (x,y) = (%f,%f)", cooerdinate2D.x , cooerdinate2D.y);
       float estimatedDepth = 0.0;
 
-      Vector3 v2{cooerdinate2D.x, cooerdinate2D.y, 1};
-      Vector4 v3 =  _kInverse*v2;
-      Vector3 unitV = v3.head<3>().normalized();
+      float pixelX = (cooerdinate2D.x + 0.5) * _frameWidth;
+      float pixelY = (cooerdinate2D.y + 0.5) * _frameHeight;
 
-      RCLCPP_DEBUG(this->get_logger(), "depth is %f", cooerdinate2D.depth);
+      float normalizedX = (pixelX - _frameCx) / _frameFx;
+      float normalizedY = (pixelY - _frameCy) / _frameFy;
+
+      Vector3 pixelDirection{normalizedX, normalizedY, 1};
+      RCLCPP_DEBUG(this->get_logger(), " pixelDirection (%f,%f,%f)", pixelDirection[0], pixelDirection[1], pixelDirection[2]);
+
+      Vector3 unitVector = pixelDirection.normalized();
+      RCLCPP_DEBUG(this->get_logger(), " unitVector (%f,%f,%f)", unitVector[0], unitVector[1], unitVector[2]);
+
+      RCLCPP_DEBUG(this->get_logger(), "stereo camera depth is %f", cooerdinate2D.depth);
       if (cooerdinate2D.depth <= 0.0 || cooerdinate2D.depth > 100.0)
       {
         
@@ -67,11 +77,13 @@ void Feature2DTo3DTransfer::coordinate2DCallback(const drone_msgs::msg::Detected
 
           RCLCPP_DEBUG(this->get_logger(), "drone  height is: %f", _droneHeight);
           RCLCPP_DEBUG(this->get_logger(), "camera pitch is: %f", cameraPitch);
-          if (cameraPitch >= 0)
+
+          if (std::sin(cameraPitch) <= 0) //igonre if camera heading ovre horizon
           {
+            RCLCPP_INFO(this->get_logger(), "Skipped feature since camera is heading sky");
             continue;
           }
-          estimatedDepth = _droneHeight / std::sin(-cameraPitch);
+          estimatedDepth = -1.0*_droneHeight / std::sin(cameraPitch);
           RCLCPP_DEBUG(this->get_logger(), "estimatedDepth is: %f", estimatedDepth);
 
         }
@@ -84,9 +96,10 @@ void Feature2DTo3DTransfer::coordinate2DCallback(const drone_msgs::msg::Detected
       else
       {
         estimatedDepth = cooerdinate2D.depth;
+        RCLCPP_DEBUG(this->get_logger(), "using camera depth %f", estimatedDepth);
       }
     
-      Vector3 camera2featrue = unitV * estimatedDepth;
+      Vector3 camera2featrue = unitVector * estimatedDepth;
 
       geometry_msgs::msg::Point point;
       point.x = camera2featrue[0];
@@ -96,8 +109,10 @@ void Feature2DTo3DTransfer::coordinate2DCallback(const drone_msgs::msg::Detected
 
       if (_cameraTransformLoaded)
       {
-        Vector4 camera2featrue4 = camera2featrue.homogeneous();
-        Vector4 base2feature = _base2Camera*camera2featrue4;
+        Vector4 cameraFeatureHomogeneous = camera2featrue.homogeneous();
+        RCLCPP_DEBUG(this->get_logger(), " cameraFeatureHomogeneous(%f,%f,%f,%f)", cameraFeatureHomogeneous[0], cameraFeatureHomogeneous[1], cameraFeatureHomogeneous[2], cameraFeatureHomogeneous[3]);
+        Vector4 base2feature = _base2Camera*cameraFeatureHomogeneous;
+        RCLCPP_INFO(this->get_logger(), " base2feature (%f,%f,%f,%f)", base2feature[0], base2feature[1], base2feature[2], base2feature[3]);
         geometry_msgs::msg::Point pointB;
         pointB.x = base2feature[0];
         pointB.y = base2feature[1];
@@ -119,12 +134,13 @@ void Feature2DTo3DTransfer::cameraInfoCallback(const sensor_msgs::msg::CameraInf
 {
   if (!_cameraInfoLoaded)
   {
-    Matrix3x4 K;
-    K << cameraInfo.k[0], cameraInfo.k[1], cameraInfo.k[2], cameraInfo.k[3],
-                cameraInfo.k[4], cameraInfo.k[5], cameraInfo.k[6], cameraInfo.k[7],
-                cameraInfo.k[8], cameraInfo.k[9], cameraInfo.k[10], cameraInfo.k[11];
+    _frameWidth = cameraInfo.width;
+    _frameHeight = cameraInfo.height;
+    _frameCx = cameraInfo.k[2];
+    _frameCy = cameraInfo.k[5];
+    _frameFx = cameraInfo.k[0];
+    _frameFy = cameraInfo.k[4];
 
-    _kInverse = K.transpose() * (K * K.transpose()).inverse();
     _cameraInfoLoaded = true;
     RCLCPP_INFO(this->get_logger(), "Camera information is loaded successfully");
   }
@@ -137,7 +153,7 @@ void Feature2DTo3DTransfer::updateTransform()
     geometry_msgs::msg::TransformStamped transformStamped;
     try
     {
-      geometry_msgs::msg::TransformStamped transform = _tfBuffer->lookupTransform(TO_FRAME, FROM_FRAME, tf2::TimePointZero);
+      geometry_msgs::msg::TransformStamped transform = _tfBuffer->lookupTransform(FROM_FRAME, TO_FRAME, tf2::TimePointZero);
       // Extract translation and rotation from the transform message
       Eigen::Vector3d translation(transform.transform.translation.x,
                                   transform.transform.translation.y,
@@ -151,6 +167,13 @@ void Feature2DTo3DTransfer::updateTransform()
       Eigen::Matrix3d rotation_matrix = rotation.toRotationMatrix();
       _base2Camera.block<3, 3>(0, 0) = rotation_matrix;
       _base2Camera.block<3, 1>(0, 3) = translation;
+
+      // Adjust to consider optic frame
+      Eigen::Matrix4d optical_to_body_transform = Eigen::Matrix4d::Identity();
+      optical_to_body_transform.block<3, 3>(0, 0) << 0, 0, 1,
+                                                      -1, 0, 0,
+                                                      0, -1, 0;
+      _base2Camera =  _base2Camera * optical_to_body_transform;
 
       _cameraTransformLoaded = true;
       RCLCPP_INFO(this->get_logger(), "Camera relative coordinate in loaded successfully");

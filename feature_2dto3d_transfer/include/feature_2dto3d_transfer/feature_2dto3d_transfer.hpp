@@ -43,7 +43,12 @@ private:
   std::shared_ptr<tf2_ros::TransformListener> _tflistener;
   rclcpp::TimerBase::SharedPtr _timer;
 
-  Matrix4x3 _kInverse;
+  float _frameWidth;
+  float _frameHeight;
+  float _frameCx;
+  float _frameCy; 
+  float _frameFx;
+  float _frameFy;
   Matrix4x4 _base2Camera;
   Matrix4x4 _droneOdom;
   float _droneHeight;
