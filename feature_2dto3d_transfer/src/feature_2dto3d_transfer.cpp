@@ -63,7 +63,7 @@ void Feature2DTo3DTransfer::coordinate2DCallback(const drone_msgs::msg::Detected
         
         // camera depth info is not valid, so try to use drone heigh and attitude to estimate depth, this comes 
         // with assumption that ground surface is flat
-        // TODO: later explore other sort of depth sensor
+        // TODO: later explore other sort of depth sensor or send 2D feature position and let SLAM handle it
 
         // check time stamp load to see if it is recent enough
         rclcpp::Duration timeLag = sampleTime - _odomTimeStamp;
@@ -71,19 +71,31 @@ void Feature2DTo3DTransfer::coordinate2DCallback(const drone_msgs::msg::Detected
         { 
           Matrix4x4 cameraPose = _droneOdom * _base2Camera;
 
-          Eigen::Matrix3f rotationMatrix = cameraPose.block<3, 3>(0, 0).cast<float>();
-          Eigen::Vector3f euler_angles = rotationMatrix.eulerAngles(0, 1, 2); // ZYX order
-          float cameraPitch = euler_angles[1];
+          Eigen::Matrix3f cameraMatrix = cameraPose.block<3, 3>(0, 0).cast<float>();
+          Eigen::Vector3f euler_angles_0 = cameraMatrix.eulerAngles(0, 1, 2);
+          float cameraPitch = euler_angles_0[1];
+          RCLCPP_DEBUG(this->get_logger(), "camera pitch_0 is: %f, sin: %f", cameraPitch, std::sin(cameraPitch));
+
+          // 
+          float relativePitch = -normalizedX / std::sqrt(1 + std::pow(normalizedX, 2));
+          float relativeRoll = normalizedY / std::sqrt(1 + std::pow(normalizedY, 2));
+          RCLCPP_DEBUG(this->get_logger(), "(relativePitch, relativeRoll) = (%f,%f)", relativePitch, relativeRoll);
+          Eigen::Matrix3f pixelRotation = TransformUtil::createRotationMatrix(relativePitch, relativeRoll, 0.0);
+
+          Eigen::Matrix3f featureRotation = cameraMatrix * pixelRotation;
+
+          Eigen::Vector3f euler_angles = featureRotation.eulerAngles(0, 1, 2); // ZYX order
+          float featurePitch = euler_angles[1];
 
           RCLCPP_DEBUG(this->get_logger(), "drone  height is: %f", _droneHeight);
-          RCLCPP_DEBUG(this->get_logger(), "camera pitch is: %f", cameraPitch);
+          RCLCPP_DEBUG(this->get_logger(), "feature pitch is: %f", featurePitch);
 
-          if (std::sin(cameraPitch) <= 0) //igonre if camera heading ovre horizon
+          if (std::sin(featurePitch) <= 0) //igonre if camera is heading over horizon
           {
             RCLCPP_INFO(this->get_logger(), "Skipped feature since camera is heading sky");
             continue;
           }
-          estimatedDepth = -1.0*_droneHeight / std::sin(cameraPitch);
+          estimatedDepth = -1.0*_droneHeight / std::sin(featurePitch);
           RCLCPP_DEBUG(this->get_logger(), "estimatedDepth is: %f", estimatedDepth);
 
         }
@@ -110,9 +122,9 @@ void Feature2DTo3DTransfer::coordinate2DCallback(const drone_msgs::msg::Detected
       if (_cameraTransformLoaded)
       {
         Vector4 cameraFeatureHomogeneous = camera2featrue.homogeneous();
-        RCLCPP_DEBUG(this->get_logger(), " cameraFeatureHomogeneous(%f,%f,%f,%f)", cameraFeatureHomogeneous[0], cameraFeatureHomogeneous[1], cameraFeatureHomogeneous[2], cameraFeatureHomogeneous[3]);
+        RCLCPP_DEBUG(this->get_logger(), " cameraFeatureHomogeneous(%f,%f,%f)", cameraFeatureHomogeneous[0], cameraFeatureHomogeneous[1], cameraFeatureHomogeneous[2]);
         Vector4 base2feature = _base2Camera*cameraFeatureHomogeneous;
-        RCLCPP_INFO(this->get_logger(), " base2feature (%f,%f,%f,%f)", base2feature[0], base2feature[1], base2feature[2], base2feature[3]);
+        RCLCPP_INFO(this->get_logger(), " base2feature (%f,%f,%f)", base2feature[0], base2feature[1], base2feature[2]);
         geometry_msgs::msg::Point pointB;
         pointB.x = base2feature[0];
         pointB.y = base2feature[1];
