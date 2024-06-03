@@ -5,7 +5,7 @@ ExtendedKalmanFilter::ExtendedKalmanFilter() {}
 
 void ExtendedKalmanFilter::prediction() {
     std::cout << "Extended Kalman Filter prediction step" << std::endl;
-    if (callback_) callback_();
+    if (_callback) _callback();
 }
 
 void ExtendedKalmanFilter::correction() {
@@ -13,5 +13,5 @@ void ExtendedKalmanFilter::correction() {
 }
 
 void ExtendedKalmanFilter::registerCallback(std::function<void()> callback) {
-    callback_ = callback;
+    _callback = callback;
 }

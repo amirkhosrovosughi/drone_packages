@@ -11,7 +11,7 @@ public:
     void registerCallback(std::function<void()> callback) override;
 
 private:
-    std::function<void()> callback_;
+    std::function<void()> _callback;
 };
 
 #endif  // SLAM__UNSCENTED_KALMAN_FILTER_HPP_

@@ -5,7 +5,7 @@ UnscentedKalmanFilter::UnscentedKalmanFilter() {}
 
 void UnscentedKalmanFilter::prediction() {
     std::cout << "Unscented Kalman Filter prediction step" << std::endl;
-    if (callback_) callback_();
+    if (_callback) _callback();
 }
 
 void UnscentedKalmanFilter::correction() {
@@ -13,5 +13,5 @@ void UnscentedKalmanFilter::correction() {
 }
 
 void UnscentedKalmanFilter::registerCallback(std::function<void()> callback) {
-    callback_ = callback;
+    _callback = callback;
 }

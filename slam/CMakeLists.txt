@@ -33,7 +33,8 @@ set(SOURCES
   src/filter/extended_kalman_filter.cpp
   src/filter/unscented_kalman_filter.cpp
   src/filter/fast_slam.cpp
-
+  src/association/joint_compatibility_association.cpp
+  src/association/nearest_neighbor_association.cpp
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES})

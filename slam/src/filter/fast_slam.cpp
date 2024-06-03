@@ -5,7 +5,7 @@ FastSlam::FastSlam() {}
 
 void FastSlam::prediction() {
     std::cout << "FastSlam prediction step" << std::endl;
-    if (callback_) callback_();
+    if (_callback) _callback();
 }
 
 void FastSlam::correction() {
@@ -13,5 +13,5 @@ void FastSlam::correction() {
 }
 
 void FastSlam::registerCallback(std::function<void()> callback) {
-    callback_ = callback;
+    _callback = callback;
 }
