@@ -5,9 +5,9 @@
 
 ExtendedKalmanFilter::ExtendedKalmanFilter() {}
 
-void ExtendedKalmanFilter::prediction()
+void ExtendedKalmanFilter::prediction(const Velocity& velocity)
 {
-    std::future<void> result = std::async(std::launch::async, &ExtendedKalmanFilter::processPrediction, this); // , value  
+    std::future<void> result = std::async(std::launch::async, &ExtendedKalmanFilter::processPrediction, this, velocity); // , value  
 }
 
 void ExtendedKalmanFilter::correction(const Measurements& meas)
@@ -20,7 +20,7 @@ void ExtendedKalmanFilter::registerCallback(std::function<void(const Map& map)> 
     _callback = callback;
 }
 
-void ExtendedKalmanFilter::processPrediction()
+void ExtendedKalmanFilter::processPrediction(const Velocity& velocity)
 {
     std::lock_guard<std::mutex> lock(_mutex);
     std::cout << "Extended Kalman Filter prediction step" << std::endl;

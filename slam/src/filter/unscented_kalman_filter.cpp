@@ -3,7 +3,7 @@
 
 UnscentedKalmanFilter::UnscentedKalmanFilter() {}
 
-void UnscentedKalmanFilter::prediction() {
+void UnscentedKalmanFilter::prediction(const Velocity& velocity) {
     std::cout << "Unscented Kalman Filter prediction step" << std::endl;
     Map map;
     if (_callback) _callback(map);

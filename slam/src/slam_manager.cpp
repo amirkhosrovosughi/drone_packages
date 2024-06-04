@@ -78,7 +78,18 @@ void SlamManager::droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odo
 {
     std::cout << "---- receive odometry ----" << std::endl;
     // collect need info from odometry and send to prediction
-    _filter->prediction();
+    
+    // NOTE: with assumption that no rotation is needed, to be verified (making sure frame orientation/order match that of features)
+    Velocity velocity;
+    velocity.linear.x = odometry.velocity[0];
+    velocity.linear.y = odometry.velocity[1];
+    velocity.linear.z = odometry.velocity[2];
+
+    velocity.angular.roll = odometry.angular_velocity[0];
+    velocity.angular.pitch = odometry.angular_velocity[1];
+    velocity.angular.yaw = odometry.angular_velocity[2];
+
+    _filter->prediction(velocity);
 }
 
 void SlamManager::featureDetectionCallback(const drone_msgs::msg::PointList features)

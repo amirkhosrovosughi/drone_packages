@@ -90,4 +90,28 @@ struct Map {
     }
 };
 
+struct LinearVelocity {
+    double x;
+    double y;
+    double z;
+
+    LinearVelocity(double x = 0.0, double y = 0.0, double z = 0.0) : x(x), y(y), z(z) {}
+};
+
+struct AngularVelicity {
+    double roll;
+    double pitch;
+    double yaw;
+
+    AngularVelicity(double roll = 0.0, double pitch = 0.0, double yaw = 0.0)
+        : roll(roll), pitch(pitch), yaw(yaw) {}
+};
+
+struct Velocity {
+    LinearVelocity linear;
+    AngularVelicity angular;
+
+    Velocity() {}
+};
+
 #endif // DEF_SLAM_HPP_

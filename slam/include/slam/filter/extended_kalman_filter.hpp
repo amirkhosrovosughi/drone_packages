@@ -10,12 +10,12 @@
 class ExtendedKalmanFilter : public KalmanFilter {
 public:
     ExtendedKalmanFilter();
-    void prediction() override;
+    void prediction(const Velocity& velocity) override;
     void correction(const Measurements& meas) override;
     void registerCallback(std::function<void(const Map& map)> callback) override;
 
 private:
-    void processPrediction();
+    void processPrediction(const Velocity& velocity);
     void processCorrection(const Measurements& meas);
 
 private:

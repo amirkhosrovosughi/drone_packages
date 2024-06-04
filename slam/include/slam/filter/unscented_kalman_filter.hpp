@@ -6,7 +6,7 @@
 class UnscentedKalmanFilter : public KalmanFilter {
 public:
     UnscentedKalmanFilter();
-    void prediction() override;
+    void prediction(const Velocity& velocity) override;
     void correction(const Measurements& meas) override;
     void registerCallback(std::function<void(const Map& map)> callback) override;
 
