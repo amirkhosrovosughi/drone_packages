@@ -5,16 +5,22 @@
 
 #include <functional>
 #include <iostream>
+#include <mutex>
 
 class ExtendedKalmanFilter : public KalmanFilter {
 public:
     ExtendedKalmanFilter();
     void prediction() override;
-    void correction() override;
-    void registerCallback(std::function<void()> callback) override;
+    void correction(const Measurements& meas) override;
+    void registerCallback(std::function<void(const Map& map)> callback) override;
 
 private:
-    std::function<void()> _callback;
+    void processPrediction();
+    void processCorrection(const Measurements& meas);
+
+private:
+    std::function<void(const Map& map)> _callback;
+    std::mutex _mutex;
 };
 
 #endif  // SLAM__EXTENDED_KALMAN_FILTER_HPP_

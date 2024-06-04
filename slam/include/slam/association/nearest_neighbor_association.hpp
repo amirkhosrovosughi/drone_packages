@@ -3,21 +3,24 @@
 
 #include "base_association.hpp"
 
+#include <mutex>
+
 class NearestNeighborAssociation : public BaseAssociation {
 public:
     NearestNeighborAssociation();
-    void onReceiveMeasurement() override;
-    void handleUpdate() override;
-    void registerCallback(std::function<void()> callback) override
+    void onReceiveMeasurement(const Measurements& meas) override;
+    void handleUpdate(const Measurements& meas) override;
+    void registerCallback(std::function<void(Measurements)> callback) override
     {
         _callback = callback;
     }
 
 private:
-    void processMeasurement() override;
+    void processMeasurement(const Measurements& meas) override;
 
 private:
-    std::function<void()> _callback;
+    std::function<void(Measurements)> _callback;
+    std::mutex _mutex;
 };
 
 #endif  // SLAM__NEAREST_NEIGHBOR_ASSOCIATION_HPP_

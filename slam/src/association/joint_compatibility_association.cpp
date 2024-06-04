@@ -5,17 +5,17 @@ JointCompatibilityAssociation::JointCompatibilityAssociation()
 {
 }
 
-void JointCompatibilityAssociation::onReceiveMeasurement() 
+void JointCompatibilityAssociation::onReceiveMeasurement(const Measurements& meas) 
 {
     std::cout << "onReceiveMeasurement" << std::endl;
 }
 
-void JointCompatibilityAssociation::handleUpdate()
+void JointCompatibilityAssociation::handleUpdate(const Measurements& meas)
 {
     std::cout << "handleUpdate" << std::endl;
 }
 
-void JointCompatibilityAssociation::processMeasurement()
+void JointCompatibilityAssociation::processMeasurement(const Measurements& meas)
 {
     std::cout << "processMeasurement" << std::endl;
 }

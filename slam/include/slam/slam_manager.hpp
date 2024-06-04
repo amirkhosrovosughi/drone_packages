@@ -4,6 +4,10 @@
 #include <rclcpp/rclcpp.hpp>
 #include <memory>
 
+// #include "common_utilities/transform_util.hpp"
+#include <drone_msgs/msg/point_list.hpp>
+#include <px4_msgs/msg/vehicle_odometry.hpp>
+
 #include "def_slam.hpp"
 
 #include "filter/base_filter.hpp"
@@ -27,8 +31,13 @@ private:
   void initialize();
   void filterCallback(const Map& map);
   void associationCallback(const Measurements& meas);
+  void droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odometry);
+  void featureDetectionCallback(const drone_msgs::msg::PointList features);
+  void publishMap(const Map& map);
 
 private:
+  rclcpp::Subscription<px4_msgs::msg::VehicleOdometry>::SharedPtr _droneOdometrySubscriber;
+  rclcpp::Subscription<drone_msgs::msg::PointList>::SharedPtr _feature3DcoordinatSubscriber;
   FilterPtr _filter;
   AssociationPtr _associantion;
 };

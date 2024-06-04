@@ -1,4 +1,5 @@
 #include "slam_manager.hpp"
+#include <mutex>
 
 SlamManager::SlamManager()
     : Node("slam_manager")
@@ -33,22 +34,22 @@ SlamManager::SlamManager()
 
 void SlamManager::initialize()
 {
-    // _filter->registerCallback([this]() {
-    //     // Assuming you have a way to obtain a Map object
-    //     Map map;
-    //     this->filterCallback(map);
-    // });
+    _filter->registerCallback([this](const Map& map) {
+        this->filterCallback(map);
+    });
 
-    // _associantion->registerCallback([this]() {
-    //     // Assuming you have a way to obtain a Map object
-    //     Meas meas;
-    //     this->associationCallback(map);
-    // });
+    _associantion->registerCallback([this](const Measurements& meas) {
+        this->associationCallback(meas);
+    });
 }
 
 void SlamManager::createSubscribers()
 {
-
+    auto qos_profile = rclcpp::QoS(rclcpp::KeepLast(1)).best_effort().transient_local();
+    _droneOdometrySubscriber = this->create_subscription<px4_msgs::msg::VehicleOdometry>(
+              "/fmu/out/vehicle_odometry", qos_profile, std::bind(&SlamManager::droneOdometryCallback, this, std::placeholders::_1));
+    _feature3DcoordinatSubscriber = this->create_subscription<drone_msgs::msg::PointList>(
+              "/feature/coordinate/baseLink", 10, std::bind(&SlamManager::featureDetectionCallback, this, std::placeholders::_1));
 }
 
 void SlamManager::createPublishers()
@@ -60,11 +61,40 @@ void SlamManager::filterCallback(const Map& map)
 {
     std::cout << "filterCallback called with map" << std::endl;
     // publish result
-    // notify association   
+    publishMap(map);
+    // notify association
+    Measurements meas = map.getFeatures();
+    _associantion->handleUpdate(meas);
 }
 
-void SlamManager::associationCallback(const Measurements& Meas)
+void SlamManager::associationCallback(const Measurements& meas)
 {
     std::cout << "associationCallback called with measurements" << std::endl; 
-    // send result to fllter  
+    // send result to fllter 
+    _filter->correction(meas);
+}
+
+void SlamManager::droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odometry)
+{
+    std::cout << "---- receive odometry ----" << std::endl;
+    // collect need info from odometry and send to prediction
+    _filter->prediction();
+}
+
+void SlamManager::featureDetectionCallback(const drone_msgs::msg::PointList features)
+{
+    std::cout << "---- receive feature ----" << std::endl;
+    Measurements meas;
+    meas.reserve(features.points.size());
+    for (auto point : features.points)
+    {
+        meas.emplace_back(1,Position(point.x, point.y, point.z));
+    }
+    //put it is a approperiae interal structure
+    _associantion->onReceiveMeasurement(meas);
+}
+
+void SlamManager::publishMap(const Map& map)
+{
+    //publish map
 }

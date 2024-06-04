@@ -9,7 +9,7 @@ struct Position {
     double y;
     double z;
 
-    Position(double x, double y, double z = 0.0) : x(x), y(y), z(z) {}
+    Position(double x = 0.0, double y = 0.0, double z = 0.0) : x(x), y(y), z(z) {}
 };
 
 // Structure for Orientation
@@ -27,6 +27,7 @@ struct Pose {
     Position position;
     Orientation orientation;
 
+    Pose(): position(Position()), orientation(Orientation()) {}
     Pose(Position position, Orientation orientation)
         : position(position), orientation(orientation) {}
 };
@@ -42,35 +43,6 @@ struct Measurement {
 using Measurements = std::vector<Measurement>;
 
 
-
-// Structure for RobotPose
-struct RobotPose {
-    Pose pose;
-    Orientation orientation;
-
-    RobotPose(const Pose& pose, const Orientation& orientation)
-        : pose(pose), orientation(orientation) {}
-};
-
-// Structure for RobotPose
-struct RobotVariance {
-    double xx;
-    double xy;
-    double yy; // for now, later see what we need to report outside
-
-    RobotVariance(double xx = 0.0, double xy = 0.0, double yy = 0.0)
-        : xx(xx), xy(xy), yy(yy) {}
-};
-
-// Structure for RobotPose
-struct RobotStatic {
-    RobotPose pose;
-    RobotVariance variance;
-
-    RobotStatic(const RobotPose& pose, const RobotVariance& variance)
-        : pose(pose), variance(variance) {}
-};
-
 // Structure for Variance2D
 struct Variance2D {
     double xx;
@@ -81,13 +53,23 @@ struct Variance2D {
         : xx(xx), xy(xy), yy(yy) {}
 };
 
+// Structure for RobotPose
+struct RobotStatic {
+    Pose pose;
+    Variance2D variance;
+
+    RobotStatic(const Pose& pose = Pose(), const Variance2D& variance = Variance2D())
+        : pose(pose), variance(variance) {}
+};
+
 // Structure for Feature
 struct Feature {
+    int id;
     Position position;
     Variance2D variance2D;
 
-    Feature(const Position& position, const Variance2D& variance2D)
-        : position(position), variance2D(variance2D) {}
+    Feature(const int id, const Position& position, const Variance2D& variance2D)
+        : id(id) ,position(position), variance2D(variance2D) {}
 };
 
 // Structure for Map
@@ -95,7 +77,17 @@ struct Map {
     RobotStatic robot;
     std::vector<Feature> features;
 
-    Map();
+    Map() {}
+    Measurements getFeatures() const
+    {
+        Measurements meas;
+        meas.reserve(features.size());
+        for (auto feature : features)
+        {
+            meas.emplace_back(feature.id, feature.position);
+        }
+        return meas;
+    }
 };
 
 #endif // DEF_SLAM_HPP_

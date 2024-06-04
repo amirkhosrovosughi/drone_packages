@@ -2,15 +2,16 @@
 #define SLAM__ASSOCIATION_HPP_
 
 #include <functional>
+#include "def_slam.hpp"
 
 class BaseAssociation {
 public:
     virtual ~BaseAssociation() = default;
-    virtual void onReceiveMeasurement() = 0;
-    virtual void handleUpdate() = 0;
-    virtual void registerCallback(std::function<void()> callback) = 0;
+    virtual void onReceiveMeasurement(const Measurements& meas) = 0;
+    virtual void handleUpdate(const Measurements& meas) = 0;
+    virtual void registerCallback(std::function<void(Measurements)> callback) = 0;
 private:
-    virtual void processMeasurement() = 0;
+    virtual void processMeasurement(const Measurements& meas) = 0;
 };
 
 #endif  // SLAM__ASSOCIATION_HPP_
