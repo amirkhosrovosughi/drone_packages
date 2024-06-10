@@ -15,7 +15,8 @@ static const float minStepRotate = 0.01f;
 static const float changeStepRotate = 0.01f;
 
 
-KeyboardControl::KeyboardControl() : Node("keyboard_control") {
+KeyboardControl::KeyboardControl() : Node("keyboard_control")
+{
     // Initialize publisher
     _moveCommandPublisher = this->create_publisher<drone_msgs::msg::DroneDirectionCommand>("/keyboard_control/movement_command", 10);
     _generalCommandClient = create_client<drone_msgs::srv::DroneMode>("/keyboard_control/general_command");
@@ -26,7 +27,8 @@ KeyboardControl::KeyboardControl() : Node("keyboard_control") {
     startKeyboardControl();
 }
 
-void KeyboardControl::startKeyboardControl() {
+void KeyboardControl::startKeyboardControl()
+{
     struct termios oldt, newt;
 
     // Save current terminal settings
@@ -40,26 +42,73 @@ void KeyboardControl::startKeyboardControl() {
     tcsetattr(STDIN_FILENO, TCSANOW, &newt);
 
     char c;
-    while (rclcpp::ok()) {
-        // Read a character from the keyboard
-        std::cin >> c;
+    while (rclcpp::ok())
+    {
+        if (!_takeCLICommand)
+        {
+            // Read a character from the keyboard
+            std::cin >> c;
 
-        processKeyboardInput(c);
+            processKeyboardInput(c);
+        }
+        else
+        {
+            startCliCommandReceive();
+        }
     }
 
     // Restore original terminal settings
     tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
 }
 
-void KeyboardControl::processKeyboardInput(char key) {
+
+void KeyboardControl::startCliCommandReceive()
+{
+    std::string cli_input = getClicommand();
+    std::string command_value;
+    int cli_command = parseCliCommand(cli_input, command_value);
+    processMovementCommand(MovementCommand::CLI_COMMAND, cli_command, command_value);
+    _takeCLICommand = false;
+}
+
+int KeyboardControl::parseCliCommand(const std::string &cli_input, std::string &command_value)
+{
+    // Split the input string at the first space
+    std::istringstream iss(cli_input);
+    std::string command;
+    iss >> command;
+
+    // Extract the rest of the input as command_value
+    std::getline(iss, command_value);
+
+    // Remove leading spaces from command_value
+    if (!command_value.empty() && command_value[0] == ' ') {
+        command_value.erase(0, 1);
+    }
+
+    // Look up the command in the map
+    auto it = _cliCommandMap.find(command);
+    if (it != _cliCommandMap.end()) {
+        std::cout << "command: " << it->second << " command_value: " << command_value << "\n";
+        return it->second;
+    } else {
+        command_value = "";  // If command not found, set command_value to an empty string
+        std::cout << "command: " << it->second << " command_value: " << command_value << "\n";
+        return 0;  // Return 0 if the command is not found
+    }
+}
+
+void KeyboardControl::processKeyboardInput(char key)
+{
     // Convert the character to uppercase for case-insensitive comparison
     key = std::toupper(key);
     
 
     // Process the key based on the enums
     switch (key) {
-        case 'Z':  // space key
-            processMovementCommand(MovementCommand::STOP);
+        case 'C':  // space key
+            // processMovementCommand(MovementCommand::STOP);
+            getCommand();
             break;
         case 'W':
             processMovementCommand(MovementCommand::GO_UP);
@@ -69,21 +118,27 @@ void KeyboardControl::processKeyboardInput(char key) {
             break;
         case 'A':
             processMovementCommand(MovementCommand::ROTATE_ACW);
+            RCLCPP_INFO(get_logger(), "pressed A");
             break;
         case 'D':
             processMovementCommand(MovementCommand::ROTATE_CW);
+            RCLCPP_INFO(get_logger(), "pressed D");
             break;
         case 'U':
             processMovementCommand(MovementCommand::GO_FORWARD);
+            RCLCPP_INFO(get_logger(), "pressed U");
             break;
         case 'J':
             processMovementCommand(MovementCommand::GO_BACKWARD);
+            RCLCPP_INFO(get_logger(), "pressed J");
             break;
         case 'H':
             processMovementCommand(MovementCommand::GO_LEFT);
+            RCLCPP_INFO(get_logger(), "pressed H");
             break;
         case 'K':
             processMovementCommand(MovementCommand::GO_RIGHT);
+            RCLCPP_INFO(get_logger(), "pressed K");
             break;
         case '0':
             processGeneralCommand(GeneralCommand::SLEEP_MODE);
@@ -106,12 +161,55 @@ void KeyboardControl::processKeyboardInput(char key) {
     }
 }
 
-void KeyboardControl::processMovementCommand(MovementCommand command) {
+void KeyboardControl::getCommand()
+{
+    _takeCLICommand = true;
+    RCLCPP_INFO(get_logger(), "Enter your command:");
+    std::cout << "Enter your command:";
+}
+
+std::string KeyboardControl::getClicommand()
+{
+    struct termios oldt, newt;
+    std::string command;
+
+    // Save current terminal settings
+    tcgetattr(STDIN_FILENO, &oldt);
+    newt = oldt;
+
+    // Enable canonical mode and echo
+    newt.c_lflag |= (ICANON | ECHO);
+
+    // Apply new terminal settings
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+
+    // Read input from user
+    std::getline(std::cin, command);
+
+    // Restore original terminal settings
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+
+    // Check for escape key (ASCII 27)
+    if (!command.empty() && command[0] == 27) {
+        return "";
+    }
+
+    return command;
+}
+
+void KeyboardControl::processMovementCommand(MovementCommand command)
+{
+    processMovementCommand(command, 0, "");
+}
+
+void KeyboardControl::processMovementCommand(MovementCommand command, uint8_t cli_command, std::string cli_command_value)
+{
     auto directionCommand = drone_msgs::msg::DroneDirectionCommand();
 
     switch (command) {
-        case MovementCommand::STOP:
-            directionCommand.stop = true;
+        case MovementCommand::CLI_COMMAND:
+            directionCommand.cli_command = cli_command;
+            directionCommand.cli_command_value = cli_command_value;
             break;
 
         case MovementCommand::GO_UP:
@@ -162,7 +260,8 @@ void KeyboardControl::processMovementCommand(MovementCommand command) {
     _moveCommandPublisher->publish(directionCommand);
 }
 
-void KeyboardControl::processGeneralCommand(GeneralCommand command) {
+void KeyboardControl::processGeneralCommand(GeneralCommand command)
+{
     // Implement the logic for processing general commands
     switch (command)
     {

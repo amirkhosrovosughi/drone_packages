@@ -51,12 +51,13 @@ void Px4CommandHandlerNode::publishtopics()
 void Px4CommandHandlerNode::publishTrajectorySetpoint()
 {
   
-  Eigen::Vector3f targetNED = TransformUtil::enuToNed(_targetPostion.head(3));
+  Eigen::Vector3f targetNED = TransformUtil::enuToNed(Eigen::Vector3f((_targetPostion.head<3>())));
   RCLCPP_DEBUG(this->get_logger(), "targetNED is (%s)", getStringFromVector(targetNED).c_str());
 
   px4_msgs::msg::TrajectorySetpoint msg{};
   	msg.position = {targetNED[0], targetNED[1], targetNED[2]};
-  	msg.yaw = _targetPostion[3]; // [-PI:PI]
+  	msg.yaw = TransformUtil::convertYawEnuToNed(_targetPostion[3]);
+
   	msg.timestamp = this->get_clock()->now().nanoseconds() / 1000;
   	_trajectorySetpointPublisher->publish(msg);
 }
@@ -87,13 +88,13 @@ void Px4CommandHandlerNode::directionCallback(const drone_msgs::msg::DroneDirect
     float angular_step = std::max(std::min(command.angular_step, maxStepRotate), minStepRotate);
 
     // Print content of the message (ROS.Info)
-    RCLCPP_INFO(this->get_logger(), ">>>> Received DroneDirectionCommand message:");
-    if (command.stop)
+    RCLCPP_INFO(this->get_logger(), "---- get drone movement command ----");
+    if (command.cli_command != 0)
     {
-      _targetPostion = _currentPostion;
+      exectueCliCommand(command.cli_command, command.cli_command_value);
       return;
     }
-    RCLCPP_INFO(this->get_logger(), "Stop: %s", command.stop ? "true" : "false");
+
     if (vertical_step != 0.0f)
     {
       _targetPostion = _targetPostion + Eigen::Vector4f(0.0f, 0.0f, vertical_step, 0.0f);
@@ -117,6 +118,119 @@ void Px4CommandHandlerNode::directionCallback(const drone_msgs::msg::DroneDirect
       RCLCPP_DEBUG(this->get_logger(), "_targetPostion is (%s)", getStringFromVector(_targetPostion).c_str());
       RCLCPP_INFO(this->get_logger(), "Angular Step: %f", angular_step);
     }
+}
+
+void Px4CommandHandlerNode::exectueCliCommand(uint8_t command, std::string command_value)
+{
+  float commandHeading = 0.0f;
+  Eigen::Vector4f commandPosition;
+
+  switch (command)
+  {
+  case  drone_msgs::msg::DroneDirectionCommand::NO_COMMAND:
+    RCLCPP_INFO(this->get_logger(), "no move command");
+    break;
+
+  case drone_msgs::msg::DroneDirectionCommand::GO_TO_ORIGIN:
+    _targetPostion = Eigen::Vector4f(0.0f, 0.0f, _targetPostion[2], 0.0f);
+    RCLCPP_INFO(this->get_logger(), "Hover on origin");
+    break;
+
+  case drone_msgs::msg::DroneDirectionCommand::STOP_HERE:
+    _targetPostion = _currentPostion;
+    RCLCPP_INFO(this->get_logger(), "Hover at correct position");
+    break;
+
+  case drone_msgs::msg::DroneDirectionCommand::HEAD_FORWARD:
+    _targetPostion[3] = 0.0f;
+    RCLCPP_INFO(this->get_logger(), " Head to zero angle in current setpoint");
+    break;
+
+  case drone_msgs::msg::DroneDirectionCommand::HEAD_BACKWARD:
+    _targetPostion[3] = M_PI;
+    RCLCPP_INFO(this->get_logger(), " Head to pi angle in current setpoint");
+    break;
+
+  case drone_msgs::msg::DroneDirectionCommand::HEAD_LEFT:
+    _targetPostion[3] = - M_PI / 2;
+    RCLCPP_INFO(this->get_logger(), " Head to - pi /2 angle in current setpoint");
+    break;
+
+  case drone_msgs::msg::DroneDirectionCommand::HEAD_RIGHT:
+    _targetPostion[3] = M_PI / 2;
+    RCLCPP_INFO(this->get_logger(), " Head to pi /2 angle in current setpoint");
+    break;
+  case drone_msgs::msg::DroneDirectionCommand::HEAD_TO:
+    // parsethe value to the target heading angle
+    if (safeParseFloat(command_value, commandHeading))
+    {
+      _targetPostion[3] = commandHeading;
+      RCLCPP_INFO(this->get_logger(), "Head to angle %f", commandHeading);
+    }
+    else
+    {
+      RCLCPP_INFO(this->get_logger(), "Cannot parse the heading angle");
+    }
+    break;
+
+  case drone_msgs::msg::DroneDirectionCommand::GO_TO:
+    // parse the value to vector4f
+    if (safeParseVector4f(command_value, commandPosition))
+    {
+      _targetPostion = commandPosition;
+      RCLCPP_INFO(this->get_logger(), " move to point: (%f,%f,%f,%f)", commandPosition[0], commandPosition[1], commandPosition[2], commandPosition[3]);
+    }
+    else
+    {
+      RCLCPP_INFO(this->get_logger(), "Cannot parse the target position");
+    }
+    break;
+
+  default:
+    RCLCPP_INFO(this->get_logger(), "Unkown command");
+    break;
+  }
+}
+
+bool Px4CommandHandlerNode::safeParseFloat(const std::string& str, float& result)
+{
+    try {
+        size_t idx;
+        result = std::stof(str, &idx);
+
+        // Check if the whole string was parsed
+        if (idx != str.size()) {
+            return false;
+        }
+        return true;
+    } catch (const std::invalid_argument& e) {
+        // No conversion could be performed
+        return false;
+    } catch (const std::out_of_range& e) {
+        // The converted value would fall out of the range of the result type
+        return false;
+    }
+}
+
+bool Px4CommandHandlerNode::safeParseVector4f(const std::string& str, Eigen::Vector4f& result)
+{
+    std::istringstream iss(str);
+    std::string item;
+    std::vector<float> values;
+    while (std::getline(iss, item, ' ')) {
+        float value;
+        if (!safeParseFloat(item, value)) {
+            return false;
+        }
+        values.push_back(value);
+    }
+
+    if (values.size() != 4) {
+        return false;
+    }
+
+    result << values[0], values[1], values[2], values[3];
+    return true;
 }
 
 void Px4CommandHandlerNode::generalCommandService(const std::shared_ptr<drone_msgs::srv::DroneMode::Request> request,
@@ -164,7 +278,7 @@ void Px4CommandHandlerNode::positionCallback(px4_msgs::msg::VehicleLocalPosition
   Eigen::Vector3f enu_coordinates = TransformUtil::nedToEnu(ned_coordinates);
   // RCLCPP_INFO(get_logger(), "ned_coordinates is (%s)",getStringFromVector(enu_coordinates));
 
-  float yaw_angle = local_position_msg.heading;
+  float yaw_angle = TransformUtil::convertYawNedToEnu(local_position_msg.heading); // Amir that is mess up
 
   _currentPostion = Eigen::Vector4f(enu_coordinates[0], enu_coordinates[1], enu_coordinates[2], local_position_msg.heading);
 }

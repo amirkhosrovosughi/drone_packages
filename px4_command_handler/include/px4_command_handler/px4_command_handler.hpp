@@ -37,6 +37,9 @@ private:
   void positionCallback(px4_msgs::msg::VehicleLocalPosition position);
   template<typename Derived>
   std::string getStringFromVector(const Eigen::MatrixBase<Derived>& vector);
+  void exectueCliCommand(uint8_t command, std::string command_value);
+  bool safeParseFloat(const std::string& str, float& result);
+  bool safeParseVector4f(const std::string& str, Eigen::Vector4f& result);
 
   // Member variables
   rclcpp::Publisher<px4_msgs::msg::VehicleCommand>::SharedPtr _vehicleCommandPublisher;

@@ -3,49 +3,51 @@
 Eigen::Matrix4f TransformUtil::nedToEnuTransform()
 {
     Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-
-    // Rotate pi/2 around Z-axis
-    transform.block<3, 3>(0, 0) = Eigen::AngleAxisf(M_PI / 2, Eigen::Vector3f::UnitZ()).toRotationMatrix();
-
-    // Rotate pi around X-axis
-    transform.block<3, 3>(0, 0) *= Eigen::AngleAxisf(M_PI, Eigen::Vector3f::UnitX()).toRotationMatrix();
-
+    transform.block<3, 3>(0, 0) = nedToEnuRotation();
     return transform;
 }
 
 Eigen::Matrix4f TransformUtil::enuToNedTransform()
 {
     Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+    transform.block<3, 3>(0, 0) = enuToNedRotation();
+    return transform;
+}
+
+Eigen::Matrix3f TransformUtil::nedToEnuRotation()
+{
+    Eigen::Matrix3f rotation = Eigen::Matrix3f::Identity();
+
+    // Rotate pi/2 around Z-axis
+    rotation= Eigen::AngleAxisf(M_PI / 2, Eigen::Vector3f::UnitZ()).toRotationMatrix();
+
+    // Rotate pi around X-axis
+    rotation *= Eigen::AngleAxisf(M_PI, Eigen::Vector3f::UnitX()).toRotationMatrix();
+
+    return rotation;
+}
+
+Eigen::Matrix3f TransformUtil::enuToNedRotation()
+{
+    Eigen::Matrix3f rotation = Eigen::Matrix3f::Identity();
 
     // Rotate -pi/2 around Z-axis
-    transform.block<3, 3>(0, 0) = Eigen::AngleAxisf(-M_PI / 2, Eigen::Vector3f::UnitZ()).toRotationMatrix();
+    rotation = Eigen::AngleAxisf(-M_PI / 2, Eigen::Vector3f::UnitZ()).toRotationMatrix();
 
     // Rotate -pi around X-axis
-    transform.block<3, 3>(0, 0) *= Eigen::AngleAxisf(-M_PI, Eigen::Vector3f::UnitX()).toRotationMatrix();
+    rotation *= Eigen::AngleAxisf(-M_PI, Eigen::Vector3f::UnitX()).toRotationMatrix();
 
-    return transform;
+    return rotation;
 }
 
 Eigen::Vector3f TransformUtil::nedToEnu(const Eigen::Vector3f& ned_coordinates)
 {
-    Eigen::Matrix4f transform = nedToEnuTransform();
-    Eigen::Vector4f ned_vector;
-    ned_vector << ned_coordinates, 1.0;
-
-    Eigen::Vector4f enu_vector = transform * ned_vector;
-
-    return enu_vector.head(3);
+    return nedToEnuRotation()*ned_coordinates;
 }
 
 Eigen::Vector3f TransformUtil::enuToNed(const Eigen::Vector3f& enu_coordinates)
 {
-    Eigen::Matrix4f transform = enuToNedTransform();
-    Eigen::Vector4f enu_vector;
-    enu_vector << enu_coordinates, 1.0;
-
-    Eigen::Vector4f ned_vector = transform * enu_vector;
-
-    return ned_vector.head(3);
+    return enuToNedRotation()*enu_coordinates;
 }
 
 Eigen::Vector2f TransformUtil::rotate2D(const Eigen::Vector2f& coordinate, const float rotate)
@@ -103,4 +105,37 @@ Eigen::Matrix4f TransformUtil::enuToNed(const Eigen::Matrix4f& enu_matrix)
     return enuToNedTransform()*enu_matrix;
 }
 
+Eigen::Matrix3f TransformUtil::nedToEnu(const Eigen::Matrix3f& ned_matrix)
+{
+    return nedToEnuRotation()*ned_matrix;
+}
+
+Eigen::Matrix3f TransformUtil::enuToNed(const Eigen::Matrix3f& enu_matrix)
+{
+    return enuToNedRotation()*enu_matrix;
+}
+
+// Function to convert yaw from ENU to NED, assuming pitch and roll equal zero
+float TransformUtil::convertYawEnuToNed(float yawEnu) {
+    float yawNed = yawEnu - (M_PI / 2);
+    // Normalize yaw to the range [-PI, PI]
+    if (yawNed > M_PI) {
+        yawNed -= 2 * M_PI;
+    } else if (yawNed < -M_PI) {
+        yawNed += 2 * M_PI;
+    }
+    return yawNed;
+}
+
+// Function to convert yaw from NED to ENU, assuming pitch and roll equal zero
+float TransformUtil::convertYawNedToEnu(float yawNed) {
+    float yawEnu = yawNed + (M_PI / 2);
+    // Normalize yaw to the range [-PI, PI]
+    if (yawEnu > M_PI) {
+        yawEnu -= 2 * M_PI;
+    } else if (yawEnu < -M_PI) {
+        yawEnu += 2 * M_PI;
+    }
+    return yawEnu;
+}
 
