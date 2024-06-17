@@ -117,7 +117,7 @@ Eigen::Matrix3f TransformUtil::enuToNed(const Eigen::Matrix3f& enu_matrix)
 
 // Function to convert yaw from ENU to NED, assuming pitch and roll equal zero
 float TransformUtil::convertYawEnuToNed(float yawEnu) {
-    float yawNed = yawEnu - (M_PI / 2);
+    float yawNed = -1.0 *yawEnu + (M_PI / 2);
     // Normalize yaw to the range [-PI, PI]
     if (yawNed > M_PI) {
         yawNed -= 2 * M_PI;
@@ -129,7 +129,7 @@ float TransformUtil::convertYawEnuToNed(float yawEnu) {
 
 // Function to convert yaw from NED to ENU, assuming pitch and roll equal zero
 float TransformUtil::convertYawNedToEnu(float yawNed) {
-    float yawEnu = yawNed + (M_PI / 2);
+    float yawEnu = -1.0 * yawNed + (M_PI / 2);
     // Normalize yaw to the range [-PI, PI]
     if (yawEnu > M_PI) {
         yawEnu -= 2 * M_PI;

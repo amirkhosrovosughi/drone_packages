@@ -106,15 +106,16 @@ void KeyboardControl::processKeyboardInput(char key)
 
     // Process the key based on the enums
     switch (key) {
-        case 'C':  // space key
-            // processMovementCommand(MovementCommand::STOP);
+        case 'C':
             getCommand();
             break;
         case 'W':
             processMovementCommand(MovementCommand::GO_UP);
+            RCLCPP_INFO(get_logger(), "pressed W");
             break;
         case 'S':
             processMovementCommand(MovementCommand::GO_DOWN);
+            RCLCPP_INFO(get_logger(), "pressed S");
             break;
         case 'A':
             processMovementCommand(MovementCommand::ROTATE_ACW);

@@ -103,20 +103,20 @@ void Px4CommandHandlerNode::directionCallback(const drone_msgs::msg::DroneDirect
     }
     if (forward_step != 0.0f || lateral_step != 0.0f)
     {
+      RCLCPP_DEBUG(this->get_logger(), "steps (Forward, Lateral): (%f, %f), yaw angle: %f", forward_step, lateral_step , _currentPostion[3]);
       // calculate needed rotation:
-      Eigen::Vector2f relativeTarget = TransformUtil::rotate2D(Eigen::Vector2f(forward_step, lateral_step), _currentPostion[3]);
+      Eigen::Vector2f relativeTarget = TransformUtil::rotate2D(Eigen::Vector2f(-1.0 * forward_step, lateral_step), _currentPostion[3]);
+      RCLCPP_DEBUG(this->get_logger(), "relativeTarget is (%s)", getStringFromVector(relativeTarget).c_str());
 
       _targetPostion = _targetPostion + Eigen::Vector4f(relativeTarget[0], relativeTarget[1], 0.0f, 0.0f);
-      RCLCPP_DEBUG(this->get_logger(), "_targetPostion is (%s)", getStringFromVector(_targetPostion).c_str());
-      RCLCPP_INFO(this->get_logger(), "Forward Step: %f", forward_step);
-      RCLCPP_INFO(this->get_logger(), "Lateral Step: %f", lateral_step);
+      RCLCPP_INFO(this->get_logger(), "_targetPostion is (%s)", getStringFromVector(_targetPostion).c_str());
     }
     if (angular_step != 0.0f)
     {
       float targetHeading = std::max(std::min(angular_step, maxHeading), minHeading);
-      _targetPostion = _targetPostion + Eigen::Vector4f(0.0f, 0.0f, 0.0f, targetHeading);
+      _targetPostion = _targetPostion - Eigen::Vector4f(0.0f, 0.0f, 0.0f, targetHeading);
       RCLCPP_DEBUG(this->get_logger(), "_targetPostion is (%s)", getStringFromVector(_targetPostion).c_str());
-      RCLCPP_INFO(this->get_logger(), "Angular Step: %f", angular_step);
+      RCLCPP_INFO(this->get_logger(), "Angular Step: %f", -1.0 * angular_step);
     }
 }
 
@@ -152,12 +152,12 @@ void Px4CommandHandlerNode::exectueCliCommand(uint8_t command, std::string comma
     break;
 
   case drone_msgs::msg::DroneDirectionCommand::HEAD_LEFT:
-    _targetPostion[3] = - M_PI / 2;
+    _targetPostion[3] = M_PI / 2;
     RCLCPP_INFO(this->get_logger(), " Head to - pi /2 angle in current setpoint");
     break;
 
   case drone_msgs::msg::DroneDirectionCommand::HEAD_RIGHT:
-    _targetPostion[3] = M_PI / 2;
+    _targetPostion[3] = - M_PI / 2;
     RCLCPP_INFO(this->get_logger(), " Head to pi /2 angle in current setpoint");
     break;
   case drone_msgs::msg::DroneDirectionCommand::HEAD_TO:
@@ -278,9 +278,10 @@ void Px4CommandHandlerNode::positionCallback(px4_msgs::msg::VehicleLocalPosition
   Eigen::Vector3f enu_coordinates = TransformUtil::nedToEnu(ned_coordinates);
   // RCLCPP_INFO(get_logger(), "ned_coordinates is (%s)",getStringFromVector(enu_coordinates));
 
-  float yaw_angle = TransformUtil::convertYawNedToEnu(local_position_msg.heading); // Amir that is mess up
+  float yaw_angle = TransformUtil::convertYawNedToEnu(local_position_msg.heading);
+  RCLCPP_DEBUG(rclcpp::get_logger("rclcpp"), "Drone yaw is: %f", yaw_angle);
+  _currentPostion = Eigen::Vector4f(enu_coordinates[0], enu_coordinates[1], enu_coordinates[2], yaw_angle);
 
-  _currentPostion = Eigen::Vector4f(enu_coordinates[0], enu_coordinates[1], enu_coordinates[2], local_position_msg.heading);
 }
 
 template<typename Derived>
