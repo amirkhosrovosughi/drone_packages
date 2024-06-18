@@ -30,6 +30,7 @@ private:
   void cameraInfoCallback(const sensor_msgs::msg::CameraInfo cameraInfo);
   void updateTransform();
   void droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odometry);
+  float estimateDepth(const Eigen::Matrix3f& rotationMatrix, float droneHeight);
 
 private:
   rclcpp::Subscription<drone_msgs::msg::DetectedFeatureList>::SharedPtr _featureCoordinateSubscriber;

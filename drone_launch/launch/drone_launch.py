@@ -52,5 +52,12 @@ def generate_launch_description():
             name='camera_info_publisher_node',
             output='screen',
         ),
+
+        Node(
+            package='feature_2dto3d_transfer',
+            executable='feature_2dto3d_transfer',
+            name='feature_2dto3d_transfer',
+            output='screen',
+        ),
     ])
 
