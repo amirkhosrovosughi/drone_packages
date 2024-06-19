@@ -59,7 +59,7 @@ void SlamManager::createPublishers()
 
 void SlamManager::filterCallback(const Map& map)
 {
-    std::cout << "filterCallback called with map" << std::endl;
+    RCLCPP_INFO(rclcpp::get_logger("slam"), "filterCallback called with map");
     // publish result
     publishMap(map);
     // notify association
@@ -68,40 +68,68 @@ void SlamManager::filterCallback(const Map& map)
 }
 
 void SlamManager::associationCallback(const Measurements& meas)
-{
-    std::cout << "associationCallback called with measurements" << std::endl; 
+{ 
+    RCLCPP_INFO(rclcpp::get_logger("slam"), "---- associationCallback called with measurements ----");
     // send result to fllter 
     _filter->correction(meas);
 }
 
 void SlamManager::droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odometry)
 {
-    std::cout << "---- receive odometry ----" << std::endl;
-    // collect need info from odometry and send to prediction
+    RCLCPP_INFO(rclcpp::get_logger("slam"), "---- receive odometry ----");
     
-    // NOTE: with assumption that no rotation is needed, to be verified (making sure frame orientation/order match that of features)
-    Velocity velocity;
-    velocity.linear.x = odometry.velocity[0];
-    velocity.linear.y = odometry.velocity[1];
-    velocity.linear.z = odometry.velocity[2];
+    
+    Eigen::Vector3f linearVelocityIntertiaNED{odometry.velocity[0], odometry.velocity[1], odometry.velocity[2]};
+    RCLCPP_INFO(rclcpp::get_logger("slam"), "linearVelocityIntertiaNED is:\n%s", TransformUtil::matrixToString(linearVelocityIntertiaNED).c_str());
 
-    velocity.angular.roll = odometry.angular_velocity[0];
-    velocity.angular.pitch = odometry.angular_velocity[1];
-    velocity.angular.yaw = odometry.angular_velocity[2];
+    Eigen::Vector3f linearVelocityIntertiaENU = TransformUtil::nedToEnu(linearVelocityIntertiaNED);
+    RCLCPP_INFO(rclcpp::get_logger("slam"), "linearVelocityBodyENU is:\n%s", TransformUtil::matrixToString(linearVelocityIntertiaENU).c_str());
+    
+    // do no need Bdoy inertia for prediction, keep comments them for confirmation later
+    // Eigen::Quaterniond rotation(odometry.q[0],
+    //                           odometry.q[1],
+    //                           odometry.q[2],
+    //                           odometry.q[3]);
+    // Eigen::Matrix3d rotation_matrix = rotation.toRotationMatrix();
+    // RCLCPP_INFO(rclcpp::get_logger("slam"), "Rotation matrix is:\n%s", TransformUtil::matrixToString(rotation_matrix).c_str());
+
+    // Eigen::Matrix3f mati = rotation_matrix.cast<float>();
+
+    //   Eigen::Vector3f linearVelocityBodyNED = mati.transpose() * linearVelocityIntertiaNED;
+    //   RCLCPP_INFO(rclcpp::get_logger("slam"), "linearVelocityBodyNED is:\n%s", TransformUtil::matrixToString(linearVelocityBodyNED).c_str());
+    //   Eigen::Vector3f linearVelocityBodyENU = TransformUtil::nedToEnu(linearVelocityBodyNED);
+    //   RCLCPP_INFO(rclcpp::get_logger("slam"), "linearVelocityBodyENU is:\n%s", TransformUtil::matrixToString(linearVelocityBodyENU).c_str());
+
+    Eigen::Vector3f angularVelocityIntertiaNED{odometry.angular_velocity[0], odometry.angular_velocity[1], odometry.angular_velocity[2]};
+    RCLCPP_INFO(rclcpp::get_logger("slam"), "angularVelocityIntertiaNED is:\n%s", TransformUtil::matrixToString(angularVelocityIntertiaNED).c_str());
+    Eigen::Vector3f angularVelocityIntertiaENU = TransformUtil::nedToEnu(angularVelocityIntertiaNED);
+    RCLCPP_INFO(rclcpp::get_logger("slam"), "angularVelocityIntertiaENU is:\n%s", TransformUtil::matrixToString(angularVelocityIntertiaENU).c_str());
+
+    Velocity velocity;
+    velocity.linear.x = linearVelocityIntertiaENU[0];
+    velocity.linear.y = linearVelocityIntertiaENU[1];
+    velocity.linear.z = linearVelocityIntertiaENU[2];
+
+    velocity.angular.roll = angularVelocityIntertiaENU[0];
+    velocity.angular.pitch = angularVelocityIntertiaENU[1];
+    velocity.angular.yaw = angularVelocityIntertiaENU[2];
 
     _filter->prediction(velocity);
 }
 
 void SlamManager::featureDetectionCallback(const drone_msgs::msg::PointList features)
 {
-    std::cout << "---- receive feature ----" << std::endl;
+    RCLCPP_INFO(rclcpp::get_logger("slam"), "---- receive feature ----");
+
     Measurements meas;
     meas.reserve(features.points.size());
+
+    //put it is a approperiae interal structure
     for (auto point : features.points)
     {
+        // feature are in FLU (local ENU coordinate)
         meas.emplace_back(1,Position(point.x, point.y, point.z));
     }
-    //put it is a approperiae interal structure
     _associantion->onReceiveMeasurement(meas);
 }
 

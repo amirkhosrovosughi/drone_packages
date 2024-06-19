@@ -28,6 +28,14 @@ public:
     static Eigen::Matrix3f createRotationMatrix(double pitch, double roll, double yaw);
     static float convertYawEnuToNed(float yawEnu);
     static float convertYawNedToEnu(float yawNed);
+
+    template<typename Derived>
+    static std::string matrixToString(const Eigen::MatrixBase<Derived>& matrix)
+    {
+        std::stringstream ss;
+        ss << matrix;
+        return ss.str();
+    }
 };
 
 #endif  // COMMON_UTILITIES_TRANSFORM_UTIL_HPP_
