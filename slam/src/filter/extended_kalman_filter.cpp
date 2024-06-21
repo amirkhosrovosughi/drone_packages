@@ -3,7 +3,12 @@
 #include <thread>
 #include <future>
 
-ExtendedKalmanFilter::ExtendedKalmanFilter() {}
+#include "filter/slam_map.hpp"
+
+ExtendedKalmanFilter::ExtendedKalmanFilter()
+{
+    SlamMap slamMap(6,3); // number is hard coded for now
+}
 
 void ExtendedKalmanFilter::prediction(const Velocity& velocity)
 {
