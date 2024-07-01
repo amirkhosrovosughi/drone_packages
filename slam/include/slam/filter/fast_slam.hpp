@@ -6,7 +6,7 @@
 class FastSlam : public BaseFilter {
 public:
     FastSlam();
-    void prediction(const Velocity& velocity) override;
+    void prediction(const OdometryInfo& odom) override;
     void correction(const Measurements& meas) override;
     void registerCallback(std::function<void(const Map& map)> callback) override;
 

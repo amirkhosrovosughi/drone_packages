@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <Eigen/Dense>
+#include <iostream>
 
 const static double robotInitialCorrelation = 0.1;
 const static double landmarkInitialCorrelation = 2;
@@ -184,6 +185,16 @@ struct SlamMap
 
         std::cout << "index of (row,col)= ("<< row << ","<< col <<") is: " << (col - 2)*(col - 2) / 2  + row << "\n";
         return (col - 2)*(col - 2) / 2  + row;
+    }
+
+    Eigen::MatrixXd getRobotlandmarkCorrelation(int index)
+    {
+        return robotlandmarkCorrelation[index];
+    }
+
+    bool setRobotlandmarkCorrelation(const Eigen::MatrixXd &correlation, const int landmarkNum)
+    {
+        robotlandmarkCorrelation[landmarkNum] = correlation;
     }
 
 };

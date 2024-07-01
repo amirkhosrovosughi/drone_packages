@@ -105,6 +105,9 @@ void SlamManager::droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odo
     Eigen::Vector3f angularVelocityIntertiaENU = TransformUtil::nedToEnu(angularVelocityIntertiaNED);
     RCLCPP_INFO(rclcpp::get_logger("slam"), "angularVelocityIntertiaENU is:\n%s", TransformUtil::matrixToString(angularVelocityIntertiaENU).c_str());
 
+    OdometryInfo odomInfo;
+
+#ifdef POSE_MOTION
     Velocity velocity;
     velocity.linear.x = linearVelocityIntertiaENU[0];
     velocity.linear.y = linearVelocityIntertiaENU[1];
@@ -113,8 +116,34 @@ void SlamManager::droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odo
     velocity.angular.roll = angularVelocityIntertiaENU[0];
     velocity.angular.pitch = angularVelocityIntertiaENU[1];
     velocity.angular.yaw = angularVelocityIntertiaENU[2];
+    odomInfo.EnuVelocity = velocity;
 
-    _filter->prediction(velocity);
+#elif POSITION_MOTION 
+    Velocity velocity;
+    velocity.linear.x = linearVelocityIntertiaENU[0];
+    velocity.linear.y = linearVelocityIntertiaENU[1];
+    velocity.linear.z = linearVelocityIntertiaENU[2];
+
+    Quaternion quaternion;
+    quaternion.x = odometry.q[0];
+    quaternion.y = odometry.q[1];
+    quaternion.z = odometry.q[2];
+    quaternion.w = odometry.q[3];
+
+    odomInfo.EnuVelocity = velocity;  
+    odomInfo.orientation = quaternion; // in this case we assume that orientation is knows, using other
+                                       // sensor or odometry and only use position for robot position calculation
+
+#else
+    RCLCPP_ERROR(rclcpp::get_logger("slam"), "Have not define compile tag for motion model to process odometry message");
+    return;
+#endif
+
+
+
+
+
+    _filter->prediction(odomInfo);
 }
 
 void SlamManager::featureDetectionCallback(const drone_msgs::msg::PointList features)

@@ -3,7 +3,7 @@
 
 FastSlam::FastSlam() {}
 
-void FastSlam::prediction(const Velocity& velocity) {
+void FastSlam::prediction(const OdometryInfo& odom) {
     std::cout << "FastSlam prediction step" << std::endl;
     Map map;
     if (_callback) _callback(map);

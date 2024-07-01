@@ -7,7 +7,7 @@
 class BaseFilter {
 public:
     virtual ~BaseFilter() = default;
-    virtual void prediction(const Velocity& velocity) = 0;
+    virtual void prediction(const OdometryInfo& odom) = 0;
     virtual void correction(const Measurements& meas) = 0;
     virtual void registerCallback(std::function<void(const Map& map)> callback) = 0;
 };

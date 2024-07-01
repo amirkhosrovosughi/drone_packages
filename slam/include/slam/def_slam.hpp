@@ -22,21 +22,33 @@ struct Orientation {
         : roll(roll), pitch(pitch), yaw(yaw) {}
 };
 
-// Structure for Orientation
+struct Quaternion {
+    double x;
+    double y;
+    double z;
+    double w;
+
+    Quaternion(double x = 0.0, double y = 0.0, double z = 0.0, double w = 1.0)
+        : x(x), y(y), z(z), w(w) {}
+};
+
+// Structure for Pose
 struct Pose {
     Position position;
-    Orientation orientation;
+    Quaternion quaternion;
 
-    Pose(): position(Position()), orientation(Orientation()) {}
-    Pose(Position position, Orientation orientation)
-        : position(position), orientation(orientation) {}
+    Pose(): position(Position()), quaternion(Quaternion()) {}
+    Pose(Position position, Quaternion quaternion)
+        : position(position), quaternion(quaternion) {}
 };
+
 // Structure for Measurement
 struct Measurement {
     int id;
     Position position;
+    int observeRepeat;
 
-    Measurement(int id, const Position& position) : id(id), position(position) {}
+    Measurement(int id, const Position& position) : id(id), position(position), observeRepeat(0) {}
 };
 
 // Vector of Measurements
@@ -112,6 +124,14 @@ struct Velocity {
     AngularVelicity angular;
 
     Velocity() {}
+};
+
+struct OdometryInfo {
+    Velocity NedVelocity;
+    Velocity EnuVelocity;
+    Quaternion orientation;
+
+    OdometryInfo() {}
 };
 
 #endif // DEF_SLAM_HPP_
