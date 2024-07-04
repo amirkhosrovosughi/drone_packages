@@ -24,20 +24,27 @@ void PositionMeasurementModel::updateLandmark(const Measurements& meas)
  * @param expectedMeasurement the expected values 3d feature detection
  * @return true if it is successful
  */
-bool PositionMeasurementModel::directMeasurementModel(const Pose& robotPose, const Position& landmarkPosition, Position& expectedMeasurement)
+bool PositionMeasurementModel::directMeasurementModel(const Pose& robotPose, const Position& landmarkPosition, Measurement& expectedMeasurement)
 {
-    if (!_sensorTranformationLoaded)
-    {
-        return false;
-    }
+    // if (!_sensorTranformationLoaded)
+    // {
+    //     return false;
+    // }
+    // Eigen::Matrix4d robotTransformation = robotPose.getTransformationMatrix()* _sensorTranformation; -> not necessary as we send landmark coordinate in robot frame
 
-    //TODO
-    // determine, out of range somehow -> return false if not
+    Eigen::Matrix4d robotTransformation = robotPose.getTransformationMatrix(); // * _sensorTranformation; -> not necessary as we send landmark coordinate in robot frame
+    Eigen::Vector4d homogeneousLandmarkPosition;
+    homogeneousLandmarkPosition.head<3>() = landmarkPosition.getPositionVector();
+    homogeneousLandmarkPosition(3) = 1.0;
+
+    Eigen::Vector4d landMarkInRobotCoordinate = robotTransformation * homogeneousLandmarkPosition;
+
+    expectedMeasurement.position = Position(landMarkInRobotCoordinate.head<3>());
 
     return true;
 }
 
-void PositionMeasurementModel::setSensorTransformation(const Eigen::Matrix4d& sensorTranformation)
+void PositionMeasurementModel::setSensorInfo(const Eigen::Matrix4d& sensorTranformation)
 {
     _sensorTranformation = sensorTranformation;
     _sensorTranformationLoaded = true;

@@ -1,6 +1,9 @@
 #include "slam_manager.hpp"
 #include <mutex>
 
+const std::string FROM_FRAME = "base_link";
+const std::string TO_FRAME = "camera_frame";
+
 SlamManager::SlamManager()
     : Node("slam_manager")
 {
@@ -34,7 +37,7 @@ SlamManager::SlamManager()
 
 void SlamManager::initialize()
 {
-    _filter->registerCallback([this](const Map& map) {
+    _filter->registerCallback([this](const MapSummary& map) {
         this->filterCallback(map);
     });
 
@@ -50,6 +53,13 @@ void SlamManager::createSubscribers()
               "/fmu/out/vehicle_odometry", qos_profile, std::bind(&SlamManager::droneOdometryCallback, this, std::placeholders::_1));
     _feature3DcoordinatSubscriber = this->create_subscription<drone_msgs::msg::PointList>(
               "/feature/coordinate/baseLink", 10, std::bind(&SlamManager::featureDetectionCallback, this, std::placeholders::_1));
+
+    // need to subscribe to tf camera relative position from drone base
+    _tfBuffer = std::make_unique<tf2_ros::Buffer>(this->get_clock());
+    _tflistener = std::make_shared<tf2_ros::TransformListener>(*_tfBuffer);
+
+    //TODO: later change it in way that stops listening when it gets the valiue
+    _timer = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&SlamManager::updateTransform, this));
 }
 
 void SlamManager::createPublishers()
@@ -57,13 +67,13 @@ void SlamManager::createPublishers()
 
 }
 
-void SlamManager::filterCallback(const Map& map)
+void SlamManager::filterCallback(const MapSummary& map)
 {
     RCLCPP_INFO(rclcpp::get_logger("slam"), "filterCallback called with map");
     // publish result
     publishMap(map);
     // notify association
-    Measurements meas = map.getFeatures();
+    Measurements meas = map.getLandmarks();
     _associantion->handleUpdate(meas);
 }
 
@@ -125,24 +135,20 @@ void SlamManager::droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odo
     velocity.linear.z = linearVelocityIntertiaENU[2];
 
     Quaternion quaternion;
-    quaternion.x = odometry.q[0];
-    quaternion.y = odometry.q[1];
-    quaternion.z = odometry.q[2];
-    quaternion.w = odometry.q[3];
+    quaternion.w = odometry.q[0];
+    quaternion.x = odometry.q[1];
+    quaternion.y = odometry.q[2];
+    quaternion.z = odometry.q[3];
+    
 
     odomInfo.EnuVelocity = velocity;  
     odomInfo.orientation = quaternion; // in this case we assume that orientation is knows, using other
                                        // sensor or odometry and only use position for robot position calculation
-
 #else
     RCLCPP_ERROR(rclcpp::get_logger("slam"), "Have not define compile tag for motion model to process odometry message");
     return;
 #endif
-
-
-
-
-
+    odomInfo.timeTag = double(odometry.timestamp)/1000000.0f;
     _filter->prediction(odomInfo);
 }
 
@@ -162,7 +168,41 @@ void SlamManager::featureDetectionCallback(const drone_msgs::msg::PointList feat
     _associantion->onReceiveMeasurement(meas);
 }
 
-void SlamManager::publishMap(const Map& map)
+void SlamManager::publishMap(const MapSummary& map)
 {
     //publish map
+}
+
+void SlamManager::updateTransform()
+{
+  if (!_cameraTransformLoaded)
+  {
+    geometry_msgs::msg::TransformStamped transformStamped;
+    try
+    {
+      geometry_msgs::msg::TransformStamped transform = _tfBuffer->lookupTransform(FROM_FRAME, TO_FRAME, tf2::TimePointZero);
+      // Extract translation and rotation from the transform message
+      Eigen::Vector3d translation(transform.transform.translation.x,
+                                  transform.transform.translation.y,
+                                  transform.transform.translation.z);
+      Eigen::Quaterniond rotation(transform.transform.rotation.w,
+                                  transform.transform.rotation.x,
+                                  transform.transform.rotation.y,
+                                  transform.transform.rotation.z);
+
+      // Construct the transformation matrix
+      Eigen::Matrix4d base2Camera;
+      Eigen::Matrix3d rotation_matrix = rotation.toRotationMatrix();
+      base2Camera.block<3, 3>(0, 0) = rotation_matrix;
+      base2Camera.block<3, 1>(0, 3) = translation;
+      
+      _filter->setSensorInfo(base2Camera);
+      _cameraTransformLoaded = true;
+      RCLCPP_INFO(this->get_logger(), "Camera relative coordinate in loaded successfully");
+  
+    } catch (tf2::TransformException & ex) {
+      RCLCPP_INFO(this->get_logger(), "Could not transform %s to %s: %s", TO_FRAME.c_str(), FROM_FRAME.c_str(), ex.what());
+      return;
+    }
+  }
 }

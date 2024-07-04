@@ -2,6 +2,7 @@
 #define DEF_SLAM_HPP_
 
 #include <vector>
+#include <Eigen/Dense>
 
 // Structure for Position
 struct Position {
@@ -10,6 +11,11 @@ struct Position {
     double z;
 
     Position(double x = 0.0, double y = 0.0, double z = 0.0) : x(x), y(y), z(z) {}
+    Position(Eigen::Vector3d positionVector) : x(positionVector[0]), y(positionVector[1]), z(positionVector[2]) {}
+    Eigen::Vector3d getPositionVector() const
+    {
+        return Eigen::Vector3d(x, y, z);
+    }
 };
 
 // Structure for Orientation
@@ -23,13 +29,14 @@ struct Orientation {
 };
 
 struct Quaternion {
+    double w;
     double x;
     double y;
     double z;
-    double w;
 
-    Quaternion(double x = 0.0, double y = 0.0, double z = 0.0, double w = 1.0)
-        : x(x), y(y), z(z), w(w) {}
+    Quaternion(double w = 1.0, double x = 0.0, double y = 0.0, double z = 0.0)
+        : w(w), x(x), y(y), z(z) {}
+    Quaternion(Eigen::Vector4d quaternionVector) : w(quaternionVector[3]), x(quaternionVector[0]), y(quaternionVector[1]), z(quaternionVector[2]) {}
 };
 
 // Structure for Pose
@@ -40,6 +47,23 @@ struct Pose {
     Pose(): position(Position()), quaternion(Quaternion()) {}
     Pose(Position position, Quaternion quaternion)
         : position(position), quaternion(quaternion) {}
+    Eigen::Matrix4d getTransformationMatrix() const
+    {
+        Eigen::Vector3d translation(position.x,
+                                    position.y,
+                                    position.z);
+        Eigen::Quaterniond rotation(quaternion.w,
+                                    quaternion.x,
+                                    quaternion.y,
+                                    quaternion.z);
+
+        // Construct the transformation matrix
+        Eigen::Matrix4d tranformation_matrix;
+        Eigen::Matrix3d rotation_matrix = rotation.toRotationMatrix();
+        tranformation_matrix.block<3, 3>(0, 0) = rotation_matrix;
+        tranformation_matrix.block<3, 1>(0, 3) = translation;
+        return tranformation_matrix;
+    }
 };
 
 // Structure for Measurement
@@ -47,8 +71,10 @@ struct Measurement {
     int id;
     Position position;
     int observeRepeat;
+    bool isNew;
 
-    Measurement(int id, const Position& position) : id(id), position(position), observeRepeat(0) {}
+    Measurement() : id(0), position(Position()), observeRepeat(0), isNew(false) {}
+    Measurement(int id, const Position& position) : id(id), position(position), observeRepeat(0), isNew(false) {}
 };
 
 // Vector of Measurements
@@ -74,29 +100,31 @@ struct RobotStatic {
         : pose(pose), variance(variance) {}
 };
 
-// Structure for Feature
-struct Feature {
+// Structure for Landmark
+struct Landmark {
     int id;
     Position position;
-    Variance2D variance2D;
+    Variance2D variance;
 
-    Feature(const int id, const Position& position, const Variance2D& variance2D)
-        : id(id) ,position(position), variance2D(variance2D) {}
+    Landmark(const int id, const Position& position, const Variance2D& variance)
+        : id(id) ,position(position), variance(variance) {}
+    Landmark()
+        : id(0) ,position(Position()), variance(Variance2D()) {}
 };
 
-// Structure for Map
-struct Map {
+// Structure for Map information summary
+struct MapSummary {
     RobotStatic robot;
-    std::vector<Feature> features;
+    std::vector<Landmark> landmarks;
 
-    Map() {}
-    Measurements getFeatures() const
+    MapSummary() {}
+    Measurements getLandmarks() const
     {
         Measurements meas;
-        meas.reserve(features.size());
-        for (auto feature : features)
+        meas.reserve(landmarks.size());
+        for (auto landmark : landmarks)
         {
-            meas.emplace_back(feature.id, feature.position);
+            meas.emplace_back(landmark.id, landmark.position);
         }
         return meas;
     }
@@ -130,6 +158,7 @@ struct OdometryInfo {
     Velocity NedVelocity;
     Velocity EnuVelocity;
     Quaternion orientation;
+    double timeTag;
 
     OdometryInfo() {}
 };

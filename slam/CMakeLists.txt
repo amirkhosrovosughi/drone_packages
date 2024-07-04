@@ -44,6 +44,8 @@ find_package(common_utilities REQUIRED)
 find_package(px4_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(eigen3_cmake_module REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
 
 include_directories(include/${PROJECT_NAME})
 
@@ -53,7 +55,6 @@ set(SOURCES
   src/filter/extended_kalman_filter.cpp
   src/filter/unscented_kalman_filter.cpp
   src/filter/fast_slam.cpp
-  # src/filter/models/pose_odometry_motion_model.cpp
   src/filter/models/position_odometry_motion_model.cpp
   src/filter/models/position_measurement_model.cpp
   src/association/joint_compatibility_association.cpp
@@ -67,6 +68,8 @@ ament_target_dependencies(${PROJECT_NAME}
   drone_msgs
   common_utilities
   px4_msgs
+  tf2
+  tf2_ros
 )
 
 # Install

@@ -11,8 +11,8 @@ public:
     PositionMeasurementModel() = default;
     virtual int getDimension();
     virtual void updateLandmark(const Measurements& meas);
-    void setSensorTransformation(const Eigen::Matrix4d& sensorTranformation);
-    bool directMeasurementModel(const Pose& robotPose, const Position& landmarkPosition, Position& expectedMeasurement);
+    void setSensorInfo(const Eigen::Matrix4d& sensorTranformation) override;
+    bool directMeasurementModel(const Pose& robotPose, const Position& landmarkPosition, Measurement& expectedMeasurement) override;
 
 private:
     Eigen::Matrix4d _sensorTranformation;

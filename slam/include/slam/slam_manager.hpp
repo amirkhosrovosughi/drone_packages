@@ -3,6 +3,8 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <memory>
+#include "tf2_ros/transform_listener.h"
+#include "tf2_ros/buffer.h"
 
 #include "common_utilities/transform_util.hpp"
 #include <drone_msgs/msg/point_list.hpp>
@@ -29,17 +31,22 @@ private:
   void createSubscribers();
   void createPublishers();
   void initialize();
-  void filterCallback(const Map& map);
+  void filterCallback(const MapSummary& map);
   void associationCallback(const Measurements& meas);
   void droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odometry);
   void featureDetectionCallback(const drone_msgs::msg::PointList features);
-  void publishMap(const Map& map);
+  void publishMap(const MapSummary& map);
+  void updateTransform();
 
 private:
   rclcpp::Subscription<px4_msgs::msg::VehicleOdometry>::SharedPtr _droneOdometrySubscriber;
   rclcpp::Subscription<drone_msgs::msg::PointList>::SharedPtr _feature3DcoordinatSubscriber;
   FilterPtr _filter;
   AssociationPtr _associantion;
+  std::unique_ptr<tf2_ros::Buffer> _tfBuffer;
+  std::shared_ptr<tf2_ros::TransformListener> _tflistener;
+  rclcpp::TimerBase::SharedPtr _timer;
+  bool _cameraTransformLoaded = false;
 };
 
 #endif  // SLAM__MANAGER_HPP_

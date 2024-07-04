@@ -5,7 +5,7 @@ UnscentedKalmanFilter::UnscentedKalmanFilter() {}
 
 void UnscentedKalmanFilter::prediction(const OdometryInfo& odom) {
     std::cout << "Unscented Kalman Filter prediction step" << std::endl;
-    Map map;
+    MapSummary map;
     if (_callback) _callback(map);
 }
 
@@ -13,6 +13,6 @@ void UnscentedKalmanFilter::correction(const Measurements& meas) {
     std::cout << "Unscented Kalman Filter correction step" << std::endl;
 }
 
-void UnscentedKalmanFilter::registerCallback(std::function<void(const Map& map)> callback) {
+void UnscentedKalmanFilter::registerCallback(std::function<void(const MapSummary& map)> callback) {
     _callback = callback;
 }
