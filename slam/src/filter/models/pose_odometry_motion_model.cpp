@@ -1,3 +1,5 @@
+// deprecated file, to be removed
+
 #include "filter/models/pose_odometry_motion_model.hpp"
 
 static int STATE_DIMENSION = 7;

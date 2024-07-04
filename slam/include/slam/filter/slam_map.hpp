@@ -224,9 +224,24 @@ struct SlamMap
         return true;
     }
 
-    Eigen::MatrixXd getRobotLandmarkFullCorrelations()
+    Eigen::MatrixXd getRobotLandmarkFullCorrelationsVertical()
     {
         return mapCorrelation.block(robotDimension, 0, landmarkDimension * landmarkCount, robotDimension);
+    }
+
+    void setRobotLandmarkFullCorrelationsVertical(const Eigen::MatrixXd& inputMatrix)
+    {
+        mapCorrelation.block(robotDimension, 0, landmarkDimension * landmarkCount, robotDimension) = inputMatrix;
+    }
+
+    Eigen::MatrixXd getRobotLandmarkFullCorrelationsHorizontal()
+    {
+        return mapCorrelation.block(0, robotDimension, robotDimension, landmarkDimension * landmarkCount);
+    }
+
+    void setRobotLandmarkFullCorrelationsHorizontal(const Eigen::MatrixXd& inputMatrix)
+    {
+        mapCorrelation.block(0, robotDimension, robotDimension, landmarkDimension * landmarkCount) = inputMatrix;
     }
 
     Eigen::MatrixXd getCrossLandmarkFullCorrelation(const int indexLandmark)

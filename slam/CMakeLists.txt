@@ -14,26 +14,26 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-option(POSITION_MOTION "position motion model for odometry" ON)
-option(POSE_MOTION "pose motion model for odometry" OFF)
+option(POSITION_MOTION_POSITION_MEASUREMENT "position motion model for odometry" ON)
+option(POSE_MOTION_POSITION_MEASUREMENT "pose motion model for odometry" OFF)
 
-option(POSITION_MEASUREMENT "position measrement model" ON)
-option(TWO_DIMENSION_MEASUREMENT "2D measrement model" OFF)
+option(POSITION_MOTION_2D_MEASUREMENT "position measrement model" OFF)
+option(POSE_MOTION_2D_MEASUREMENT "2D measrement model" OFF)
 
-if(POSITION_MOTION)
-    add_definitions(-DPOSITION_MOTION)
+if(POSITION_MOTION_POSITION_MEASUREMENT)
+    add_definitions(-DPOSITION_MOTION_POSITION_MEASUREMENT)
 endif()
 
-if(POSE_MOTION)
-    add_definitions(-DPOSE_MOTION)
+if(POSE_MOTION_POSITION_MEASUREMENT)
+    add_definitions(-DPOSE_MOTION_POSITION_MEASUREMENT)
 endif()
 
-if(POSITION_MEASUREMENT)
-    add_definitions(-DPOSITION_MEASUREMENT)
+if(POSITION_MOTION_2D_MEASUREMENT)
+    add_definitions(-DPOSITION_MOTION_2D_MEASUREMENT)
 endif()
 
-if(TWO_DIMENSION_MEASUREMENT)
-    add_definitions(-DTWO_DIMENSION_MEASUREMENT)
+if(POSE_MOTION_2D_MEASUREMENT)
+    add_definitions(-DPOSE_MOTION_2D_MEASUREMENT)
 endif()
 
 # find dependencies
@@ -55,8 +55,7 @@ set(SOURCES
   src/filter/extended_kalman_filter.cpp
   src/filter/unscented_kalman_filter.cpp
   src/filter/fast_slam.cpp
-  src/filter/models/position_odometry_motion_model.cpp
-  src/filter/models/position_measurement_model.cpp
+  src/filter/models/position_position_motion_measurement_model.cpp
   src/association/joint_compatibility_association.cpp
   src/association/nearest_neighbor_association.cpp
 )

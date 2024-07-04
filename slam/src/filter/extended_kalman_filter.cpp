@@ -7,25 +7,24 @@
 ExtendedKalmanFilter::ExtendedKalmanFilter()
 {
 
-#ifdef POSE_MOTION
-    _motionModel = std::make_unique<PoseOdometryMotionModel>();
-    _odometryType = OdometryType::PoseOdometry;
-#elif POSITION_MOTION 
-    _motionModel = std::make_unique<PositionOdometryMotionModel>();
+#ifdef POSITION_MOTION_POSITION_MEASUREMENT
+    _model = std::make_unique<PositionPositionMotionMeasurementModel>();
     _odometryType = OdometryType::PositionOdometry;
+#elif POSE_MOTION_POSITION_MEASUREMENT
+    throw std::runtime_error("have not implemented yet");
+    _odometryType = OdometryType::PoseOdometry;
+#elif POSITION_MOTION_2D_MEASUREMENT
+    throw std::runtime_error("have not implemented yet");
+    _odometryType = OdometryType::PositionOdometry;
+#elif POSE_MOTION_2D_MEASUREMENT
+    throw std::runtime_error("have not implemented yet");
+    _odometryType = OdometryType::PoseOdometry;
 #else
     RCLCPP_ERROR(rclcpp::get_logger("slam"), "Have not define compile tag for motion model");
+    throw std::runtime_error("motion measurement model is not specified");
 #endif
 
-#ifdef POSITION_MEASUREMENT
-    _measurementModel = std::make_unique<PositionMeasurementModel>();
-#elif TWO_DIMENSION_MEASUREMENT 
-    _measurementModel = std::make_unique<TwoDiemnsionMeasurementModel>();
-#else
-    RCLCPP_ERROR(rclcpp::get_logger("slam"), "Have not define compile tag for measurement model");
-#endif
-
-    _slamMap = std::make_shared<SlamMap>(_motionModel->getDimension(), _measurementModel->getDimension());
+    _slamMap = std::make_shared<SlamMap>(_model->getMotionDimension(), _model->getMeasurementDimension());
 }
 
 void ExtendedKalmanFilter::prediction(const OdometryInfo& odom)
@@ -49,17 +48,41 @@ void ExtendedKalmanFilter::processPrediction(const OdometryInfo& odom)
 
     //update mean
     double timeElapse = odom.timeTag - _lastUpdateTime;
-    Eigen::VectorXd updatedRobotMean = _motionModel->stateUpdate(odom, _slamMap->getRobotMean(), timeElapse); // TODO: for time we have lock, so should check when we get the message
-    _slamMap->setRobotMean(updatedRobotMean);
 
-    Eigen::MatrixXd updatedRobotCorollation = _motionModel->corrolationUpdate(_slamMap->getRobotCorrelation());
+    // Eigen::VectorXd updatedRobotMean = _motionModel->stateUpdate(odom, _slamMap->getRobotMean(), timeElapse); // TODO: for time we have lock, so should check when we get the message
+    // Velocity velocity = odom.NedVelocity;
+    // Eigen::Vector3d linearVel{velocity.linear.x, velocity.linear.y, velocity.linear.z};
+    // Eigen::Vector3d position{state[0], state[1], state[2]};
+    // return position + linearVel * dt;
+
+    // _model->getRobotToRobotJacobian(_slamMap->getRobotMean() + + linearVel * dt);
+
+    if (_odometryType == OdometryType::PositionOdometry)
+    {
+        Velocity velocity = odom.NedVelocity;
+        Eigen::VectorXd linearVel(3);
+        linearVel << velocity.linear.x, velocity.linear.y, velocity.linear.z;
+        Eigen::VectorXd updatedRobotMean = _model->getRobotToRobotJacobian()*_slamMap->getRobotMean() + linearVel * timeElapse;
+        _slamMap->setRobotMean(updatedRobotMean);
+    }
+    else if (_odometryType == OdometryType::PoseOdometry)
+    {
+        throw std::runtime_error("have not implemented yet");
+    }
+    else
+    {
+        throw std::invalid_argument( "received wrong odometry dimension" );
+    }
+    
+    Eigen::MatrixXd F = _model->getRobotToRobotJacobian();
+    Eigen::MatrixXd Q = _model->getMotionNoise();
+    Eigen::MatrixXd updatedRobotCorollation = F * _slamMap->getRobotCorrelation() * F.transpose() + Q;
+    // Eigen::MatrixXd updatedRobotCorollation = _motionModel->corrolationUpdate(_slamMap->getRobotCorrelation());
     _slamMap->setRobotCorrelation(updatedRobotCorollation);
 
-    for (int i = 0; i < _slamMap->landmarkCount ; i++)
-    {
-        Eigen::MatrixXd updatedRobotLandmarkCorollation = _motionModel->corrolationUpdate(_slamMap->getRobotlandmarkCorrelation(i));
-        _slamMap->setRobotlandmarkCorrelation(updatedRobotLandmarkCorollation, i);
-    }
+    Eigen::MatrixXd updatedRobotLandmarkFullCorrelationsHorizontal = F * _slamMap->getRobotLandmarkFullCorrelationsHorizontal();
+    _slamMap->setRobotLandmarkFullCorrelationsHorizontal(updatedRobotLandmarkFullCorrelationsHorizontal);
+    _slamMap->setRobotLandmarkFullCorrelationsVertical(updatedRobotLandmarkFullCorrelationsHorizontal.transpose());
 
     _robotQuaternion = odom.orientation;
 
@@ -118,7 +141,7 @@ void ExtendedKalmanFilter::updateLandmark(const Measurement& measurement)
 
     Position landmarkPosition(_slamMap->getLandmarkMean(id));
     Measurement expectedMeasurement;
-    if(!_measurementModel->directMeasurementModel(robotPose, landmarkPosition, expectedMeasurement))
+    if(!_model->directMeasurementModel(robotPose, landmarkPosition, expectedMeasurement))
     {
         std::cout << "Failed to update landmark, Cannot calculate the direct measurement model" << std::endl;
         return;
@@ -146,30 +169,23 @@ void ExtendedKalmanFilter::updateLandmark(const Measurement& measurement)
     p.block(r, 0, l, r) = prl.transpose();       // Bottom-left block
     p.block(r, r, l, l) = pll;                   // Bottom-right block
 
-    //TODO
-    // Eigen::MatrixXd measurementJacobian = _measurementModel->getJacobian(); // this part depens on both _motionModel and _measurementModel --> need to come with solution for that, for now, hard code the hr and hl
-    
-    Eigen::Quaterniond q(_robotQuaternion.w, _robotQuaternion.x, _robotQuaternion.y, _robotQuaternion.z);
-    // Normalize the quaternion (optional if you know it's already normalized)
-    q.normalize();
-    // Convert the quaternion to a rotation matrix
-    Eigen::Matrix3d hr = q.toRotationMatrix();
-    Eigen::Matrix3d hl = Eigen::Matrix3d::Identity();
+    Eigen::Matrix3d hr = _model->getMeasurementToRobotJacobian(robotPose);
+    Eigen::Matrix3d hl = _model->getMeasurementToMeasurementJacobian(robotPose);
 
     Eigen::MatrixXd h(l, r + l);
     h.block(0, 0, l, r) = hr;
-    h.block(0, r, l, l) = hl; //-> this part is wrong
+    h.block(0, r, l, l) = hl; //-> TODO: verifyt this part
 
-    Eigen::MatrixXd R = Eigen::Matrix3d::Identity()* 0.2;   // TODO: _measurementModel->getMeasurementNoise(); , do same for motion
+    Eigen::MatrixXd R = _model->getMeasurementNoise();
 
-    Eigen::MatrixXd Z = h * p * h.transpose() + R; // measurementErrorVariacne
+    Eigen::MatrixXd Z = h * p * h.transpose() + R;
 
 
     //===========================================================
     //3 Kalman gain, 
     Eigen::MatrixXd pBar(r + n * l, r + l);
 
-    Eigen::MatrixXd pmr =  _slamMap->getRobotLandmarkFullCorrelations();   
+    Eigen::MatrixXd pmr =  _slamMap->getRobotLandmarkFullCorrelationsVertical();   
     Eigen::MatrixXd pml =  _slamMap->getCrossLandmarkFullCorrelation(id); 
 
 
@@ -195,7 +211,7 @@ void ExtendedKalmanFilter::addLandmark(const Measurement& meas)
 
 void ExtendedKalmanFilter::setSensorInfo(const Eigen::Matrix4d& transform)
 {
-    _measurementModel->setSensorInfo(transform);
+    _model->setSensorInfo(transform);
 }
 
 MapSummary ExtendedKalmanFilter::summerizeMap()

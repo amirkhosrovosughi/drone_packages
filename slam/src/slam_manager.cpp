@@ -117,38 +117,32 @@ void SlamManager::droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odo
 
     OdometryInfo odomInfo;
 
-#ifdef POSE_MOTION
-    Velocity velocity;
-    velocity.linear.x = linearVelocityIntertiaENU[0];
-    velocity.linear.y = linearVelocityIntertiaENU[1];
-    velocity.linear.z = linearVelocityIntertiaENU[2];
+    Velocity velocityEnu;
+    velocityEnu.linear.x = linearVelocityIntertiaENU[0];
+    velocityEnu.linear.y = linearVelocityIntertiaENU[1];
+    velocityEnu.linear.z = linearVelocityIntertiaENU[2];
 
-    velocity.angular.roll = angularVelocityIntertiaENU[0];
-    velocity.angular.pitch = angularVelocityIntertiaENU[1];
-    velocity.angular.yaw = angularVelocityIntertiaENU[2];
-    odomInfo.EnuVelocity = velocity;
+    velocityEnu.angular.roll = angularVelocityIntertiaENU[0];
+    velocityEnu.angular.pitch = angularVelocityIntertiaENU[1];
+    velocityEnu.angular.yaw = angularVelocityIntertiaENU[2];
+    odomInfo.EnuVelocity = velocityEnu;
 
-#elif POSITION_MOTION 
-    Velocity velocity;
-    velocity.linear.x = linearVelocityIntertiaENU[0];
-    velocity.linear.y = linearVelocityIntertiaENU[1];
-    velocity.linear.z = linearVelocityIntertiaENU[2];
+    Velocity velocityNed;
+    velocityNed.linear.x = linearVelocityIntertiaNED[0];
+    velocityNed.linear.y = linearVelocityIntertiaNED[1];
+    velocityNed.linear.z = linearVelocityIntertiaNED[2];
 
     Quaternion quaternion;
     quaternion.w = odometry.q[0];
     quaternion.x = odometry.q[1];
     quaternion.y = odometry.q[2];
     quaternion.z = odometry.q[3];
-    
 
-    odomInfo.EnuVelocity = velocity;  
+    odomInfo.NedVelocity = velocityNed;  
     odomInfo.orientation = quaternion; // in this case we assume that orientation is knows, using other
                                        // sensor or odometry and only use position for robot position calculation
-#else
-    RCLCPP_ERROR(rclcpp::get_logger("slam"), "Have not define compile tag for motion model to process odometry message");
-    return;
-#endif
-    odomInfo.timeTag = double(odometry.timestamp)/1000000.0f;
+
+    odomInfo.timeTag = double(odometry.timestamp)/1000000.0f; //TODO: to be verified
     _filter->prediction(odomInfo);
 }
 

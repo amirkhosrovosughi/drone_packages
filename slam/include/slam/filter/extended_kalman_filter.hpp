@@ -2,11 +2,8 @@
 #define SLAM__EXTENDED_KALMAN_FILTER_HPP_
 
 #include "kalman_filter.hpp"
-#include "filter/models/motion_model.hpp"
-#include "filter/models/pose_odometry_motion_model.hpp"
-#include "filter/models/position_odometry_motion_model.hpp"
-#include "filter/models/measurement_model.hpp"
-#include "filter/models/position_measurement_model.hpp"
+#include "filter/models/motion_measurement_model.hpp"
+#include "filter/models/position_position_motion_measurement_model.hpp"
 #include "filter/slam_map.hpp"
 
 #include <functional>
@@ -34,8 +31,7 @@ private:
     std::function<void(const MapSummary& map)> _callback;
     std::mutex _mutex;
 
-    std::unique_ptr<MotionModel> _motionModel;
-    std::unique_ptr<MeasurementModel> _measurementModel;
+    std::unique_ptr<MotionMeasurementModel> _model;
     std::shared_ptr<SlamMap> _slamMap;
     Quaternion _robotQuaternion;
     OdometryType _odometryType;
