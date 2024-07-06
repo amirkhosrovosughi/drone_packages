@@ -200,7 +200,7 @@ void Feature2DTo3DTransfer::updateTransform()
       RCLCPP_INFO(this->get_logger(), "Camera relative coordinate in loaded successfully");
   
     } catch (tf2::TransformException & ex) {
-      RCLCPP_INFO(this->get_logger(), "Could not transform %s to %s: %s", TO_FRAME.c_str(), FROM_FRAME.c_str(), ex.what());
+      RCLCPP_INFO(this->get_logger(), "Could not find transform %s to %s: %s", TO_FRAME.c_str(), FROM_FRAME.c_str(), ex.what());
       return;
     }
   }
