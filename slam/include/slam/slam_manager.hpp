@@ -37,6 +37,7 @@ private:
   void featureDetectionCallback(const drone_msgs::msg::PointList features);
   void publishMap(const MapSummary& map);
   void updateTransform();
+  double getCurrentTimeInSeconds();
 
 private:
   rclcpp::Subscription<px4_msgs::msg::VehicleOdometry>::SharedPtr _droneOdometrySubscriber;

@@ -40,78 +40,84 @@ void NearestNeighborAssociation::handleUpdate(const Measurements& updatedLandmar
 
 void NearestNeighborAssociation::processMeasurement(const Measurements& measurements)
 {
-    std::lock_guard<std::mutex> lock(_mutex);
     Measurements  associatedMeasurement;
-
-    std::vector<int> assingedFeature(_landmarks.size(), 0);
-
-    for (const Measurement measurement : measurements)
     {
-        int startingLandmakIndex = 0;
-        auto it = std::find_if(assingedFeature.begin(), assingedFeature.end(), [](int value) { return value != 0; });
-        if (it != assingedFeature.end())
+        std::lock_guard<std::mutex> lock(_mutex);
+
+        std::vector<int> assingedFeature(_landmarks.size(), 0);
+
+        for (const Measurement measurement : measurements)
         {
-            startingLandmakIndex = std::distance(assingedFeature.begin(), it);
-            std::cout << "First unassigned landmark is: " << startingLandmakIndex << "\n";
-
-        }
-        else
-        {
-            std::cout << "No unassign landmark left, it is a new landmark.\n";
-            Measurement meas = measurement;
-            meas.id = numberLandmarks++;
-            meas.isNew = true;
-            meas.observeRepeat = 1;
-
-            _landmarks.push_back(meas);
-            associatedMeasurement.push_back(meas);
-            continue;
-        }
-
-        double shortestDistance = euclideanDistance(measurement, _landmarks[startingLandmakIndex]);
-        double distance = 0;
-        int nearestIndex = startingLandmakIndex;
-
-        for (int i = startingLandmakIndex + 1; i < _landmarks.size(); i++)
-        {
-            distance = euclideanDistance(measurement, _landmarks[i]);
-            if (distance < shortestDistance)
+            int startingLandmakIndex = 0;
+            auto it = std::find_if(assingedFeature.begin(), assingedFeature.end(), [](int value) { return value != 0; });
+            if (it != assingedFeature.end())
             {
-                shortestDistance = distance;
-                nearestIndex = i;
+                startingLandmakIndex = std::distance(assingedFeature.begin(), it);
+                std::cout << "First unassigned landmark is: " << startingLandmakIndex << "\n";
+
+            }
+            else
+            {
+                std::cout << "No unassigned landmark left, it is a new landmark.\n";
+                Measurement meas = measurement;
+                meas.id = numberLandmarks++;
+                meas.isNew = true;
+                meas.observeRepeat = 1;
+
+                _landmarks.push_back(meas);
+                associatedMeasurement.push_back(meas);
+                continue;
+            }
+
+            double shortestDistance = euclideanDistance(measurement, _landmarks[startingLandmakIndex]);
+            double distance = 0;
+            int nearestIndex = startingLandmakIndex;
+
+            for (int i = startingLandmakIndex + 1; i < _landmarks.size(); i++)
+            {
+                distance = euclideanDistance(measurement, _landmarks[i]);
+                if (distance < shortestDistance)
+                {
+                    shortestDistance = distance;
+                    nearestIndex = i;
+                }
+            }
+
+            if (nearestIndex < GATHING_DISTANCE)
+            {
+                std::cout << "Find a matching landmark\n";
+                _landmarks[nearestIndex].isNew = false;
+                _landmarks[nearestIndex].observeRepeat ++;
+
+                Measurement meas = measurement;
+                meas.id = _landmarks[nearestIndex].id;
+                meas.isNew = false;
+                meas.observeRepeat = _landmarks[nearestIndex].observeRepeat;
+
+                associatedMeasurement.push_back(meas);
+                assingedFeature[nearestIndex] = 1;
+            }
+            else
+            {
+                std::cout << "Not match any of landmark, mark as a new feature\n";
+                Measurement meas = measurement;
+                meas.id = numberLandmarks++;
+                meas.isNew = true;
+                meas.observeRepeat = 1;
+
+                _landmarks.push_back(meas);
+                associatedMeasurement.push_back(meas);
             }
         }
-
-        if (nearestIndex < GATHING_DISTANCE)
-        {
-            std::cout << "Find a matching landmark\n";
-            _landmarks[nearestIndex].isNew = false;
-            _landmarks[nearestIndex].observeRepeat ++;
-
-            Measurement meas = measurement;
-            meas.id = _landmarks[nearestIndex].id;
-            meas.isNew = false;
-            meas.observeRepeat = _landmarks[nearestIndex].observeRepeat;
-
-            associatedMeasurement.push_back(meas);
-            assingedFeature[nearestIndex] = 1;
-        }
-        else
-        {
-            std::cout << "Not match any of landmark, mark as a new feature\n";
-            Measurement meas = measurement;
-            meas.id = numberLandmarks++;
-            meas.isNew = true;
-            meas.observeRepeat = 1;
-
-            _landmarks.push_back(meas);
-            associatedMeasurement.push_back(meas);
-        }
+        std::cout << "Measurement are processed" << std::endl;
     }
-    std::cout << "Measurement are processed" << std::endl;
 
-    
-    if (_callback) _callback(associatedMeasurement);
+    if (_callback)
+    {
+        std::async(std::launch::async, _callback, associatedMeasurement);
+    }
+
+    std::cout << "callback measurement is called" << std::endl;
 }
 
 double NearestNeighborAssociation::euclideanDistance(const Measurement& meas, Measurement feature)

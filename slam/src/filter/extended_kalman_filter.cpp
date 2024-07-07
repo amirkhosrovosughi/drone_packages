@@ -24,6 +24,7 @@ ExtendedKalmanFilter::ExtendedKalmanFilter()
     throw std::runtime_error("motion measurement model is not specified");
 #endif
 
+    _lastUpdateTime = getCurrentTimeInSeconds();
     _slamMap = std::make_shared<SlamMap>(_model->getMotionDimension(), _model->getMeasurementDimension());
 }
 
@@ -44,75 +45,89 @@ void ExtendedKalmanFilter::registerCallback(std::function<void(const MapSummary&
 
 void ExtendedKalmanFilter::processPrediction(const OdometryInfo& odom)
 {
-    std::lock_guard<std::mutex> lock(_mutex);
-
-    //update mean
-    double timeElapse = odom.timeTag - _lastUpdateTime;
-
-    // Eigen::VectorXd updatedRobotMean = _motionModel->stateUpdate(odom, _slamMap->getRobotMean(), timeElapse); // TODO: for time we have lock, so should check when we get the message
-    // Velocity velocity = odom.NedVelocity;
-    // Eigen::Vector3d linearVel{velocity.linear.x, velocity.linear.y, velocity.linear.z};
-    // Eigen::Vector3d position{state[0], state[1], state[2]};
-    // return position + linearVel * dt;
-
-    // _model->getRobotToRobotJacobian(_slamMap->getRobotMean() + + linearVel * dt);
-
-    if (_odometryType == OdometryType::PositionOdometry)
     {
-        Velocity velocity = odom.NedVelocity;
-        Eigen::VectorXd linearVel(3);
-        linearVel << velocity.linear.x, velocity.linear.y, velocity.linear.z;
-        Eigen::VectorXd updatedRobotMean = _model->getRobotToRobotJacobian()*_slamMap->getRobotMean() + linearVel * timeElapse;
-        _slamMap->setRobotMean(updatedRobotMean);
-    }
-    else if (_odometryType == OdometryType::PoseOdometry)
-    {
-        throw std::runtime_error("have not implemented yet");
-    }
-    else
-    {
-        throw std::invalid_argument( "received wrong odometry dimension" );
-    }
-    
-    Eigen::MatrixXd F = _model->getRobotToRobotJacobian();
-    Eigen::MatrixXd Q = _model->getMotionNoise();
-    Eigen::MatrixXd updatedRobotCorollation = F * _slamMap->getRobotCorrelation() * F.transpose() + Q;
-    // Eigen::MatrixXd updatedRobotCorollation = _motionModel->corrolationUpdate(_slamMap->getRobotCorrelation());
-    _slamMap->setRobotCorrelation(updatedRobotCorollation);
+        std::lock_guard<std::mutex> lock(_mutex);
 
-    Eigen::MatrixXd updatedRobotLandmarkFullCorrelationsHorizontal = F * _slamMap->getRobotLandmarkFullCorrelationsHorizontal();
-    _slamMap->setRobotLandmarkFullCorrelationsHorizontal(updatedRobotLandmarkFullCorrelationsHorizontal);
-    _slamMap->setRobotLandmarkFullCorrelationsVertical(updatedRobotLandmarkFullCorrelationsHorizontal.transpose());
+        //update mean
+        double timeElapse = odom.timeTag - _lastUpdateTime;
+        std::cout << "_lastUpdateTime is: " << _lastUpdateTime << std::endl;
+        std::cout << "timeElapse is: " << timeElapse << std::endl;
 
-    _robotQuaternion = odom.orientation;
+        // Eigen::VectorXd updatedRobotMean = _motionModel->stateUpdate(odom, _slamMap->getRobotMean(), timeElapse); // TODO: for time we have lock, so should check when we get the message
+        // Velocity velocity = odom.NedVelocity;
+        // Eigen::Vector3d linearVel{velocity.linear.x, velocity.linear.y, velocity.linear.z};
+        // Eigen::Vector3d position{state[0], state[1], state[2]};
+        // return position + linearVel * dt;
 
-    std::cout << "Extended Kalman Filter prediction step" << std::endl;
+        // _model->getRobotToRobotJacobian(_slamMap->getRobotMean() + + linearVel * dt);
+
+        if (_odometryType == OdometryType::PositionOdometry)
+        {
+            Velocity velocity = odom.NedVelocity; // change to EnuVelocity, use ned now for comparision and cross checking 
+            Eigen::VectorXd linearVel(3);
+            linearVel << velocity.linear.x, velocity.linear.y, velocity.linear.z;
+            Eigen::VectorXd updatedRobotMean = _model->getRobotToRobotJacobian()*_slamMap->getRobotMean() + linearVel * timeElapse;
+            std::cout << "updatedRobotMean is: " << "\n" << updatedRobotMean << std::endl;
+            _slamMap->setRobotMean(updatedRobotMean);
+        }
+        else if (_odometryType == OdometryType::PoseOdometry)
+        {
+            throw std::runtime_error("have not implemented yet");
+        }
+        else
+        {
+            throw std::invalid_argument( "received wrong odometry dimension" );
+        }
+        
+        Eigen::MatrixXd F = _model->getRobotToRobotJacobian();
+        Eigen::MatrixXd Q = _model->getMotionNoise();
+        Eigen::MatrixXd updatedRobotCorollation = F * _slamMap->getRobotCorrelation() * F.transpose() + Q;
+        _slamMap->setRobotCorrelation(updatedRobotCorollation);
+
+        Eigen::MatrixXd updatedRobotLandmarkFullCorrelationsHorizontal = F * _slamMap->getRobotLandmarkFullCorrelationsHorizontal();
+        _slamMap->setRobotLandmarkFullCorrelationsHorizontal(updatedRobotLandmarkFullCorrelationsHorizontal);
+        _slamMap->setRobotLandmarkFullCorrelationsVertical(updatedRobotLandmarkFullCorrelationsHorizontal.transpose());
+
+        _robotQuaternion = odom.orientation;
+
+        std::cout << "Extended Kalman Filter prediction step" << std::endl;
+    }
     _lastUpdateTime = getCurrentTimeInSeconds();
     MapSummary map = summerizeMap();
-    if (_callback) _callback(map);
+    
+    if (_callback)
+    {
+        std::async(std::launch::async, _callback, map);
+    }
 }
 
 void ExtendedKalmanFilter::processCorrection(const Measurements& measurements)
 {
-    std::lock_guard<std::mutex> lock(_mutex);
-    //
-    for (Measurement meas : measurements)
     {
-        if (meas.isNew)
+        std::lock_guard<std::mutex> lock(_mutex);
+        //
+        for (Measurement meas : measurements)
         {
-            addLandmark(meas);
+            if (meas.isNew)
+            {
+                addLandmark(meas);
+            }
+            else
+            {
+                updateLandmark(meas);
+            }
         }
-        else
-        {
-            updateLandmark(meas);
-        }
-    }
 
-    std::cout << "Extended Kalman Filter correction step executed" << std::endl;
+        std::cout << "Extended Kalman Filter correction step executed" << std::endl;
+    }
     // record the last update time
     _lastUpdateTime = getCurrentTimeInSeconds();
     MapSummary map = summerizeMap();
-    if (_callback) _callback(map);
+
+    if (_callback)
+    {
+        std::async(std::launch::async, _callback, map);
+    }
 }
 
 void ExtendedKalmanFilter::updateLandmark(const Measurement& measurement)

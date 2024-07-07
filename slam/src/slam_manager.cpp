@@ -1,5 +1,6 @@
 #include "slam_manager.hpp"
 #include <mutex>
+#include <chrono>
 
 const std::string FROM_FRAME = "base_link";
 const std::string TO_FRAME = "camera_frame";
@@ -93,7 +94,7 @@ void SlamManager::droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odo
     RCLCPP_INFO(rclcpp::get_logger("slam"), "linearVelocityIntertiaNED is:\n%s", TransformUtil::matrixToString(linearVelocityIntertiaNED).c_str());
 
     Eigen::Vector3f linearVelocityIntertiaENU = TransformUtil::nedToEnu(linearVelocityIntertiaNED);
-    RCLCPP_INFO(rclcpp::get_logger("slam"), "linearVelocityBodyENU is:\n%s", TransformUtil::matrixToString(linearVelocityIntertiaENU).c_str());
+    RCLCPP_DEBUG(rclcpp::get_logger("slam"), "linearVelocityBodyENU is:\n%s", TransformUtil::matrixToString(linearVelocityIntertiaENU).c_str());
     
     // do no need Bdoy inertia for prediction, keep comments them for confirmation later
     // Eigen::Quaterniond rotation(odometry.q[0],
@@ -111,9 +112,9 @@ void SlamManager::droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odo
     //   RCLCPP_INFO(rclcpp::get_logger("slam"), "linearVelocityBodyENU is:\n%s", TransformUtil::matrixToString(linearVelocityBodyENU).c_str());
 
     Eigen::Vector3f angularVelocityIntertiaNED{odometry.angular_velocity[0], odometry.angular_velocity[1], odometry.angular_velocity[2]};
-    RCLCPP_INFO(rclcpp::get_logger("slam"), "angularVelocityIntertiaNED is:\n%s", TransformUtil::matrixToString(angularVelocityIntertiaNED).c_str());
+    RCLCPP_DEBUG(rclcpp::get_logger("slam"), "angularVelocityIntertiaNED is:\n%s", TransformUtil::matrixToString(angularVelocityIntertiaNED).c_str());
     Eigen::Vector3f angularVelocityIntertiaENU = TransformUtil::nedToEnu(angularVelocityIntertiaNED);
-    RCLCPP_INFO(rclcpp::get_logger("slam"), "angularVelocityIntertiaENU is:\n%s", TransformUtil::matrixToString(angularVelocityIntertiaENU).c_str());
+    RCLCPP_DEBUG(rclcpp::get_logger("slam"), "angularVelocityIntertiaENU is:\n%s", TransformUtil::matrixToString(angularVelocityIntertiaENU).c_str());
 
     OdometryInfo odomInfo;
 
@@ -142,7 +143,9 @@ void SlamManager::droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odo
     odomInfo.orientation = quaternion; // in this case we assume that orientation is knows, using other
                                        // sensor or odometry and only use position for robot position calculation
 
-    odomInfo.timeTag = double(odometry.timestamp)/1000000.0f; //TODO: to be verified
+    // odomInfo.timeTag = double(odometry.timestamp)/1000000.0f; //TODO: commented for enabling us to work with bagfiles with older tages
+    odomInfo.timeTag = getCurrentTimeInSeconds();
+    RCLCPP_INFO(rclcpp::get_logger("slam"), "time tag receive is: %f", odomInfo.timeTag);
     _filter->prediction(odomInfo);
 }
 
@@ -199,4 +202,14 @@ void SlamManager::updateTransform()
       return;
     }
   }
+}
+
+double SlamManager::getCurrentTimeInSeconds()
+{
+    // Get the current time_point
+    auto now = std::chrono::system_clock::now();
+    // Convert the time_point to a duration since epoch and then to seconds
+    double seconds = std::chrono::duration<double>(now.time_since_epoch()).count();
+    
+    return seconds;
 }
