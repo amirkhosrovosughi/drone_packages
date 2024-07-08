@@ -49,7 +49,7 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
         for (const Measurement measurement : measurements)
         {
             int startingLandmakIndex = 0;
-            auto it = std::find_if(assingedFeature.begin(), assingedFeature.end(), [](int value) { return value != 0; });
+            auto it = std::find_if(assingedFeature.begin(), assingedFeature.end(), [](int value) { return value == 0; });
             if (it != assingedFeature.end())
             {
                 startingLandmakIndex = std::distance(assingedFeature.begin(), it);

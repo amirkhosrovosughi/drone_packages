@@ -92,7 +92,8 @@ void ExtendedKalmanFilter::processPrediction(const OdometryInfo& odom)
 
         std::cout << "Extended Kalman Filter prediction step" << std::endl;
     }
-    _lastUpdateTime = getCurrentTimeInSeconds();
+    
+    _lastUpdateTime = odom.timeTag;
     MapSummary map = summerizeMap();
     
     if (_callback)
