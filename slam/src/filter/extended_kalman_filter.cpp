@@ -205,10 +205,10 @@ void ExtendedKalmanFilter::updateLandmark(const Measurement& measurement)
     Eigen::MatrixXd pml =  _slamMap->getCrossLandmarkFullCorrelation(id); 
 
 
-    p.block(0, 0, r, r) = prr;                   // Top-left block
-    p.block(0, r, r, l) = prl;                   // Top-right block
-    p.block(r, 0, n * l, r) = pmr;               // Top-left block
-    p.block(r, r, n * l, l) = pml;               // Top-right block
+    pBar.block(0, 0, r, r) = prr;                   // Top-left block
+    pBar.block(0, r, r, l) = prl;                   // Top-right block
+    pBar.block(r, 0, n * l, r) = pmr;               // Top-left block
+    pBar.block(r, r, n * l, l) = pml;               // Top-right block
 
 
     Eigen::MatrixXd K = pBar * h.transpose() * Z.inverse();
