@@ -68,7 +68,8 @@ struct SlamMap
             }
             mapCorrelation = mapCorrelationTemp;
             
-        } else
+        }
+        else
         {
             std::cerr << "Error: Landmark size does not match specified dimensions (" << landmarkDimension << ")." << std::endl;
             throw std::invalid_argument( "received landmark with wrong dimension" );

@@ -4,6 +4,7 @@
 
 const std::string FROM_FRAME = "base_link";
 const std::string TO_FRAME = "camera_frame";
+const static int ROBOT_ID = 1;
 
 SlamManager::SlamManager()
     : Node("slam_manager")
@@ -65,7 +66,7 @@ void SlamManager::createSubscribers()
 
 void SlamManager::createPublishers()
 {
-
+     _mapPublisher = this->create_publisher<drone_msgs::msg::MapSummary>("/slam/map", 10);
 }
 
 void SlamManager::filterCallback(const MapSummary& map)
@@ -151,7 +152,7 @@ void SlamManager::droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odo
 
 void SlamManager::featureDetectionCallback(const drone_msgs::msg::PointList features)
 {
-    RCLCPP_INFO(rclcpp::get_logger("slam"), "---- receive feature ----");
+    RCLCPP_INFO(rclcpp::get_logger("slam"), "===== receive feature =====");
 
     Measurements meas;
     meas.reserve(features.points.size());
@@ -167,7 +168,36 @@ void SlamManager::featureDetectionCallback(const drone_msgs::msg::PointList feat
 
 void SlamManager::publishMap(const MapSummary& map)
 {
-    //publish map
+    auto msg = drone_msgs::msg::MapSummary();
+
+        // Fill RobotPose
+        msg.robot.id = ROBOT_ID;
+        msg.robot.pose.position.x = map.robot.pose.position.x;
+        msg.robot.pose.position.y = map.robot.pose.position.y;
+        msg.robot.pose.position.z = map.robot.pose.position.z;
+        msg.robot.pose.orientation.x = map.robot.pose.quaternion.x;
+        msg.robot.pose.orientation.y = map.robot.pose.quaternion.y;
+        msg.robot.pose.orientation.z = map.robot.pose.quaternion.z;
+        msg.robot.pose.orientation.w = map.robot.pose.quaternion.w;
+        msg.robot.variance.xx = map.robot.variance.xx;
+        msg.robot.variance.xy = map.robot.variance.xy;
+        msg.robot.variance.yy = map.robot.variance.yy;
+
+        // Fill Landmarks
+        for (const auto& lm : map.landmarks) {
+            drone_msgs::msg::Landmark landmark_msg;
+            landmark_msg.id = lm.id;
+            landmark_msg.position.x = lm.position.x;
+            landmark_msg.position.y = lm.position.y;
+            landmark_msg.position.z = lm.position.z;
+            landmark_msg.variance.xx = lm.variance.xx;
+            landmark_msg.variance.xy = lm.variance.xy;
+            landmark_msg.variance.yy = lm.variance.yy;
+
+            msg.landmarks.push_back(landmark_msg);
+        }
+
+        _mapPublisher->publish(msg);
 }
 
 void SlamManager::updateTransform()

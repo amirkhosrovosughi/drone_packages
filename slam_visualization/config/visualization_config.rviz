@@ -1,0 +1,20 @@
+Panels:
+- Class: rviz/Displays
+  Name: Displays
+- Class: rviz/Views
+  Name: Views
+Visualization Manager:
+  Class: ""  # Leave empty
+  Displays:
+    - Alpha: 1
+      Class: rviz/MarkerArray
+      Enabled: true
+      Name: Markers
+      Namespace: /visualization_marker
+      Queue Size: 10
+  Global Options:
+    Fixed Frame: map
+  Name: root
+Views:
+  Current:
+    Class: rviz/TopDownOrtho

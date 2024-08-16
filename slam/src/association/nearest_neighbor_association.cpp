@@ -48,6 +48,7 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
 
         for (const Measurement measurement : measurements)
         {
+            // std::cout << "!!!-!!! ========= measurement is: (" << measurement.position.x << ", " << measurement.position.y << ", " << measurement.position.z << ") \n";
             int startingLandmakIndex = 0;
             auto it = std::find_if(assingedFeature.begin(), assingedFeature.end(), [](int value) { return value == 0; });
             if (it != assingedFeature.end())
@@ -75,6 +76,7 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
 
             for (int i = startingLandmakIndex + 1; i < _landmarks.size(); i++)
             {
+                // std::cout << "!!!-!!! ========= measurement is: (" << _landmarks[i].position.x << ", " << _landmarks[i].position.y << ", " << _landmarks[i].position.z << ") \n";
                 distance = euclideanDistance(measurement, _landmarks[i]);
                 if (distance < shortestDistance)
                 {
@@ -83,7 +85,8 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
                 }
             }
 
-            if (nearestIndex < GATHING_DISTANCE)
+            // std::cout << "--- index nearest: " << nearestIndex << ", shortestDistance: " << shortestDistance << " \n";
+            if (shortestDistance < GATHING_DISTANCE)
             {
                 std::cout << "Find a matching landmark\n";
                 _landmarks[nearestIndex].isNew = false;
@@ -111,6 +114,7 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
         }
         std::cout << "Measurement are processed" << std::endl;
     }
+    // std::cout << "!!!-!!! number of landmarks is " << _landmarks.size() << " \n";
 
     if (_callback)
     {

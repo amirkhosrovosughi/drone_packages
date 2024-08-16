@@ -8,6 +8,7 @@
 
 #include "common_utilities/transform_util.hpp"
 #include <drone_msgs/msg/point_list.hpp>
+#include <drone_msgs/msg/map_summary.hpp> 
 #include <px4_msgs/msg/vehicle_odometry.hpp>
 
 #include "def_slam.hpp"
@@ -42,6 +43,7 @@ private:
 private:
   rclcpp::Subscription<px4_msgs::msg::VehicleOdometry>::SharedPtr _droneOdometrySubscriber;
   rclcpp::Subscription<drone_msgs::msg::PointList>::SharedPtr _feature3DcoordinatSubscriber;
+  rclcpp::Publisher<drone_msgs::msg::MapSummary>::SharedPtr _mapPublisher;
   FilterPtr _filter;
   AssociationPtr _associantion;
   std::unique_ptr<tf2_ros::Buffer> _tfBuffer;

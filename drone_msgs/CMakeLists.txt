@@ -12,6 +12,10 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/DetectedFeature.msg"
   "msg/DetectedFeatureList.msg"
   "msg/PointList.msg"
+  "msg/Landmark.msg"
+  "msg/RobotPose.msg"
+  "msg/Variance2D.msg"
+  "msg/MapSummary.msg"
   "srv/DroneMode.srv"
   DEPENDENCIES std_msgs geometry_msgs
 )
