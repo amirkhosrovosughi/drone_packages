@@ -10,7 +10,7 @@ void JointCompatibilityAssociation::onReceiveMeasurement(const Measurements& mea
     std::cout << "onReceiveMeasurement" << std::endl;
 }
 
-void JointCompatibilityAssociation::handleUpdate(const Measurements& meas)
+void JointCompatibilityAssociation::handleUpdate(const MapSummary& map)
 {
     std::cout << "handleUpdate" << std::endl;
 }

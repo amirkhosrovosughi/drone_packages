@@ -31,10 +31,10 @@ private:
     std::function<void(const MapSummary& map)> _callback;
     std::mutex _mutex;
 
-    std::unique_ptr<MotionMeasurementModel> _model;
+    std::shared_ptr<MotionMeasurementModel> _model;
     std::shared_ptr<SlamMap> _slamMap;
     Quaternion _robotQuaternion;
-    OdometryType _odometryType;
+    MotionMeasurementModel::OdometryType _odometryType;
     double _lastUpdateTime; // in seconds
 };
 

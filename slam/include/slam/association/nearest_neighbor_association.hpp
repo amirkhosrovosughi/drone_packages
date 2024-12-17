@@ -2,6 +2,8 @@
 #define SLAM__NEAREST_NEIGHBOR_ASSOCIATION_HPP_
 
 #include "base_association.hpp"
+#include "filter/models/motion_measurement_model.hpp"
+#include "filter/models/position_position_motion_measurement_model.hpp"
 #include <cmath>
 #include <mutex>
 
@@ -9,7 +11,7 @@ class NearestNeighborAssociation : public BaseAssociation {
 public:
     NearestNeighborAssociation();
     void onReceiveMeasurement(const Measurements& meas) override;
-    void handleUpdate(const Measurements& meas) override;
+    void handleUpdate(const MapSummary& map) override;
     void registerCallback(std::function<void(Measurements)> callback) override
     {
         _callback = callback;
@@ -17,15 +19,17 @@ public:
 
 private:
     void processMeasurement(const Measurements& meas) override;
-    double euclideanDistance(const Measurement& meas, Measurement feature);
-    double mahalanobisDistance(const Measurement& meas, Measurement feature);
+    double euclideanDistance(const Landmark& meas, Landmark feature);
+    double mahalanobisDistance(const Landmark& meas, Landmark feature);
     double matchingScore(double distance);
 
 private:
     std::function<void(Measurements)> _callback;
     std::mutex _mutex;
-    Measurements _landmarks;
+    Landmarks _landmarks;
     int numberLandmarks = 0;
+    Pose _robotPose;
+    std::shared_ptr<MotionMeasurementModel> _model;
 };
 
 #endif  // SLAM__NEAREST_NEIGHBOR_ASSOCIATION_HPP_

@@ -11,6 +11,9 @@ SlamManager::SlamManager()
 {
   // Initialization code here
 
+  //TODO: determine motion_measurement_model here and pass it to
+  // constructor/setter to filter and association
+
   //create correct filter based on flag
 #ifdef EKF
     _filter = std::make_shared<ExtendedKalmanFilter>();
@@ -75,8 +78,7 @@ void SlamManager::filterCallback(const MapSummary& map)
     // publish result
     publishMap(map);
     // notify association
-    Measurements meas = map.getLandmarks();
-    _associantion->handleUpdate(meas);
+    _associantion->handleUpdate(map);
 }
 
 void SlamManager::associationCallback(const Measurements& meas)
@@ -96,21 +98,6 @@ void SlamManager::droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odo
 
     Eigen::Vector3f linearVelocityIntertiaENU = TransformUtil::nedToEnu(linearVelocityIntertiaNED);
     RCLCPP_DEBUG(rclcpp::get_logger("slam"), "linearVelocityBodyENU is:\n%s", TransformUtil::matrixToString(linearVelocityIntertiaENU).c_str());
-    
-    // do no need Bdoy inertia for prediction, keep comments them for confirmation later
-    // Eigen::Quaterniond rotation(odometry.q[0],
-    //                           odometry.q[1],
-    //                           odometry.q[2],
-    //                           odometry.q[3]);
-    // Eigen::Matrix3d rotation_matrix = rotation.toRotationMatrix();
-    // RCLCPP_INFO(rclcpp::get_logger("slam"), "Rotation matrix is:\n%s", TransformUtil::matrixToString(rotation_matrix).c_str());
-
-    // Eigen::Matrix3f mati = rotation_matrix.cast<float>();
-
-    //   Eigen::Vector3f linearVelocityBodyNED = mati.transpose() * linearVelocityIntertiaNED;
-    //   RCLCPP_INFO(rclcpp::get_logger("slam"), "linearVelocityBodyNED is:\n%s", TransformUtil::matrixToString(linearVelocityBodyNED).c_str());
-    //   Eigen::Vector3f linearVelocityBodyENU = TransformUtil::nedToEnu(linearVelocityBodyNED);
-    //   RCLCPP_INFO(rclcpp::get_logger("slam"), "linearVelocityBodyENU is:\n%s", TransformUtil::matrixToString(linearVelocityBodyENU).c_str());
 
     Eigen::Vector3f angularVelocityIntertiaNED{odometry.angular_velocity[0], odometry.angular_velocity[1], odometry.angular_velocity[2]};
     RCLCPP_DEBUG(rclcpp::get_logger("slam"), "angularVelocityIntertiaNED is:\n%s", TransformUtil::matrixToString(angularVelocityIntertiaNED).c_str());
@@ -161,7 +148,7 @@ void SlamManager::featureDetectionCallback(const drone_msgs::msg::PointList feat
     for (auto point : features.points)
     {
         // feature are in FLU (local ENU coordinate)
-        meas.emplace_back(1,Position(point.x, point.y, point.z));
+        meas.emplace_back(1, Position(point.x, point.y, point.z));
     }
     _associantion->onReceiveMeasurement(meas);
 }

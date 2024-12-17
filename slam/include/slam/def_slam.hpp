@@ -37,6 +37,10 @@ struct Quaternion {
     Quaternion(double w = 1.0, double x = 0.0, double y = 0.0, double z = 0.0)
         : w(w), x(x), y(y), z(z) {}
     Quaternion(Eigen::Vector4d quaternionVector) : w(quaternionVector[3]), x(quaternionVector[0]), y(quaternionVector[1]), z(quaternionVector[2]) {}
+    Eigen::Vector4d getVector() const
+    {
+        return Eigen::Vector4d(w, x, y, z);
+    }
 };
 
 // Structure for Pose
@@ -58,7 +62,7 @@ struct Pose {
                                     quaternion.z);
 
         // Construct the transformation matrix
-        Eigen::Matrix4d tranformation_matrix;
+        Eigen::Matrix4d tranformation_matrix = Eigen::Matrix4d::Identity();
         Eigen::Matrix3d rotation_matrix = rotation.toRotationMatrix();
         tranformation_matrix.block<3, 3>(0, 0) = rotation_matrix;
         tranformation_matrix.block<3, 1>(0, 3) = translation;
@@ -70,16 +74,14 @@ struct Pose {
 struct Measurement {
     int id;
     Position position;
-    int observeRepeat;
     bool isNew;
 
-    Measurement() : id(0), position(Position()), observeRepeat(0), isNew(false) {}
-    Measurement(int id, const Position& position) : id(id), position(position), observeRepeat(0), isNew(false) {}
+    Measurement() : id(0), position(Position()), isNew(false) {}
+    Measurement(int id, const Position& position) : id(id), position(position), isNew(false) {}
 };
 
 // Vector of Measurements
 using Measurements = std::vector<Measurement>;
-
 
 // Structure for Variance2D
 struct Variance2D {
@@ -90,6 +92,21 @@ struct Variance2D {
     Variance2D(double xx = 0.0, double xy = 0.0, double yy = 0.0)
         : xx(xx), xy(xy), yy(yy) {}
 };
+// Structure for Landmark
+struct Landmark {
+    int id;
+    Position position;
+    Variance2D variance;
+    int observeRepeat;
+
+    Landmark(const int id, const Position& position, const Variance2D& variance)
+        : id(id) ,position(position), variance(variance), observeRepeat(0) {}
+    Landmark()
+        : id(0) ,position(Position()), variance(Variance2D()), observeRepeat(0) {}
+};
+
+// Vector of landmarks
+    using Landmarks = std::vector<Landmark>;
 
 // Structure for RobotPose
 struct RobotStatic {
@@ -100,34 +117,12 @@ struct RobotStatic {
         : pose(pose), variance(variance) {}
 };
 
-// Structure for Landmark
-struct Landmark {
-    int id;
-    Position position;
-    Variance2D variance;
-
-    Landmark(const int id, const Position& position, const Variance2D& variance)
-        : id(id) ,position(position), variance(variance) {}
-    Landmark()
-        : id(0) ,position(Position()), variance(Variance2D()) {}
-};
-
 // Structure for Map information summary
 struct MapSummary {
     RobotStatic robot;
-    std::vector<Landmark> landmarks;
+    Landmarks landmarks;
 
     MapSummary() {}
-    Measurements getLandmarks() const
-    {
-        Measurements meas;
-        meas.reserve(landmarks.size());
-        for (auto landmark : landmarks)
-        {
-            meas.emplace_back(landmark.id, landmark.position);
-        }
-        return meas;
-    }
 };
 
 struct LinearVelocity {

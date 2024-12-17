@@ -7,7 +7,7 @@ class JointCompatibilityAssociation : public BaseAssociation {
 public:
     JointCompatibilityAssociation();
     void onReceiveMeasurement(const Measurements& meas) override;
-    void handleUpdate(const Measurements& meas) override;
+    void handleUpdate(const MapSummary& map) override;
     void registerCallback(std::function<void(Measurements)> callback) override
     {
         _callback = callback;

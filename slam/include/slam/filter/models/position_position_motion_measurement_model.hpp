@@ -7,10 +7,6 @@
 #include "def_slam.hpp"
 
 class PositionPositionMotionMeasurementModel : public MotionMeasurementModel {
-// public:
-//     virtual int getDimension() override;
-//     virtual Eigen::VectorXd stateUpdate(const OdometryInfo& odom, const Eigen::VectorXd& state, double dt) override;
-//     virtual Eigen::MatrixXd corrolationUpdate(const Eigen::MatrixXd& state) override;
 public:
     // motion methods
     virtual int getMotionDimension() override;
@@ -20,14 +16,16 @@ public:
     // measurement methods
     virtual int getMeasurementDimension() override;
     virtual void setSensorInfo(const Eigen::Matrix4d& transform) override;
-    virtual bool directMeasurementModel(const Pose& robotPose, const Position& landmarkPosition, Measurement& expectedMeasurement) override;
+    virtual bool directObservationModel(const Pose& robotPose, const Position& landmarkPosition, Measurement& expectedMeasurement) override;
+    virtual Position inverseObservationModel(const Pose& robotPose, const Measurement measurement) override;
     virtual Eigen::MatrixXd getMeasurementToRobotJacobian(const Pose& robotPose) override;
     virtual Eigen::MatrixXd getMeasurementToMeasurementJacobian(const Pose& robotPose) override;
     virtual Eigen::MatrixXd getMeasurementNoise() override;
+    virtual OdometryType getOdometryType() {return OdometryType::PositionOdometry;}
 
 private:
     Eigen::Matrix4d _sensorTranformation;
-    bool _sensorTranformationLoaded = false;
+    // bool _sensorTranformationLoaded = false;
 
 };
 
