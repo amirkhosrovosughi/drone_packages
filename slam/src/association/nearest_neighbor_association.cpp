@@ -6,6 +6,10 @@
 
 static const double GATHING_DISTANCE = 0.25; // TODO: To be tuned
 
+static const LogLevel HIGH_LEVEL = LogLevel::INFO;
+static const LogLevel LOW_LEVEL = LogLevel::DEBUG;
+static const std::string LOG_SUBSECTION = "[association] - ";
+
 NearestNeighborAssociation::NearestNeighborAssociation()
 {
 #ifdef POSITION_MOTION_POSITION_MEASUREMENT
@@ -27,7 +31,7 @@ NearestNeighborAssociation::NearestNeighborAssociation()
 void NearestNeighborAssociation::onReceiveMeasurement(const Measurements& meas) 
 {
     std::future<void> result = std::async(std::launch::async, &NearestNeighborAssociation::processMeasurement, this, meas);
-    std::cout << "onReceiveMeasurement" << std::endl;
+    _logger->log(HIGH_LEVEL, LOG_SUBSECTION, LOG_SUBSECTION, "onReceiveMeasurement.");
 }
 
 void NearestNeighborAssociation::handleUpdate(const MapSummary& map)
@@ -43,10 +47,10 @@ void NearestNeighborAssociation::handleUpdate(const MapSummary& map)
             bool foundMatchedLandmark = false;
             if (landmark.id == updatedLandmark.id)
             {
-                std::cout << "!--! landmark:" << landmark.id <<" has been updated from ("
-                 << landmark.position.x << ", " << landmark.position.y << ", " << landmark.position.z << "to "
-                 << updatedLandmark.position.x << ", " << updatedLandmark.position.y << ", " << updatedLandmark.position.z <<
-                  ") \n";
+                _logger->log(LOW_LEVEL, LOG_SUBSECTION, "!--! landmark:" , landmark.id, " has been updated from (",
+                            landmark.position.x, ", ", landmark.position.y, ", ", landmark.position.z, "to ",
+                            updatedLandmark.position.x, ", ", updatedLandmark.position.y, ", ",
+                            updatedLandmark.position.z, ") \n");
                 landmark.position = updatedLandmark.position;
                 foundMatchedLandmark = true;
             }
@@ -56,7 +60,7 @@ void NearestNeighborAssociation::handleUpdate(const MapSummary& map)
             }
         }
     }
-    std::cout << "handleUpdate" << std::endl;
+    _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "handleUpdate.");
 }
 
 void NearestNeighborAssociation::processMeasurement(const Measurements& measurements)
@@ -67,29 +71,32 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
 
         std::vector<int> assingedFeature(_landmarks.size(), 0);
 
-        std::cout << "size measurements is:" << measurements.size() << ".\n";
+        _logger->log(LOW_LEVEL, LOG_SUBSECTION, "size measurements is:", measurements.size(), ".\n");
 
         for (const Measurement measurement : measurements)
         {
-            std::cout << "!!!-!!! ========= measurement is: (" << measurement.position.x << ", " << measurement.position.y << ", " << measurement.position.z << ") \n";
+            _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "!!!-!!! ========= measurement is: (", measurement.position.x, ", ",
+                        measurement.position.y, ", ", measurement.position.z, ") \n");
 
             // need to transfer measurement to landmark position, for that we need _model, robot Pose
             Position capturedLandmarkPosition = _model->inverseObservationModel(_robotPose, measurement);
             Landmark landmark;
             landmark.position = capturedLandmarkPosition;
 
-            std::cout << "!-! == landmark position is: (" << landmark.position.x << ", " << landmark.position.y << ", " << landmark.position.z << ") \n";
+            _logger->log(LOW_LEVEL, LOG_SUBSECTION, "!-! == landmark position is: (", landmark.position.x,
+                        ", ", landmark.position.y, ", ", landmark.position.z, ") \n");
+
             int startingLandmarkIndex = 0;
             auto it = std::find_if(assingedFeature.begin(), assingedFeature.end(), [](int value) { return value == 0; });
             if (it != assingedFeature.end())
             {
                 startingLandmarkIndex = std::distance(assingedFeature.begin(), it);
-                std::cout << "First unassigned landmark is: " << startingLandmarkIndex << "\n";
+                _logger->log(LOW_LEVEL, LOG_SUBSECTION, "First unassigned landmark is: ", startingLandmarkIndex, "\n");
 
             }
             else
             {
-                std::cout << "No unassigned landmark left, it is a new landmark.\n";
+                _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "No unassigned landmark left, it is a new landmark.\n");
                 // Measurement meas = measurement;
                 landmark.id = numberLandmarks++;
                 // meas.isNew = true;
@@ -108,22 +115,26 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
 
             for (int i = startingLandmarkIndex + 1; i < _landmarks.size(); i++)
             {
-                std::cout << "landmark" << i << "position is: (" << _landmarks[i].position.x << ", " << _landmarks[i].position.y << ", " << _landmarks[i].position.z << ") \n";
+                _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "landmark", i, "position is: (", _landmarks[i].position.x,
+                            ", ", _landmarks[i].position.y, ", ", _landmarks[i].position.z, ") \n");
                 distance = euclideanDistance(landmark, _landmarks[i]);
                 if (distance < shortestDistance)
                 {
                     shortestDistance = distance;
                     nearestIndex = i;
-                    std::cout << "--- nearestIndex: " << nearestIndex << ", _landmarks[i].id: " << _landmarks[i].id << " \n";
+                    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "--- nearestIndex: ", nearestIndex,
+                                ", _landmarks[i].id: ", _landmarks[i].id, " \n");
                 }
             }
 
-            std::cout << "--- index nearest: " << nearestIndex << ", shortestDistance: " << shortestDistance << " \n";
+            _logger->log(LOW_LEVEL, LOG_SUBSECTION, "--- index nearest: ", nearestIndex,
+                        ", shortestDistance: ", shortestDistance, " \n");
             if (shortestDistance < GATHING_DISTANCE)
             {
-                std::cout << "Find a matching landmark\n";
-                std::cout << "Nearest machitng id is"<< _landmarks[nearestIndex].id <<", and it landmark " <<
-                 "position is: (" << _landmarks[nearestIndex].position.x << ", " << _landmarks[nearestIndex].position.y << ", " << _landmarks[nearestIndex].position.z << ") \n";
+                _logger->log(LOW_LEVEL, LOG_SUBSECTION, "Find a matching landmark\n.");
+                _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Nearest machitng id is", _landmarks[nearestIndex].id, ", and it landmark ",
+                            "position is: (", _landmarks[nearestIndex].position.x, ", ", _landmarks[nearestIndex].position.y,
+                            ", ", _landmarks[nearestIndex].position.z, ") \n");
                 // _landmarks[nearestIndex].isNew = false;
                 _landmarks[nearestIndex].observeRepeat ++;
 
@@ -137,7 +148,7 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
             }
             else
             {
-                std::cout << "Not match any of landmark, mark as a new feature\n";
+                _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Not match any of landmarks, marks as a new feature.\n");
                 // Measurement meas = measurement;
                 landmark.id = numberLandmarks++;
                 // meas.isNew = true;
@@ -149,16 +160,16 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
                 associatedMeasurement.push_back(meas);
             }
         }
-        std::cout << "Measurement are processed" << std::endl;
+        _logger->log(LOW_LEVEL, LOG_SUBSECTION, "Measurement are processed.\n");
     }
-    std::cout << "!!!-!!! number of landmarks is " << _landmarks.size() << " \n";
+    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "!!!-!!! number of landmarks is ", _landmarks.size(), " \n");
 
     if (_callback)
     {
         std::async(std::launch::async, _callback, associatedMeasurement);
     }
 
-    std::cout << "callback measurement is called" << std::endl;
+    _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "callback measurement is called.");
 }
 
 double NearestNeighborAssociation::euclideanDistance(const Landmark& meas, Landmark feature)

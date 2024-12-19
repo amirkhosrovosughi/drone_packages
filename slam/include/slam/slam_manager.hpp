@@ -12,6 +12,7 @@
 #include <px4_msgs/msg/vehicle_odometry.hpp>
 
 #include "def_slam.hpp"
+#include "slam_logger.hpp"
 
 #include "filter/base_filter.hpp"
 #include "filter/extended_kalman_filter.hpp"
@@ -48,6 +49,7 @@ private:
   AssociationPtr _associantion;
   std::unique_ptr<tf2_ros::Buffer> _tfBuffer;
   std::shared_ptr<tf2_ros::TransformListener> _tflistener;
+  LoggerPtr _logger;
   rclcpp::TimerBase::SharedPtr _timer;
   bool _cameraTransformLoaded = false;
 };

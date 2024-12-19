@@ -6,6 +6,7 @@
 #include "filter/models/position_position_motion_measurement_model.hpp"
 #include <cmath>
 #include <mutex>
+#include "slam_logger.hpp"
 
 class NearestNeighborAssociation : public BaseAssociation {
 public:
@@ -15,6 +16,10 @@ public:
     void registerCallback(std::function<void(Measurements)> callback) override
     {
         _callback = callback;
+    }
+    void setLogger(LoggerPtr logger) override
+    {
+        _logger = logger;
     }
 
 private:
@@ -30,6 +35,7 @@ private:
     int numberLandmarks = 0;
     Pose _robotPose;
     std::shared_ptr<MotionMeasurementModel> _model;
+    LoggerPtr _logger;
 };
 
 #endif  // SLAM__NEAREST_NEIGHBOR_ASSOCIATION_HPP_

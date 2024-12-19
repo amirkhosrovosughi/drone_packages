@@ -12,6 +12,7 @@ public:
     {
         _callback = callback;
     }
+    void setLogger(LoggerPtr logger) override {}
 
 private:
     void processMeasurement(const Measurements& meas) override;

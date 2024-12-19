@@ -10,6 +10,7 @@ public:
     void correction(const Measurements& meas) override;
     void registerCallback(std::function<void(const MapSummary& map)> callback) override;
     void setSensorInfo(const Eigen::Matrix4d& transform) override {}
+    void setLogger(LoggerPtr logger) override {}
 
 private:
     std::function<void(const MapSummary& map)> _callback;

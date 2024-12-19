@@ -18,6 +18,7 @@ public:
     void correction(const Measurements& meas) override;
     void registerCallback(std::function<void(const MapSummary& map)> callback) override;
     void setSensorInfo(const Eigen::Matrix4d& transform) override;
+    void setLogger(LoggerPtr logger) override;
 
 private:
     void processPrediction(const OdometryInfo& odom);
@@ -36,6 +37,7 @@ private:
     Quaternion _robotQuaternion;
     MotionMeasurementModel::OdometryType _odometryType;
     double _lastUpdateTime; // in seconds
+    LoggerPtr _logger;
 };
 
 #endif  // SLAM__EXTENDED_KALMAN_FILTER_HPP_

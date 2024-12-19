@@ -11,6 +11,8 @@ SlamManager::SlamManager()
 {
   // Initialization code here
 
+    _logger = std::make_shared<SlamLogger>(this->get_logger());
+
   //TODO: determine motion_measurement_model here and pass it to
   // constructor/setter to filter and association
 
@@ -35,6 +37,9 @@ SlamManager::SlamManager()
     _associantion = std::make_shared<NearestNeighborAssociation>();
 #endif
 
+    _associantion->setLogger(_logger);
+    _filter->setLogger(_logger);
+
   initialize();
   createSubscribers();
   createPublishers();
@@ -42,6 +47,8 @@ SlamManager::SlamManager()
 
 void SlamManager::initialize()
 {
+    _logger->log(LogLevel::INFO, "Initializing Slam.");
+
     _filter->registerCallback([this](const MapSummary& map) {
         this->filterCallback(map);
     });
@@ -74,7 +81,7 @@ void SlamManager::createPublishers()
 
 void SlamManager::filterCallback(const MapSummary& map)
 {
-    RCLCPP_INFO(rclcpp::get_logger("slam"), "filterCallback called with map");
+    _logger->log(LogLevel::INFO, "filterCallback called with map");
     // publish result
     publishMap(map);
     // notify association
@@ -84,25 +91,26 @@ void SlamManager::filterCallback(const MapSummary& map)
 void SlamManager::associationCallback(const Measurements& meas)
 { 
     RCLCPP_INFO(rclcpp::get_logger("slam"), "---- associationCallback called with measurements ----");
+    _logger->log(LogLevel::INFO, "---- associationCallback called with measurements ----");
     // send result to fllter 
     _filter->correction(meas);
 }
 
 void SlamManager::droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odometry)
 {
-    RCLCPP_INFO(rclcpp::get_logger("slam"), "---- receive odometry ----");
+    _logger->log(LogLevel::INFO, "---- receive odometry ----");
     
     
     Eigen::Vector3f linearVelocityIntertiaNED{odometry.velocity[0], odometry.velocity[1], odometry.velocity[2]};
-    RCLCPP_INFO(rclcpp::get_logger("slam"), "linearVelocityIntertiaNED is:\n%s", TransformUtil::matrixToString(linearVelocityIntertiaNED).c_str());
+    _logger->log(LogLevel::INFO, "linearVelocityIntertiaNED is:\n", TransformUtil::matrixToString(linearVelocityIntertiaNED).c_str());
 
     Eigen::Vector3f linearVelocityIntertiaENU = TransformUtil::nedToEnu(linearVelocityIntertiaNED);
-    RCLCPP_DEBUG(rclcpp::get_logger("slam"), "linearVelocityBodyENU is:\n%s", TransformUtil::matrixToString(linearVelocityIntertiaENU).c_str());
+    _logger->log(LogLevel::DEBUG, "linearVelocityBodyENU is:\n", TransformUtil::matrixToString(linearVelocityIntertiaENU).c_str());
 
     Eigen::Vector3f angularVelocityIntertiaNED{odometry.angular_velocity[0], odometry.angular_velocity[1], odometry.angular_velocity[2]};
-    RCLCPP_DEBUG(rclcpp::get_logger("slam"), "angularVelocityIntertiaNED is:\n%s", TransformUtil::matrixToString(angularVelocityIntertiaNED).c_str());
+    _logger->log(LogLevel::DEBUG, "angularVelocityIntertiaNED is:\n", TransformUtil::matrixToString(angularVelocityIntertiaNED).c_str());
     Eigen::Vector3f angularVelocityIntertiaENU = TransformUtil::nedToEnu(angularVelocityIntertiaNED);
-    RCLCPP_DEBUG(rclcpp::get_logger("slam"), "angularVelocityIntertiaENU is:\n%s", TransformUtil::matrixToString(angularVelocityIntertiaENU).c_str());
+    _logger->log(LogLevel::DEBUG, "angularVelocityIntertiaENU is:\n", TransformUtil::matrixToString(angularVelocityIntertiaENU).c_str());
 
     OdometryInfo odomInfo;
 
@@ -133,13 +141,13 @@ void SlamManager::droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odo
 
     // odomInfo.timeTag = double(odometry.timestamp)/1000000.0f; //TODO: commented for enabling us to work with bagfiles with older tages
     odomInfo.timeTag = getCurrentTimeInSeconds();
-    RCLCPP_INFO(rclcpp::get_logger("slam"), "time tag receive is: %f", odomInfo.timeTag);
+    _logger->log(LogLevel::INFO, "time tag receive is: ", odomInfo.timeTag);
     _filter->prediction(odomInfo);
 }
 
 void SlamManager::featureDetectionCallback(const drone_msgs::msg::PointList features)
 {
-    RCLCPP_INFO(rclcpp::get_logger("slam"), "===== receive feature =====");
+    _logger->log(LogLevel::INFO, "===== receive feature =====");
 
     Measurements meas;
     meas.reserve(features.points.size());

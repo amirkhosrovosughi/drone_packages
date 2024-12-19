@@ -4,6 +4,10 @@
 #include <future>
 #include <chrono>
 
+static const LogLevel HIGH_LEVEL = LogLevel::INFO;
+static const LogLevel LOW_LEVEL = LogLevel::DEBUG;
+static const std::string LOG_SUBSECTION = "[filter] - ";
+
 ExtendedKalmanFilter::ExtendedKalmanFilter()
 {
 
@@ -42,6 +46,11 @@ void ExtendedKalmanFilter::registerCallback(std::function<void(const MapSummary&
     _callback = callback;
 }
 
+void ExtendedKalmanFilter::setLogger(LoggerPtr logger)
+{
+    _logger = logger;
+}
+
 void ExtendedKalmanFilter::processPrediction(const OdometryInfo& odom)
 {
     {
@@ -49,16 +58,8 @@ void ExtendedKalmanFilter::processPrediction(const OdometryInfo& odom)
 
         //update mean
         double timeElapse = odom.timeTag - _lastUpdateTime;
-        std::cout << "_lastUpdateTime is: " << _lastUpdateTime << std::endl;
-        std::cout << "timeElapse is: " << timeElapse << std::endl;
-
-        // Eigen::VectorXd updatedRobotMean = _motionModel->stateUpdate(odom, _slamMap->getRobotMean(), timeElapse); // TODO: for time we have lock, so should check when we get the message
-        // Velocity velocity = odom.NedVelocity;
-        // Eigen::Vector3d linearVel{velocity.linear.x, velocity.linear.y, velocity.linear.z};
-        // Eigen::Vector3d position{state[0], state[1], state[2]};
-        // return position + linearVel * dt;
-
-        // _model->getRobotToRobotJacobian(_slamMap->getRobotMean() + + linearVel * dt);
+        _logger->log(LOW_LEVEL, LOG_SUBSECTION, "_lastUpdateTime is: ", _lastUpdateTime);
+        _logger->log(LOW_LEVEL, LOG_SUBSECTION, "timeElapse is: ", timeElapse);
 
         if (_odometryType == MotionMeasurementModel::OdometryType::PositionOdometry)
         {
@@ -66,7 +67,7 @@ void ExtendedKalmanFilter::processPrediction(const OdometryInfo& odom)
             Eigen::VectorXd linearVel(3);
             linearVel << velocity.linear.x, velocity.linear.y, velocity.linear.z;
             Eigen::VectorXd updatedRobotMean = _model->getRobotToRobotJacobian()*_slamMap->getRobotMean() + linearVel * timeElapse;
-            std::cout << "updatedRobotMean is: " << "\n" << updatedRobotMean << std::endl;
+            _logger->log(LOW_LEVEL, LOG_SUBSECTION, "updatedRobotMean is: ", "\n", updatedRobotMean);
             _slamMap->setRobotMean(updatedRobotMean);
         }
         else if (_odometryType == MotionMeasurementModel::OdometryType::PoseOdometry)
@@ -89,7 +90,7 @@ void ExtendedKalmanFilter::processPrediction(const OdometryInfo& odom)
 
         _robotQuaternion = odom.orientation; // TODO: verify is for more complex case
 
-        std::cout << "Extended Kalman Filter prediction step" << std::endl;
+        _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Extended Kalman Filter prediction step" );
     }
     
     _lastUpdateTime = odom.timeTag;
@@ -118,7 +119,7 @@ void ExtendedKalmanFilter::processCorrection(const Measurements& measurements)
             }
         }
 
-        std::cout << "Extended Kalman Filter correction step executed" << std::endl;
+        _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Extended Kalman Filter correction step executed.");
     }
     // record the last update time
     _lastUpdateTime = getCurrentTimeInSeconds();
@@ -133,7 +134,7 @@ void ExtendedKalmanFilter::processCorrection(const Measurements& measurements)
 void ExtendedKalmanFilter::updateLandmark(const Measurement& measurement)
 {
     int id = measurement.id;
-    std::cout << "Update existing landmark :" <<  id << std::endl;
+    _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Update existing landmark: ",  id );
     // kalman steps
     //===========================================================
     // 1) calculate measurement error
@@ -151,28 +152,28 @@ void ExtendedKalmanFilter::updateLandmark(const Measurement& measurement)
     }
     else
     {
-        std::cout << "Fail, Invalid motion model dimension" << std::endl;
+        _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Fail, Invalid motion model dimension.");
         return;
     }
 
-    std::cout << "Robot position is:" << robotPose.position.getPositionVector() << std::endl;
+    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "Robot position is:\n", robotPose.position.getPositionVector());
 
     Position landmarkPosition(_slamMap->getLandmarkMean(id));
-    std::cout << " expected landmarkPosition is:" << landmarkPosition.getPositionVector() << std::endl;
+    _logger->log(LOW_LEVEL, LOG_SUBSECTION,  "expected landmarkPosition is:", landmarkPosition.getPositionVector());
 
     Measurement expectedMeasurement;
     if(!_model->directObservationModel(robotPose, landmarkPosition, expectedMeasurement))
     {
-        std::cout << "Failed to update landmark, Cannot calculate the direct measurement model" << std::endl;
+        _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Failed to update landmark, Cannot calculate the direct measurement model.");
         return;
     }
 
-    std::cout << "measurement position is:" << measurement.position.getPositionVector() << std::endl;
-    std::cout << " expected expectedMeasurement is:" << expectedMeasurement.position.getPositionVector() << std::endl;
+    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "measurement position is:", measurement.position.getPositionVector());
+    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "expected Measurement is:", expectedMeasurement.position.getPositionVector(), "\n.");
 
     Eigen::Vector3d z = measurement.position.getPositionVector() - expectedMeasurement.position.getPositionVector(); // measurementError
 
-    std::cout << "measurementError z is:" << z << "\n" << std::endl;
+    _logger->log(HIGH_LEVEL, LOG_SUBSECTION,  "measurementError z is:", z);
 
     //===========================================================
     //2 Z -> calculate measurement error variance
@@ -183,9 +184,10 @@ void ExtendedKalmanFilter::updateLandmark(const Measurement& measurement)
     Eigen::MatrixXd prl = _slamMap->getRobotlandmarkCorrelation(id);  
     Eigen::MatrixXd pll = _slamMap->getLandmarkSelfCorrelation(id);
 
-    std::cout << "measurementError prr is:"<< "\n" << prr << std::endl;
-    std::cout << "measurementError prl is:"<< "\n" << prl << std::endl;
-    std::cout << "measurementError pll is:"<< "\n" << pll << std::endl;
+
+    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "measurementError prr is:\n", prr );
+    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "measurementError prl is:\n", prl);
+    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "measurementError pll is:\n", pll);
 
     int r = prr.rows();                   // robot state lenght
     int l = pll.cols();                   // landmark state length
@@ -198,25 +200,25 @@ void ExtendedKalmanFilter::updateLandmark(const Measurement& measurement)
     p.block(r, 0, l, r) = prl.transpose();       // Bottom-left block
     p.block(r, r, l, l) = pll;                   // Bottom-right block
 
-    std::cout << "BIG Matrix p is:"<< "\n" << p << std::endl;
+    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "BIG Matrix p is:\n", p);
 
     Eigen::Matrix3d hr = _model->getMeasurementToRobotJacobian(robotPose);
     Eigen::Matrix3d hl = _model->getMeasurementToMeasurementJacobian(robotPose);
 
-    std::cout << "hr is:"<< "\n" << hr << std::endl;
-    std::cout << "hl is:"<< "\n" << hl << std::endl;
+    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "hr is:\n", hr);
+    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "hl is:\n", hl);
 
     Eigen::MatrixXd h(l, r + l);
     h.block(0, 0, l, r) = hr;
     h.block(0, r, l, l) = hl; //-> TODO: verifyt this part
 
-    std::cout << "measurementError h is:"<< "\n" << h << std::endl;
+    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "measurementError h is::\n", h);
 
     Eigen::MatrixXd R = _model->getMeasurementNoise();
-    std::cout << "measurementNoise R is:"<< "\n" << R << std::endl;
+     _logger->log(LOW_LEVEL, LOG_SUBSECTION, "measurementNoise R is::\n", R);
 
     Eigen::MatrixXd Z = h * p * h.transpose() + R;
-    std::cout << "measurementError Z is:"<< "\n" << Z << std::endl;
+    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "measurementError Z is::\n", Z);
 
 
     //===========================================================
@@ -236,14 +238,13 @@ void ExtendedKalmanFilter::updateLandmark(const Measurement& measurement)
     Eigen::MatrixXd K = pBar * h.transpose() * Z.inverse();
     //===========================================================
     //4 update means
-    std::cout << "- K * z is:"<< "\n" << (- K * z) << std::endl;
-
+    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "- K * z is:\n", (- K * z));
     _slamMap->mapMean = _slamMap->mapMean - K * z;
 
-    std::cout << "updated _slamMap->mapMean is:"<< "\n" << _slamMap->mapMean << std::endl;
+    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "updated _slamMap->mapMean is:\n", _slamMap->mapMean);
     
     // 5 update variance
-    std::cout << "(- K * Z * K.transpose()) is:"<< "\n" << (- K * Z * K.transpose()) << std::endl;
+    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "(- K * Z * K.transpose()) is:\n", (- K * Z * K.transpose()));
     _slamMap->mapCorrelation = _slamMap->mapCorrelation - K * Z * K.transpose();
 }
 
@@ -263,10 +264,10 @@ void ExtendedKalmanFilter::addLandmark(const Measurement& meas)
     }
     else
     {
-        std::cout << "Fail, Invalid motion model dimension" << std::endl;
+        _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Fail, Invalid motion model dimension.");
         return;
     }
-    std::cout << "Adding landmark with measurement:"<< "\n" << meas.position.getPositionVector() << std::endl;
+    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "Adding landmark with measurement:\n", meas.position.getPositionVector());
     Position newLandmarkPosition = _model->inverseObservationModel(robotPose, meas);
     _slamMap->addLandmak(newLandmarkPosition.getPositionVector());
 }
@@ -292,7 +293,7 @@ MapSummary ExtendedKalmanFilter::summerizeMap()
     }
     else
     {
-        std::cout << "Fail, Invalid motion model dimension" << std::endl;
+        _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Fail, Invalid motion model dimension.");
         throw std::invalid_argument( "received wrong odometry model" );
     }
     
