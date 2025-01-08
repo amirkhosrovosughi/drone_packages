@@ -28,6 +28,8 @@ public:
     static Eigen::Matrix3f createRotationMatrix(double pitch, double roll, double yaw);
     static float convertYawEnuToNed(float yawEnu);
     static float convertYawNedToEnu(float yawNed);
+    static Eigen::Vector4d nedToEnuQuaternion(const Eigen::Vector4d& nedQuat);
+    static Eigen::Vector4d quaternionMultiplication(const Eigen::Vector4d& q1, const Eigen::Vector4d& q2);
 
     template<typename Derived>
     static std::string matrixToString(const Eigen::MatrixBase<Derived>& matrix)

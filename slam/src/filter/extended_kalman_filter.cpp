@@ -59,15 +59,16 @@ void ExtendedKalmanFilter::processPrediction(const OdometryInfo& odom)
         //update mean
         double timeElapse = odom.timeTag - _lastUpdateTime;
         _logger->log(LOW_LEVEL, LOG_SUBSECTION, "_lastUpdateTime is: ", _lastUpdateTime);
-        _logger->log(LOW_LEVEL, LOG_SUBSECTION, "timeElapse is: ", timeElapse);
+        _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "timeElapse is: ", timeElapse);
 
         if (_odometryType == MotionMeasurementModel::OdometryType::PositionOdometry)
         {
-            Velocity velocity = odom.NedVelocity; // change to EnuVelocity, use ned now for comparision and cross checking 
+            Velocity velocity = odom.EnuVelocity;
             Eigen::VectorXd linearVel(3);
             linearVel << velocity.linear.x, velocity.linear.y, velocity.linear.z;
             Eigen::VectorXd updatedRobotMean = _model->getRobotToRobotJacobian()*_slamMap->getRobotMean() + linearVel * timeElapse;
-            _logger->log(LOW_LEVEL, LOG_SUBSECTION, "updatedRobotMean is: ", "\n", updatedRobotMean);
+            _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "velocity*timeElapse is: ", "\n", linearVel*timeElapse);
+            _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "updatedRobotMean is: ", "\n", updatedRobotMean);
             _slamMap->setRobotMean(updatedRobotMean);
         }
         else if (_odometryType == MotionMeasurementModel::OdometryType::PoseOdometry)
@@ -88,12 +89,13 @@ void ExtendedKalmanFilter::processPrediction(const OdometryInfo& odom)
         _slamMap->setRobotLandmarkFullCorrelationsHorizontal(updatedRobotLandmarkFullCorrelationsHorizontal);
         _slamMap->setRobotLandmarkFullCorrelationsVertical(updatedRobotLandmarkFullCorrelationsHorizontal.transpose());
 
-        _robotQuaternion = odom.orientation; // TODO: verify is for more complex case
+        _robotQuaternion = odom.orientation; // TODO: verify it for more complex case --> AMIR: most likely wrong, it should be on other coordinate NED to go to ENU
 
         _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Extended Kalman Filter prediction step" );
     }
     
-    _lastUpdateTime = odom.timeTag;
+    _lastUpdateTime = odom.timeTag; // it is same as getCurrentTimeInSeconds() because it is
+                                    // assinged in subscriber, to be modified later
     MapSummary map = summerizeMap();
     
     if (_callback)
@@ -122,7 +124,7 @@ void ExtendedKalmanFilter::processCorrection(const Measurements& measurements)
         _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Extended Kalman Filter correction step executed.");
     }
     // record the last update time
-    _lastUpdateTime = getCurrentTimeInSeconds();
+    _lastUpdateTime = getCurrentTimeInSeconds(); // TODO: should use time tag instead which comes from measurement
     MapSummary map = summerizeMap();
 
     if (_callback)
@@ -156,7 +158,7 @@ void ExtendedKalmanFilter::updateLandmark(const Measurement& measurement)
         return;
     }
 
-    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "Robot position is:\n", robotPose.position.getPositionVector());
+    _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Robot position is:\n", robotPose.position.getPositionVector());
 
     Position landmarkPosition(_slamMap->getLandmarkMean(id));
     _logger->log(LOW_LEVEL, LOG_SUBSECTION,  "expected landmarkPosition is:", landmarkPosition.getPositionVector());
@@ -173,7 +175,7 @@ void ExtendedKalmanFilter::updateLandmark(const Measurement& measurement)
 
     Eigen::Vector3d z = measurement.position.getPositionVector() - expectedMeasurement.position.getPositionVector(); // measurementError
 
-    _logger->log(HIGH_LEVEL, LOG_SUBSECTION,  "measurementError z is:", z);
+    _logger->log(HIGH_LEVEL, LOG_SUBSECTION,  "measurementError z is:\n", z, "\n norm z: ", std::sqrt(z.transpose()*z));
 
     //===========================================================
     //2 Z -> calculate measurement error variance
@@ -238,14 +240,27 @@ void ExtendedKalmanFilter::updateLandmark(const Measurement& measurement)
     Eigen::MatrixXd K = pBar * h.transpose() * Z.inverse();
     //===========================================================
     //4 update means
-    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "- K * z is:\n", (- K * z));
-    _slamMap->mapMean = _slamMap->mapMean - K * z;
+    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "+ K * z is:\n", (- K * z));
+    _slamMap->mapMean = _slamMap->mapMean + K * z;
 
-    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "updated _slamMap->mapMean is:\n", _slamMap->mapMean);
-    
+    _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "updated _slamMap->mapMean is:\n", _slamMap->mapMean);
+  
     // 5 update variance
     _logger->log(LOW_LEVEL, LOG_SUBSECTION, "(- K * Z * K.transpose()) is:\n", (- K * Z * K.transpose()));
     _slamMap->mapCorrelation = _slamMap->mapCorrelation - K * Z * K.transpose();
+
+    // below part is only for verification that correction is working properly
+    // calcualte error again and see if it is already reduced here or not
+    Position updatedLandmarkPosition(_slamMap->getLandmarkMean(id));
+    Measurement updatedExpectedMeasurement;
+    Pose updatedRobotPose;
+    updatedRobotPose.position = Position(_slamMap->getRobotMean());
+    updatedRobotPose.quaternion = _robotQuaternion;
+    _model->directObservationModel(updatedRobotPose, updatedLandmarkPosition, updatedExpectedMeasurement);
+
+    Eigen::Vector3d z2 = measurement.position.getPositionVector() - updatedExpectedMeasurement.position.getPositionVector(); // measurementError after coorecttion
+
+    _logger->log(HIGH_LEVEL, LOG_SUBSECTION,  "measurementError after update (z2) is:\n", z2, "\n norm z2: ", std::sqrt(z2.transpose()*z2)); // we expect it to be less than norm z, if it all works correctly
 }
 
 void ExtendedKalmanFilter::addLandmark(const Measurement& meas)

@@ -40,6 +40,7 @@ private:
   void publishMap(const MapSummary& map);
   void updateTransform();
   double getCurrentTimeInSeconds();
+  Eigen::Vector3f estimateLinearSpeed(const Eigen::Vector3f& position);
 
 private:
   rclcpp::Subscription<px4_msgs::msg::VehicleOdometry>::SharedPtr _droneOdometrySubscriber;
@@ -52,6 +53,9 @@ private:
   LoggerPtr _logger;
   rclcpp::TimerBase::SharedPtr _timer;
   bool _cameraTransformLoaded = false;
+
+  Eigen::Vector3f _previousRobotPositiom; // used to calculate linear speed for odometry
+  double _lastOdomTime;                   // used to calculate linear speed for odometry
 };
 
 #endif  // SLAM__MANAGER_HPP_

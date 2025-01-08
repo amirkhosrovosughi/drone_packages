@@ -48,6 +48,8 @@ SlamManager::SlamManager()
 void SlamManager::initialize()
 {
     _logger->log(LogLevel::INFO, "Initializing Slam.");
+    _previousRobotPositiom << 0, 0, 0;
+    _lastOdomTime = getCurrentTimeInSeconds();
 
     _filter->registerCallback([this](const MapSummary& map) {
         this->filterCallback(map);
@@ -101,10 +103,14 @@ void SlamManager::droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odo
     _logger->log(LogLevel::INFO, "---- receive odometry ----");
     
     
-    Eigen::Vector3f linearVelocityIntertiaNED{odometry.velocity[0], odometry.velocity[1], odometry.velocity[2]};
-    _logger->log(LogLevel::INFO, "linearVelocityIntertiaNED is:\n", TransformUtil::matrixToString(linearVelocityIntertiaNED).c_str());
+    Eigen::Vector3f linearVelocityIntertiaNED{odometry.velocity[0], odometry.velocity[1], odometry.velocity[2]}; // do not use this, because it has big accumulative error for odometry
+    _logger->log(LogLevel::DEBUG, "linearVelocityIntertiaNED is:\n", TransformUtil::matrixToString(linearVelocityIntertiaNED).c_str());
+    
+    Eigen::Vector3f newRobotPosition(odometry.position[0], odometry.position[1], odometry.position[2]);
+    Eigen::Vector3f estimatedNEDSpeed = estimateLinearSpeed(newRobotPosition);
+    _logger->log(LogLevel::INFO, "estimatedNEDSpeed: \n", estimatedNEDSpeed);
 
-    Eigen::Vector3f linearVelocityIntertiaENU = TransformUtil::nedToEnu(linearVelocityIntertiaNED);
+    Eigen::Vector3f linearVelocityIntertiaENU = TransformUtil::nedToEnu(estimatedNEDSpeed);
     _logger->log(LogLevel::DEBUG, "linearVelocityBodyENU is:\n", TransformUtil::matrixToString(linearVelocityIntertiaENU).c_str());
 
     Eigen::Vector3f angularVelocityIntertiaNED{odometry.angular_velocity[0], odometry.angular_velocity[1], odometry.angular_velocity[2]};
@@ -125,9 +131,9 @@ void SlamManager::droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odo
     odomInfo.EnuVelocity = velocityEnu;
 
     Velocity velocityNed;
-    velocityNed.linear.x = linearVelocityIntertiaNED[0];
-    velocityNed.linear.y = linearVelocityIntertiaNED[1];
-    velocityNed.linear.z = linearVelocityIntertiaNED[2];
+    velocityNed.linear.x = estimatedNEDSpeed[0];
+    velocityNed.linear.y = estimatedNEDSpeed[1];
+    velocityNed.linear.z = estimatedNEDSpeed[2];
 
     Quaternion quaternion;
     quaternion.w = odometry.q[0];
@@ -135,11 +141,14 @@ void SlamManager::droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odo
     quaternion.y = odometry.q[2];
     quaternion.z = odometry.q[3];
 
-    odomInfo.NedVelocity = velocityNed;  
-    odomInfo.orientation = quaternion; // in this case we assume that orientation is knows, using other
-                                       // sensor or odometry and only use position for robot position calculation
+    Eigen::Vector4d quaternionEnuVector = TransformUtil::nedToEnuQuaternion(quaternion.getVector());
+    Quaternion quaternionEnu(quaternionEnuVector);
 
-    // odomInfo.timeTag = double(odometry.timestamp)/1000000.0f; //TODO: commented for enabling us to work with bagfiles with older tages
+    odomInfo.NedVelocity = velocityNed;  
+    odomInfo.orientation = quaternionEnu; // in this case we assume that orientation is knows, using other
+                                          // sensor or odometry and only use position for robot position calculation
+
+    // odomInfo.timeTag = double(odometry.timestamp)/1000000.0f; //TODO: commented for enabling us to work with bagfiles with older tages    
     odomInfo.timeTag = getCurrentTimeInSeconds();
     _logger->log(LogLevel::INFO, "time tag receive is: ", odomInfo.timeTag);
     _filter->prediction(odomInfo);
@@ -237,4 +246,19 @@ double SlamManager::getCurrentTimeInSeconds()
     double seconds = std::chrono::duration<double>(now.time_since_epoch()).count();
     
     return seconds;
+}
+
+/*
+* temporary function to estimate the linear velocity, because cannot find an accurate enough velocity topic for odometry
+*/
+Eigen::Vector3f SlamManager::estimateLinearSpeed(const Eigen::Vector3f& newRobotPosition)
+{
+    Eigen::Vector3f  posDiff = newRobotPosition - _previousRobotPositiom;
+    double timeElapse = getCurrentTimeInSeconds() - _lastOdomTime;
+    Eigen::Vector3f estimatedSpeed = posDiff / timeElapse;
+    
+    _previousRobotPositiom = newRobotPosition;
+    _lastOdomTime = getCurrentTimeInSeconds();
+
+    return estimatedSpeed;
 }
