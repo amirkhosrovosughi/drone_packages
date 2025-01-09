@@ -36,7 +36,7 @@ struct Quaternion {
 
     Quaternion(double w = 1.0, double x = 0.0, double y = 0.0, double z = 0.0)
         : w(w), x(x), y(y), z(z) {}
-    Quaternion(Eigen::Vector4d quaternionVector) : w(quaternionVector[3]), x(quaternionVector[0]), y(quaternionVector[1]), z(quaternionVector[2]) {}
+    Quaternion(Eigen::Vector4d quaternionVector) : w(quaternionVector[0]), x(quaternionVector[1]), y(quaternionVector[2]), z(quaternionVector[3]) {}
     Eigen::Vector4d getVector() const
     {
         return Eigen::Vector4d(w, x, y, z);

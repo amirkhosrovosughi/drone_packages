@@ -67,7 +67,7 @@ void ExtendedKalmanFilter::processPrediction(const OdometryInfo& odom)
             Eigen::VectorXd linearVel(3);
             linearVel << velocity.linear.x, velocity.linear.y, velocity.linear.z;
             Eigen::VectorXd updatedRobotMean = _model->getRobotToRobotJacobian()*_slamMap->getRobotMean() + linearVel * timeElapse;
-            _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "velocity*timeElapse is: ", "\n", linearVel*timeElapse);
+            _logger->log(LOW_LEVEL, LOG_SUBSECTION, "velocity*timeElapse is: ", "\n", linearVel*timeElapse);
             _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "updatedRobotMean is: ", "\n", updatedRobotMean);
             _slamMap->setRobotMean(updatedRobotMean);
         }
@@ -91,7 +91,7 @@ void ExtendedKalmanFilter::processPrediction(const OdometryInfo& odom)
 
         _robotQuaternion = odom.orientation; // TODO: verify it for more complex case --> AMIR: most likely wrong, it should be on other coordinate NED to go to ENU
 
-        _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Extended Kalman Filter prediction step" );
+        _logger->log(LOW_LEVEL, LOG_SUBSECTION, "Extended Kalman Filter prediction step" );
     }
     
     _lastUpdateTime = odom.timeTag; // it is same as getCurrentTimeInSeconds() because it is
@@ -136,6 +136,16 @@ void ExtendedKalmanFilter::processCorrection(const Measurements& measurements)
 void ExtendedKalmanFilter::updateLandmark(const Measurement& measurement)
 {
     int id = measurement.id;
+
+    if (_landmarkRepeatMap.find(id) != _landmarkRepeatMap.end())
+    {
+        _landmarkRepeatMap[id]++;
+        _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Update existing landmark: ",  id, ", Observed ", _landmarkRepeatMap[id], " times");
+    }
+    else
+    {
+        _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Record for landmark with id: ",  id , " does not exists");
+    }
     _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Update existing landmark: ",  id );
     // kalman steps
     //===========================================================
@@ -204,6 +214,11 @@ void ExtendedKalmanFilter::updateLandmark(const Measurement& measurement)
 
     _logger->log(LOW_LEVEL, LOG_SUBSECTION, "BIG Matrix p is:\n", p);
 
+    if (!p.isApprox(p.transpose())) //TODO: extra check for verification, to be remove later
+    {
+        _logger->log(LOW_LEVEL, LOG_SUBSECTION, "Matrix P is not symmetric:\n", p);
+    }
+
     Eigen::Matrix3d hr = _model->getMeasurementToRobotJacobian(robotPose);
     Eigen::Matrix3d hl = _model->getMeasurementToMeasurementJacobian(robotPose);
 
@@ -212,15 +227,15 @@ void ExtendedKalmanFilter::updateLandmark(const Measurement& measurement)
 
     Eigen::MatrixXd h(l, r + l);
     h.block(0, 0, l, r) = hr;
-    h.block(0, r, l, l) = hl; //-> TODO: verifyt this part
+    h.block(0, r, l, l) = hl;
 
-    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "measurementError h is::\n", h);
+    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "measurementError h is:\n", h);
 
     Eigen::MatrixXd R = _model->getMeasurementNoise();
-     _logger->log(LOW_LEVEL, LOG_SUBSECTION, "measurementNoise R is::\n", R);
+     _logger->log(LOW_LEVEL, LOG_SUBSECTION, "measurementNoise R is:\n", R);
 
     Eigen::MatrixXd Z = h * p * h.transpose() + R;
-    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "measurementError Z is::\n", Z);
+    _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "measurementError Z is:\n", Z);
 
 
     //===========================================================
@@ -265,6 +280,16 @@ void ExtendedKalmanFilter::updateLandmark(const Measurement& measurement)
 
 void ExtendedKalmanFilter::addLandmark(const Measurement& meas)
 {
+    int id = meas.id;
+    if (_landmarkRepeatMap.find(id) == _landmarkRepeatMap.end())
+    {
+        _landmarkRepeatMap[id] = 1;
+    }
+    else
+    {
+        _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Landmark id ",  id , " already exists");
+    }
+
     Pose robotPose;  //AMIR --> move this block to another method getRobotPose
     if (_odometryType == MotionMeasurementModel::OdometryType::PositionOdometry)
     {
@@ -282,8 +307,11 @@ void ExtendedKalmanFilter::addLandmark(const Measurement& meas)
         _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Fail, Invalid motion model dimension.");
         return;
     }
-    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "Adding landmark with measurement:\n", meas.position.getPositionVector());
-    Position newLandmarkPosition = _model->inverseObservationModel(robotPose, meas);
+    _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Adding landmark with measurement:\n", meas.position.getPositionVector());
+    Position newLandmarkPosition = _model->inverseObservationModel(robotPose, meas); // maybe we need to have some check on that, see how old robotPose is, and
+                                                                                     // and/or check angular velocity
+                                                                                     // .... 
+    _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Landmark added with coordinate:\n", newLandmarkPosition.getPositionVector());
     _slamMap->addLandmak(newLandmarkPosition.getPositionVector());
 }
 
@@ -319,7 +347,8 @@ MapSummary ExtendedKalmanFilter::summerizeMap()
     for(int i = 0; i < _slamMap->getLandmarkCount(); i++)
     {
         Landmark landmark;
-        landmark.id = i + 1; //(CAUTION) -> we go with assumption that index of landmark on Map is equal id, be caution if this assumption changes later
+        landmark.id = i; //(CAUTION) -> we go with assumption that index of landmark on Map is equal id, be caution if this assumption changes later
+        landmark.observeRepeat = _landmarkRepeatMap[landmark.id];
         landmark.position = Position(_slamMap->getLandmarkMean(i));
 
         Eigen::MatrixXd pll = _slamMap->getLandmarkSelfCorrelation(i);

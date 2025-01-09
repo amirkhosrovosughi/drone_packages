@@ -34,6 +34,7 @@ private:
 
     std::shared_ptr<MotionMeasurementModel> _model;
     std::shared_ptr<SlamMap> _slamMap;
+    std::map<int, int> _landmarkRepeatMap;
     Quaternion _robotQuaternion;
     MotionMeasurementModel::OdometryType _odometryType;
     double _lastUpdateTime; // in seconds

@@ -83,7 +83,7 @@ void SlamManager::createPublishers()
 
 void SlamManager::filterCallback(const MapSummary& map)
 {
-    _logger->log(LogLevel::INFO, "filterCallback called with map");
+    _logger->log(LogLevel::DEBUG, "filterCallback called with map");
     // publish result
     publishMap(map);
     // notify association
@@ -93,7 +93,7 @@ void SlamManager::filterCallback(const MapSummary& map)
 void SlamManager::associationCallback(const Measurements& meas)
 { 
     RCLCPP_INFO(rclcpp::get_logger("slam"), "---- associationCallback called with measurements ----");
-    _logger->log(LogLevel::INFO, "---- associationCallback called with measurements ----");
+    _logger->log(LogLevel::DEBUG, "---- associationCallback called with measurements ----");
     // send result to fllter 
     _filter->correction(meas);
 }
@@ -108,7 +108,7 @@ void SlamManager::droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odo
     
     Eigen::Vector3f newRobotPosition(odometry.position[0], odometry.position[1], odometry.position[2]);
     Eigen::Vector3f estimatedNEDSpeed = estimateLinearSpeed(newRobotPosition);
-    _logger->log(LogLevel::INFO, "estimatedNEDSpeed: \n", estimatedNEDSpeed);
+    _logger->log(LogLevel::DEBUG, "estimatedNEDSpeed: \n", estimatedNEDSpeed);
 
     Eigen::Vector3f linearVelocityIntertiaENU = TransformUtil::nedToEnu(estimatedNEDSpeed);
     _logger->log(LogLevel::DEBUG, "linearVelocityBodyENU is:\n", TransformUtil::matrixToString(linearVelocityIntertiaENU).c_str());
@@ -117,6 +117,10 @@ void SlamManager::droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odo
     _logger->log(LogLevel::DEBUG, "angularVelocityIntertiaNED is:\n", TransformUtil::matrixToString(angularVelocityIntertiaNED).c_str());
     Eigen::Vector3f angularVelocityIntertiaENU = TransformUtil::nedToEnu(angularVelocityIntertiaNED);
     _logger->log(LogLevel::DEBUG, "angularVelocityIntertiaENU is:\n", TransformUtil::matrixToString(angularVelocityIntertiaENU).c_str());
+    float normAngularVel = std::sqrt(angularVelocityIntertiaENU.transpose()*angularVelocityIntertiaENU);
+    _logger->log(LogLevel::DEBUG, "angularVelocity norm is:", normAngularVel);
+    float normLinearVel = std::sqrt(estimatedNEDSpeed.transpose()*estimatedNEDSpeed);
+    _logger->log(LogLevel::DEBUG, "angularVelocity norm is:", normLinearVel);
 
     OdometryInfo odomInfo;
 
@@ -142,7 +146,7 @@ void SlamManager::droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odo
     quaternion.z = odometry.q[3];
 
     Eigen::Vector4d quaternionEnuVector = TransformUtil::nedToEnuQuaternion(quaternion.getVector());
-    Quaternion quaternionEnu(quaternionEnuVector);
+    Quaternion quaternionEnu(quaternionEnuVector); 
 
     odomInfo.NedVelocity = velocityNed;  
     odomInfo.orientation = quaternionEnu; // in this case we assume that orientation is knows, using other
@@ -150,7 +154,7 @@ void SlamManager::droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odo
 
     // odomInfo.timeTag = double(odometry.timestamp)/1000000.0f; //TODO: commented for enabling us to work with bagfiles with older tages    
     odomInfo.timeTag = getCurrentTimeInSeconds();
-    _logger->log(LogLevel::INFO, "time tag receive is: ", odomInfo.timeTag);
+    _logger->log(LogLevel::DEBUG, "time tag receive is: ", odomInfo.timeTag);
     _filter->prediction(odomInfo);
 }
 
@@ -167,7 +171,7 @@ void SlamManager::featureDetectionCallback(const drone_msgs::msg::PointList feat
         // feature are in FLU (local ENU coordinate)
         meas.emplace_back(1, Position(point.x, point.y, point.z));
     }
-    _associantion->onReceiveMeasurement(meas);
+    _associantion->onReceiveMeasurement(meas); // Comment to run without correction, purely odometry
 }
 
 void SlamManager::publishMap(const MapSummary& map)
@@ -191,6 +195,7 @@ void SlamManager::publishMap(const MapSummary& map)
         for (const auto& lm : map.landmarks) {
             drone_msgs::msg::Landmark landmark_msg;
             landmark_msg.id = lm.id;
+            landmark_msg.observe_repeat = lm.observeRepeat;
             landmark_msg.position.x = lm.position.x;
             landmark_msg.position.y = lm.position.y;
             landmark_msg.position.z = lm.position.z;

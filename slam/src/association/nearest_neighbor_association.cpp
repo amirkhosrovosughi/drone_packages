@@ -4,7 +4,7 @@
 #include <future>
 
 
-static const double GATHING_DISTANCE = 0.25; // TODO: To be tuned
+static const double GATHING_DISTANCE = 1.0; // TODO: To be tuned 0.25
 
 static const LogLevel HIGH_LEVEL = LogLevel::INFO;
 static const LogLevel LOW_LEVEL = LogLevel::DEBUG;
@@ -71,11 +71,11 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
 
         std::vector<int> assingedFeature(_landmarks.size(), 0);
 
-        _logger->log(LOW_LEVEL, LOG_SUBSECTION, "size measurements is:", measurements.size(), ".\n");
+        _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "size measurements is:", measurements.size(), ", size Landmark is: (( ", _landmarks.size(), " ))");
 
         for (const Measurement measurement : measurements)
         {
-            _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "!!!-!!! ========= measurement is: (", measurement.position.x, ", ",
+            _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "==> measurement is: (", measurement.position.x, ", ",
                         measurement.position.y, ", ", measurement.position.z, ") \n");
 
             // need to transfer measurement to landmark position, for that we need _model, robot Pose
@@ -83,7 +83,7 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
             Landmark landmark;
             landmark.position = capturedLandmarkPosition;
 
-            _logger->log(LOW_LEVEL, LOG_SUBSECTION, "!-! == landmark position is: (", landmark.position.x,
+            _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "==> landmark position is: (", landmark.position.x,
                         ", ", landmark.position.y, ", ", landmark.position.z, ") \n");
 
             int startingLandmarkIndex = 0;
@@ -96,6 +96,8 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
             }
             else
             {
+                _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "!!!!!!!!!!!!!---adding a new landmark---!!!!!!!!!!!!!");
                 _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "No unassigned landmark left, it is a new landmark.\n");
                 // Measurement meas = measurement;
                 landmark.id = numberLandmarks++;
@@ -115,20 +117,20 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
 
             for (int i = startingLandmarkIndex + 1; i < _landmarks.size(); i++)
             {
-                _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "landmark", i, "position is: (", _landmarks[i].position.x,
+                _logger->log(LOW_LEVEL, LOG_SUBSECTION, "landmark ", i, " position is: (", _landmarks[i].position.x,
                             ", ", _landmarks[i].position.y, ", ", _landmarks[i].position.z, ") \n");
                 distance = euclideanDistance(landmark, _landmarks[i]);
                 if (distance < shortestDistance)
                 {
                     shortestDistance = distance;
                     nearestIndex = i;
-                    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "--- nearestIndex: ", nearestIndex,
-                                ", _landmarks[i].id: ", _landmarks[i].id, " \n");
+                    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "--- nearestIndex to far: ", nearestIndex,
+                                ", _landmarks[i].id: ", _landmarks[i].id, "Distance:", shortestDistance);
                 }
             }
 
-            _logger->log(LOW_LEVEL, LOG_SUBSECTION, "--- index nearest: ", nearestIndex,
-                        ", shortestDistance: ", shortestDistance, " \n");
+            _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "========= index nearest: [[[ ", nearestIndex,
+                        " ]]], shortestDistance: ", shortestDistance, " \n");
             if (shortestDistance < GATHING_DISTANCE)
             {
                 _logger->log(LOW_LEVEL, LOG_SUBSECTION, "Find a matching landmark\n.");
@@ -148,6 +150,8 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
             }
             else
             {
+                _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "!!!!!!!!!!!!!---adding a new landmark---!!!!!!!!!!!!!");
                 _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Not match any of landmarks, marks as a new feature.\n");
                 // Measurement meas = measurement;
                 landmark.id = numberLandmarks++;
@@ -162,7 +166,7 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
         }
         _logger->log(LOW_LEVEL, LOG_SUBSECTION, "Measurement are processed.\n");
     }
-    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "!!!-!!! number of landmarks is ", _landmarks.size(), " \n");
+    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "Number of landmarks is ", _landmarks.size());
 
     if (_callback)
     {
