@@ -41,6 +41,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(drone_msgs REQUIRED)
 find_package(common_utilities REQUIRED)
+find_package(data_logging_utils REQUIRED)
 find_package(px4_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(eigen3_cmake_module REQUIRED)
@@ -66,6 +67,7 @@ ament_target_dependencies(${PROJECT_NAME}
   rclcpp
   drone_msgs
   common_utilities
+  data_logging_utils
   px4_msgs
   tf2
   tf2_ros

@@ -7,6 +7,7 @@
 #include <cmath>
 #include <mutex>
 #include "slam_logger.hpp"
+#include "data_logging_utils/data_logger.hpp"
 
 class NearestNeighborAssociation : public BaseAssociation {
 public:
