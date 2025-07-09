@@ -53,7 +53,7 @@ std::vector<std::vector<double>> FeatureExtractClassic::extract(const cv::Mat& i
     std::vector<std::vector<cv::Point>> circleContours;
     cv::findContours(colorMask, circleContours, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
 
-    RCLCPP_INFO(rclcpp::get_logger("visual_feature_extraction"), "Number of counter: %ld", circleContours.size());
+    RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "Number of counter: %ld", circleContours.size());
     RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "Width of colorMask: %d", colorMask.cols);
     RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "Height of colorMask: %d", colorMask.rows);
 

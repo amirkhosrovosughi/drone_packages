@@ -59,7 +59,7 @@ void ExtendedKalmanFilter::processPrediction(const OdometryInfo& odom)
         //update mean
         double timeElapse = odom.timeTag - _lastUpdateTime;
         _logger->log(LOW_LEVEL, LOG_SUBSECTION, "_lastUpdateTime is: ", _lastUpdateTime);
-        _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "timeElapse is: ", timeElapse);
+        _logger->log(LOW_LEVEL, LOG_SUBSECTION, "timeElapse is: ", timeElapse);
 
         if (_odometryType == MotionMeasurementModel::OdometryType::PositionOdometry)
         {
