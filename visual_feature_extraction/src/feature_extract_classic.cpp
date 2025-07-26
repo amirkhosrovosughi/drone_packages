@@ -9,6 +9,8 @@ static double AREA_LIMIT = 100.0;
  */
 FeatureExtractClassic::FeatureExtractClassic() {
   // Initialization logic for Classic feature extraction
+  cv::namedWindow("Detected Frame", cv::WINDOW_NORMAL);
+  cv::resizeWindow("Detected Frame", 1280, 720);
 }
 
 FeatureExtractClassic::~FeatureExtractClassic() {
@@ -34,9 +36,8 @@ std::vector<std::vector<double>> FeatureExtractClassic::extract(const cv::Mat& i
 
 #ifdef DEBUG_FEATURE
     _processedImage = inputImage.clone();
-    RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "Debug feature is defined! ...");
 #else
-  cv::imshow("Input Frame", inputImage);
+  // cv::imshow("Input Frame", inputImage);
 #endif
 
     cv::Mat3b hsv;
@@ -47,7 +48,7 @@ std::vector<std::vector<double>> FeatureExtractClassic::extract(const cv::Mat& i
     cv::inRange(hsv, COLOR_FILTER_LOWER_LIMIT, COLOR_FILTER_UPPER_LIMIT, colorMask);
 
 #ifdef DEBUG_FEATURE
-    cv::imshow("Color Filtered Image", colorMask);
+    // cv::imshow("Color Filtered Image", colorMask);
 #endif
 
     std::vector<std::vector<cv::Point>> circleContours;

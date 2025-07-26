@@ -5,6 +5,12 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+option(SOTRE_DEBUG_DATA "Enable store debug data" OFF)
+
+if(SOTRE_DEBUG_DATA)
+    add_compile_definitions(SOTRE_DEBUG_DATA)
+endif()
+
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(sensor_msgs REQUIRED)
@@ -16,6 +22,7 @@ find_package(common_utilities REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(px4_msgs REQUIRED)
+find_package(data_logging_utils REQUIRED)
 
 include_directories(include/${PROJECT_NAME})
 
@@ -40,6 +47,7 @@ ament_target_dependencies(${PROJECT_NAME}
   common_utilities
   tf2
   tf2_ros
+  data_logging_utils
   px4_msgs)
 
 # Install

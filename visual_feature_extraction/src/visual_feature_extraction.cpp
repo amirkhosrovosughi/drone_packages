@@ -32,7 +32,7 @@ VisualFeatureExtraction::VisualFeatureExtraction()
       const sensor_msgs::msg::Image::ConstSharedPtr& imageColor,
       const sensor_msgs::msg::Image::ConstSharedPtr& imageDepth) {
       // Display the message on the console
-  RCLCPP_INFO(get_logger(), "Receiving video frame ");
+  RCLCPP_DEBUG(get_logger(), "Receiving video frame ");
 
   size_t depthWidth = imageDepth->width;
   size_t depthHeight = imageDepth->height;

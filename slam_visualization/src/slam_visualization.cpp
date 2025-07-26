@@ -7,18 +7,6 @@ SlamVisualization::SlamVisualization()
         "/slam/map", 10, std::bind(&SlamVisualization::mapCallback, this, std::placeholders::_1));
     _markerPublisher = this->create_publisher<visualization_msgs::msg::MarkerArray>("/visualization_marker", 10);
 
-    // geometry_msgs::msg::TransformStamped t;
-    // t.header.stamp = this->get_clock()->now();
-    // t.header.frame_id = "map";
-    // t.child_frame_id = "map";
-    // t.transform.translation.x = 0.0;
-    // t.transform.translation.y = 0.0;
-    // t.transform.translation.z = 0.0;
-    // t.transform.rotation.x = 0.0;
-    // t.transform.rotation.y = 0.0;
-    // t.transform.rotation.z = 0.0;
-    // t.transform.rotation.w = 1.0;
-
     // Periodically broadcast the transform
     _timer = this->create_wall_timer(
         std::chrono::milliseconds(1000), std::bind(&SlamVisualization::broadcastTransform, this));

@@ -2,7 +2,6 @@
 #include "keyboard_control.hpp"
 #include <termios.h>
 #include <iostream>
-// #include <rclcpp/executors.hpp>
 
 static const float defaultStepDisplace = 0.2f;
 static const float maxStepDisplace = 2.0f;
@@ -68,6 +67,15 @@ void KeyboardControl::startCliCommandReceive()
     std::string command_value;
     int cli_command = parseCliCommand(cli_input, command_value);
     processMovementCommand(MovementCommand::CLI_COMMAND, cli_command, command_value);
+    // print the command with time
+    auto now = std::chrono::system_clock::now();
+    std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+
+    // Format as hh:mm:ss
+    std::stringstream time_stream;
+    time_stream << std::put_time(std::localtime(&now_c), "%H:%M:%S");
+    std::cout << "Command send at: " << time_stream.str().c_str() << "\n";
+    
     _takeCLICommand = false;
 }
 

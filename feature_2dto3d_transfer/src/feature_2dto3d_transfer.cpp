@@ -1,6 +1,9 @@
 // feature_2dto3d_transfer.cpp
 
 #include "feature_2dto3d_transfer.hpp"
+#ifdef SOTRE_DEBUG_DATA
+#include "data_logging_utils/data_logger.hpp"
+#endif
 #include <cmath>
 
 const std::string FROM_FRAME = "base_link";
@@ -33,11 +36,14 @@ Feature2DTo3DTransfer::Feature2DTo3DTransfer()
 
 void Feature2DTo3DTransfer::coordinate2DCallback(const drone_msgs::msg::DetectedFeatureList cooerdinate2DList)
 {
+  #ifdef SOTRE_DEBUG_DATA
+  int plotCounter = 0;
+  #endif
   if (_cameraInfoLoaded)
   {
     if (cooerdinate2DList.features.size() != 0)
     {
-      RCLCPP_INFO(this->get_logger(), "get %d new 2D coordinate(s)", cooerdinate2DList.features.size());
+      RCLCPP_DEBUG(this->get_logger(), "get %d new 2D coordinate(s)", cooerdinate2DList.features.size());
     }
     rclcpp::Time sampleTime = rclcpp::Clock().now();
 
@@ -45,11 +51,19 @@ void Feature2DTo3DTransfer::coordinate2DCallback(const drone_msgs::msg::Detected
     drone_msgs::msg::PointList pointListBase;
     for (drone_msgs::msg::DetectedFeature cooerdinate2D : cooerdinate2DList.features)
     {
+      #ifdef SOTRE_DEBUG_DATA
+      std::map<std::string, double> mapLog;  // add plotting
+      #endif
       RCLCPP_DEBUG(this->get_logger(), "2D coordinate: (x,y) = (%f,%f)", cooerdinate2D.x , cooerdinate2D.y);
       float estimatedDepth = 0.0;
 
       float pixelX = (cooerdinate2D.x + 0.5) * _frameWidth;
       float pixelY = (cooerdinate2D.y + 0.5) * _frameHeight;
+
+      #ifdef SOTRE_DEBUG_DATA
+      mapLog["pixelX_" + std::to_string(plotCounter)] = pixelX;
+      mapLog["pixelY_" + std::to_string(plotCounter)] = pixelY;
+      #endif
 
       float normalizedX = (pixelX - _frameCx) / _frameFx;
       float normalizedY = (pixelY - _frameCy) / _frameFy;
@@ -57,63 +71,27 @@ void Feature2DTo3DTransfer::coordinate2DCallback(const drone_msgs::msg::Detected
       Vector3 pixelDirection{normalizedX, normalizedY, 1};
       RCLCPP_DEBUG(this->get_logger(), " pixelDirection (%f,%f,%f)", pixelDirection[0], pixelDirection[1], pixelDirection[2]);
 
-      Vector3 unitVector = pixelDirection.normalized();
+      Vector3 unitVector = pixelDirection; //.normalized(); no need to normalization here as depth camera return depth in z axis direction not  distance
       RCLCPP_DEBUG(this->get_logger(), " unitVector (%f,%f,%f)", unitVector[0], unitVector[1], unitVector[2]);
 
       RCLCPP_DEBUG(this->get_logger(), "stereo camera depth is %f", cooerdinate2D.depth);
       if (cooerdinate2D.depth <= 0.0 || cooerdinate2D.depth > 100.0)
       {
-        
-        // camera depth info is not valid, so try to use drone heigh and attitude to estimate depth, this comes 
-        // with assumption that ground surface is flat
-        // TODO: later explore other sort of depth sensor or send 2D feature position and let SLAM handle it
-
-        // check time stamp load to see if it is recent enough
-        rclcpp::Duration timeLag = sampleTime - _odomTimeStamp;
-        if (timeLag < maxTimeDifferent && _cameraTransformLoaded)
-        { 
-          Matrix4x4 cameraPose = _droneOdom * _base2Camera;
-
-          Eigen::Matrix3f cameraMatrix = cameraPose.block<3, 3>(0, 0).cast<float>();
-          Eigen::Vector3f euler_angles_0 = cameraMatrix.eulerAngles(0, 1, 2);
-          float cameraPitch = euler_angles_0[1];
-          RCLCPP_DEBUG(this->get_logger(), "camera angles is: (%f,%f,%f), sin: %f", euler_angles_0[0],euler_angles_0[1], euler_angles_0[2], std::sin(cameraPitch));
-
-          // find relative angles 
-          float relativePitch = normalizedY / std::sqrt(1 + std::pow(normalizedY, 2)); // TODO: need to adjust later as we modify  body_to_optical_transform
-          float relativeRoll = -normalizedX / std::sqrt(1 + std::pow(normalizedX, 2));
-          RCLCPP_DEBUG(this->get_logger(), "(relativePitch, relativeRoll) = (%f,%f)", relativePitch, relativeRoll);
-          Eigen::Matrix3f pixelRotation = TransformUtil::createRotationMatrix(relativePitch, relativeRoll, 0.0);
-
-          Eigen::Matrix3f featureRotation = cameraMatrix * pixelRotation;
-
-          Eigen::Vector3f euler_angles = featureRotation.eulerAngles(0, 1, 2); // ZYX order
-          float featurePitch = euler_angles[1];
-
-          RCLCPP_DEBUG(this->get_logger(), "drone  height is: %f", _droneHeight);
-          RCLCPP_DEBUG(this->get_logger(), "feature (roll, pitch, yaw) is: (%f,%f,%f)", euler_angles[0], featurePitch, euler_angles[2]);
-
-          float estiDepth = estimateDepth(featureRotation, _droneHeight);
-          RCLCPP_DEBUG(this->get_logger(), "estiDepth is: %f", estiDepth);
-
-          if (estiDepth < 0)
-          {
-            continue;
-            RCLCPP_INFO(this->get_logger(), "Skipped feature since camera is heading sky");
-          }
-          estimatedDepth =estiDepth;
-        }
-        else
-        {
         RCLCPP_INFO(this->get_logger(), "Skipped feature since depth value is not available");
-        continue;
-        }
+        continue; //skip if depth data is not available
+        
+        
+        
       }
       else
       {
         estimatedDepth = cooerdinate2D.depth;
         RCLCPP_DEBUG(this->get_logger(), "using camera depth %f", estimatedDepth);
       }
+
+      #ifdef SOTRE_DEBUG_DATA
+      mapLog["cooerdinate2D.depth_" + std::to_string(plotCounter)] = cooerdinate2D.depth;
+      #endif
     
       Vector3 camera2featrue = unitVector * estimatedDepth;
 
@@ -123,6 +101,12 @@ void Feature2DTo3DTransfer::coordinate2DCallback(const drone_msgs::msg::Detected
       point.z = camera2featrue[2];
       pointListCamera.points.push_back(point);
 
+      #ifdef SOTRE_DEBUG_DATA
+      mapLog["camera2featrue[0]_" + std::to_string(plotCounter)] = camera2featrue[0];
+      mapLog["camera2featrue[1]_" + std::to_string(plotCounter)] = camera2featrue[1];
+      mapLog["camera2featrue[2]_" + std::to_string(plotCounter)] = camera2featrue[2];
+      #endif
+
       if (_cameraTransformLoaded)
       {
         Vector4 cameraFeatureHomogeneous = camera2featrue.homogeneous();
@@ -131,15 +115,23 @@ void Feature2DTo3DTransfer::coordinate2DCallback(const drone_msgs::msg::Detected
         Vector4 base2feature = _base2Camera*cameraFeatureHomogeneous;
         RCLCPP_DEBUG(this->get_logger(), " base2feature in NED (%f,%f,%f)", base2feature[0], base2feature[1], base2feature[2]);
 
-        Eigen::Vector3f base2CameraNed = base2feature.head<3>().cast<float>();
-        Eigen::Vector3f base2CameraEnu = TransformUtil::nedToEnu(base2CameraNed);
-        RCLCPP_INFO(this->get_logger(), " base2feature in ENU (%f,%f,%f)", base2CameraEnu[0], base2CameraEnu[1], base2CameraEnu[2]);
+        #ifdef SOTRE_DEBUG_DATA
+        mapLog["base2feature[0]_" + std::to_string(plotCounter)] = base2feature[0];
+        mapLog["base2feature[1]_" + std::to_string(plotCounter)] = base2feature[1];
+        mapLog["base2feature[2]_" + std::to_string(plotCounter)] = base2feature[2];
+        #endif
+
         geometry_msgs::msg::Point pointB;
-        pointB.x = base2CameraEnu[1]; // need to be swtich later
-        pointB.y = base2CameraEnu[0]; // need to be swtich later
-        pointB.z = -1.0 * base2CameraEnu[2]; // need -1.0 most likely since body_to_optical_transform is not presize, fix later
+        pointB.x = base2feature[0];
+        pointB.y = base2feature[1];
+        pointB.z = base2feature[2];
         pointListBase.points.push_back(pointB);
       }
+
+      #ifdef SOTRE_DEBUG_DATA
+      data_logging_utils::DataLogger::log(mapLog);
+      plotCounter++;
+      #endif
     }
 
     _feature3DcoordinateCameraPublisher->publish(pointListCamera);
@@ -192,8 +184,8 @@ void Feature2DTo3DTransfer::updateTransform()
       // Adjust to consider optic frame
       Eigen::Matrix4d body_to_optical_transform = Eigen::Matrix4d::Identity();
       body_to_optical_transform.block<3, 3>(0, 0) << 0, 0, 1,
-                                                      -1, 0, 0,
-                                                      0, -1, 0; // TODO: this is almost correct, just z is in wrong direction      
+                                                    -1, 0, 0,
+                                                    0, -1, 0; // TODO: this is almost correct, just z is in wrong direction  
       _base2Camera =  _base2Camera * body_to_optical_transform;
       
       _cameraTransformLoaded = true;
