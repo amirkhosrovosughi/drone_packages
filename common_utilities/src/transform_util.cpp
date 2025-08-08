@@ -59,42 +59,6 @@ Eigen::Vector2f TransformUtil::rotate2D(const Eigen::Vector2f& coordinate, const
     return rotationMatrix * coordinate;
 }
 
-Eigen::Matrix4f TransformUtil::rotateAround(const Eigen::Matrix4f& matrix, const float value, const Orientation direction)
-{
-    Eigen::Matrix3f rotationMatrix;
-    switch (direction) {
-        case PITCH:
-            rotationMatrix = createRotationMatrix(value, 0.0, 0.0);
-            break;
-        case ROLL:
-            rotationMatrix = createRotationMatrix(0.0, value, 0.0);
-            break;
-        case YAW:
-            rotationMatrix = createRotationMatrix(0.0, 0.0, value);
-            break;
-        default:
-            rotationMatrix = createRotationMatrix(0.0, 0.0, 0.0);
-            break;
-    }
-    Eigen::Matrix4f transitionMatrix;
-    transitionMatrix.block<3, 3>(0, 0) = rotationMatrix;
-    transitionMatrix(3,3) = 1;
-    return matrix * transitionMatrix;
-}
-
-Eigen::Matrix3f TransformUtil::createRotationMatrix(double pitch, double roll, double yaw)
-{
-    Eigen::AngleAxisd rotation_pitch(pitch, Eigen::Vector3d::UnitX());
-    Eigen::AngleAxisd rotation_roll(roll, Eigen::Vector3d::UnitY());
-    Eigen::AngleAxisd rotation_yaw(yaw, Eigen::Vector3d::UnitZ());
-
-    Eigen::Quaterniond quaternion = rotation_yaw * rotation_roll * rotation_pitch;
-    Eigen::Matrix3d rotation_matrix = quaternion.matrix();
-    Eigen::Matrix3f result = rotation_matrix.cast<float>();;
-
-    return result;
-}
-
 Eigen::Matrix4f TransformUtil::nedToEnu(const Eigen::Matrix4f& ned_matrix)
 {
     return nedToEnuTransform()*ned_matrix;
@@ -157,41 +121,46 @@ float TransformUtil::convertYawNedToEnu(float yawNed) {
  * Q_X (180° rotation about X-axis): [0, 1, 0, 0].
  * 
  * Transformation:
- * Q_ENU = Q_X * Q_Z * Q_NED * Q_Z^(-1) * Q_X^(-1)
+ * Q_ENU = Q_X * Q_Z * Q_NED * Q_X^(-1)
+ * Reference: https://docs.px4.io/main/en/ros/external_position_estimation
  * 
  * @param nedQuat Eigen::Vector4d representing the quaternion in NED coordinates
  *                 in the order [w, x, y, z].
  * @return Eigen::Vector4d representing the quaternion in ENU coordinates
  *         in the order [w, x, y, z].
  */
-Eigen::Vector4d TransformUtil::nedToEnuQuaternion(const Eigen::Vector4d& nedQuat)
-{
-    // Define the transformation quaternion for a 90-degree rotation about Z-axis
-    Eigen::Vector4d qZ;  // [w, x, y, z]
-    qZ << std::sqrt(0.5), 0, 0, std::sqrt(0.5);
+ Eigen::Vector4d TransformUtil::nedToEnuQuaternion(const Eigen::Vector4d& nedQuat) {
+        // Input quaternion is in (w, x, y, z) order
+        Eigen::Quaterniond qNed(nedQuat[0], nedQuat[1], nedQuat[2], nedQuat[3]);
 
-    // Define the transformation quaternion for a 180-degree rotation about X-axis
-    Eigen::Vector4d qX;  // [w, x, y, z]
-    qX << 0, 1, 0, 0;
+        // Coordinate frame conversion from NED to ENU:
+        // ENU = R_world * NED * R_body⁻¹, 
 
-    // Compute the conjugates of qZ and qX
-    Eigen::Vector4d qZConj, qXConj;
-    qZConj << qZ(0), -qZ(1), -qZ(2), -qZ(3);
-    qXConj << qX(0), -qX(1), -qX(2), -qX(3);
+        // Rotation matrix to convert NED to ENU world frame:
+        // 1) +π/2 rotation along z, 2) π rotation along x
+        Eigen::Matrix3d R_ned_to_enu;
+        R_ned_to_enu <<  0, 1,  0,
+                         1, 0,  0,
+                         0, 0, -1;
 
-    // Step 1: Apply qZ to rotate 90° around Z-axis
-    Eigen::Vector4d tempQuat = quaternionMultiplication(qZ, nedQuat);
-    tempQuat = quaternionMultiplication(tempQuat, qZConj);
+        // Rotation matrix to convert NED to ENU body frame:
+        // 1) π rotation along x
+        Eigen::Matrix3d R_implace_rotation;
+        R_implace_rotation <<  1.0, 0.0,  0.0,
+                         0.0, -1.0,  0.0,
+                         0.0, 0.0, -1.0;
 
-    // Step 2: Apply qX to rotate 180° around X-axis
-    Eigen::Vector4d enuQuat = quaternionMultiplication(qX, tempQuat);
-    enuQuat = quaternionMultiplication(enuQuat, qXConj);
+        // Apply the frame transformation: R * qNed * R⁻¹
+        Eigen::Matrix3d rot_ned = qNed.toRotationMatrix();
+        // Apply the frame transformation: R_world * qNed * R_body⁻¹
+        Eigen::Matrix3d rot_enu = R_ned_to_enu.transpose() * rot_ned * R_implace_rotation; // * R_ned_to_enu;
 
-    // Normalize the resulting quaternion
-    enuQuat.normalize();
+        Eigen::Quaterniond q_enu(rot_enu);
+        q_enu.normalize();
 
-    return enuQuat;
-}
+        // Output as (w, x, y, z)
+        return Eigen::Vector4d(q_enu.w(), q_enu.x(), q_enu.y(), q_enu.z());
+    }
 
 /**
  * @brief Helper function to perform quaternion multiplication.
