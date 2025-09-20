@@ -3,14 +3,14 @@
 #include "px4_command_handler.hpp"
 #include "rclcpp/qos.hpp"
 
-static const float maxStepDisplace = 10.0;
-static const float minStepDisplace = -10.0;
+static const float MAX_STEP_DISPLACE = 10.0;
+static const float MIN_STEP_DISPLACE = -10.0;
 
-static const float maxStepRotate = 1.0;
-static const float minStepRotate = -1.0;
+static const float MAX_STEP_ROTATE = 1.0;
+static const float MIN_STEP_ROTATE = -1.0;
 
-static const float maxHeading = M_PI;
-static const float minHeading = -M_PI;
+static const float MAX_ROTATING = M_PI;
+static const float MIN_ROTATING = -M_PI;
 
 Px4CommandHandlerNode::Px4CommandHandlerNode() : Node("px4_command_handler")
 {
@@ -28,20 +28,20 @@ Px4CommandHandlerNode::Px4CommandHandlerNode() : Node("px4_command_handler")
   _generalCommandServer = this->create_service<drone_msgs::srv::DroneMode>("/keyboard_control/general_command",
                 std::bind(&Px4CommandHandlerNode::generalCommandService, this, std::placeholders::_1, std::placeholders::_2));
 
-  _currentPostion = Eigen::Vector4f(0,0,0,0);
-  _targetPostion = Eigen::Vector4f(0,0,2,0);
+  _currentPosition = Eigen::Vector4f(0,0,0,0);
+  _targetPosition = Eigen::Vector4f(0,0,2,0);
 
 
   // should be removed
 
   
 
-  _timer = this->create_wall_timer(
+  _publishTimer = this->create_wall_timer(
       std::chrono::milliseconds(100),
-      std::bind(&Px4CommandHandlerNode::publishtopics, this));
+      std::bind(&Px4CommandHandlerNode::publishTopics, this));
 }
 
-void Px4CommandHandlerNode::publishtopics()
+void Px4CommandHandlerNode::publishTopics()
 {
   publishOffboardControlMode();
   publishTrajectorySetpoint();
@@ -51,12 +51,12 @@ void Px4CommandHandlerNode::publishtopics()
 void Px4CommandHandlerNode::publishTrajectorySetpoint()
 {
   
-  Eigen::Vector3f targetNED = TransformUtil::enuToNed(Eigen::Vector3f((_targetPostion.head<3>())));
+  Eigen::Vector3f targetNED = TransformUtil::enuToNed(Eigen::Vector3f((_targetPosition.head<3>())));
   RCLCPP_DEBUG(this->get_logger(), "targetNED is (%s)", getStringFromVector(targetNED).c_str());
 
   px4_msgs::msg::TrajectorySetpoint msg{};
   	msg.position = {targetNED[0], targetNED[1], targetNED[2]};
-  	msg.yaw = TransformUtil::convertYawEnuToNed(_targetPostion[3]);
+  	msg.yaw = TransformUtil::convertYawEnuToNed(_targetPosition[3]);
 
   	msg.timestamp = this->get_clock()->now().nanoseconds() / 1000;
   	_trajectorySetpointPublisher->publish(msg);
@@ -79,48 +79,48 @@ void Px4CommandHandlerNode::publishVehicleCommand(uint16_t command, float param1
 
 
 
-void Px4CommandHandlerNode::directionCallback(const drone_msgs::msg::DroneDirectionCommand command)
+void Px4CommandHandlerNode::directionCallback(const drone_msgs::msg::DroneDirectionCommand& command)
 {
       // Limit each variable up to the specified range
-    float vertical_step = std::max(std::min(command.vertical_step, maxStepDisplace), minStepDisplace);
-    float forward_step = std::max(std::min(command.forward_step, maxStepDisplace), minStepDisplace);
-    float lateral_step = std::max(std::min(command.lateral_step, maxStepDisplace), minStepDisplace);
-    float angular_step = std::max(std::min(command.angular_step, maxStepRotate), minStepRotate);
+    float vertical_step = std::max(std::min(command.vertical_step, MAX_STEP_DISPLACE), MIN_STEP_DISPLACE);
+    float forward_step = std::max(std::min(command.forward_step, MAX_STEP_DISPLACE), MIN_STEP_DISPLACE);
+    float lateral_step = std::max(std::min(command.lateral_step, MAX_STEP_DISPLACE), MIN_STEP_DISPLACE);
+    float angular_step = std::max(std::min(command.angular_step, MAX_STEP_ROTATE), MIN_STEP_ROTATE);
 
     // Print content of the message (ROS.Info)
     RCLCPP_INFO(this->get_logger(), "---- get drone movement command ----");
     if (command.cli_command != 0)
     {
-      exectueCliCommand(command.cli_command, command.cli_command_value);
+      executeCliCommand(command.cli_command, command.cli_command_value);
       return;
     }
 
     if (vertical_step != 0.0f)
     {
-      _targetPostion = _targetPostion + Eigen::Vector4f(0.0f, 0.0f, vertical_step, 0.0f);
-      RCLCPP_DEBUG(this->get_logger(), "_targetPostion is (%s)", getStringFromVector(_targetPostion).c_str());
+      _targetPosition = _targetPosition + Eigen::Vector4f(0.0f, 0.0f, vertical_step, 0.0f);
+      RCLCPP_DEBUG(this->get_logger(), "_targetPosition is (%s)", getStringFromVector(_targetPosition).c_str());
       RCLCPP_INFO(this->get_logger(), "Vertical Step: %f", vertical_step);
     }
     if (forward_step != 0.0f || lateral_step != 0.0f)
     {
-      RCLCPP_DEBUG(this->get_logger(), "steps (Forward, Lateral): (%f, %f), yaw angle: %f", forward_step, lateral_step , _currentPostion[3]);
+      RCLCPP_DEBUG(this->get_logger(), "steps (Forward, Lateral): (%f, %f), yaw angle: %f", forward_step, lateral_step , _currentPosition[3]);
       // calculate needed rotation:
-      Eigen::Vector2f relativeTarget = TransformUtil::rotate2D(Eigen::Vector2f(-1.0 * forward_step, lateral_step), _currentPostion[3]);
+      Eigen::Vector2f relativeTarget = TransformUtil::rotate2D(Eigen::Vector2f(-1.0 * forward_step, lateral_step), _currentPosition[3]);
       RCLCPP_DEBUG(this->get_logger(), "relativeTarget is (%s)", getStringFromVector(relativeTarget).c_str());
 
-      _targetPostion = _targetPostion + Eigen::Vector4f(relativeTarget[0], relativeTarget[1], 0.0f, 0.0f);
-      RCLCPP_INFO(this->get_logger(), "_targetPostion is (%s)", getStringFromVector(_targetPostion).c_str());
+      _targetPosition = _targetPosition + Eigen::Vector4f(relativeTarget[0], relativeTarget[1], 0.0f, 0.0f);
+      RCLCPP_INFO(this->get_logger(), "_targetPosition is (%s)", getStringFromVector(_targetPosition).c_str());
     }
     if (angular_step != 0.0f)
     {
-      float targetHeading = std::max(std::min(angular_step, maxHeading), minHeading);
-      _targetPostion = _targetPostion - Eigen::Vector4f(0.0f, 0.0f, 0.0f, targetHeading);
-      RCLCPP_DEBUG(this->get_logger(), "_targetPostion is (%s)", getStringFromVector(_targetPostion).c_str());
+      float targetHeading = std::max(std::min(angular_step, MAX_ROTATING), MIN_ROTATING);
+      _targetPosition = _targetPosition - Eigen::Vector4f(0.0f, 0.0f, 0.0f, targetHeading);
+      RCLCPP_DEBUG(this->get_logger(), "_targetPosition is (%s)", getStringFromVector(_targetPosition).c_str());
       RCLCPP_INFO(this->get_logger(), "Angular Step: %f", -1.0 * angular_step);
     }
 }
 
-void Px4CommandHandlerNode::exectueCliCommand(uint8_t command, std::string command_value)
+void Px4CommandHandlerNode::executeCliCommand(uint8_t command, std::string command_value)
 {
   float commandHeading = 0.0f;
   Eigen::Vector4f commandPosition;
@@ -132,39 +132,39 @@ void Px4CommandHandlerNode::exectueCliCommand(uint8_t command, std::string comma
     break;
 
   case drone_msgs::msg::DroneDirectionCommand::GO_TO_ORIGIN:
-    _targetPostion = Eigen::Vector4f(0.0f, 0.0f, _targetPostion[2], 0.0f);
+    _targetPosition = Eigen::Vector4f(0.0f, 0.0f, _targetPosition[2], 0.0f);
     RCLCPP_INFO(this->get_logger(), "Hover on origin");
     break;
 
   case drone_msgs::msg::DroneDirectionCommand::STOP_HERE:
-    _targetPostion = _currentPostion;
+    _targetPosition = _currentPosition;
     RCLCPP_INFO(this->get_logger(), "Hover at correct position");
     break;
 
   case drone_msgs::msg::DroneDirectionCommand::HEAD_FORWARD:
-    _targetPostion[3] = 0.0f;
-    RCLCPP_INFO(this->get_logger(), " Head to zero angle in current setpoint");
+    _targetPosition[3] = 0.0f;
+    RCLCPP_INFO(this->get_logger(), "Head to zero angle in current setpoint");
     break;
 
   case drone_msgs::msg::DroneDirectionCommand::HEAD_BACKWARD:
-    _targetPostion[3] = M_PI;
-    RCLCPP_INFO(this->get_logger(), " Head to pi angle in current setpoint");
+    _targetPosition[3] = M_PI;
+    RCLCPP_INFO(this->get_logger(), "Head to pi angle in current setpoint");
     break;
 
   case drone_msgs::msg::DroneDirectionCommand::HEAD_LEFT:
-    _targetPostion[3] = M_PI / 2;
-    RCLCPP_INFO(this->get_logger(), " Head to - pi /2 angle in current setpoint");
+    _targetPosition[3] = M_PI / 2;
+    RCLCPP_INFO(this->get_logger(), "Head to -pi/2 angle in current setpoint");
     break;
 
   case drone_msgs::msg::DroneDirectionCommand::HEAD_RIGHT:
-    _targetPostion[3] = - M_PI / 2;
-    RCLCPP_INFO(this->get_logger(), " Head to pi /2 angle in current setpoint");
+    _targetPosition[3] = - M_PI / 2;
+    RCLCPP_INFO(this->get_logger(), "Head to pi /2 angle in current setpoint");
     break;
   case drone_msgs::msg::DroneDirectionCommand::HEAD_TO:
     // parsethe value to the target heading angle
     if (safeParseFloat(command_value, commandHeading))
     {
-      _targetPostion[3] = commandHeading;
+      _targetPosition[3] = commandHeading;
       RCLCPP_INFO(this->get_logger(), "Head to angle %f", commandHeading);
     }
     else
@@ -177,7 +177,7 @@ void Px4CommandHandlerNode::exectueCliCommand(uint8_t command, std::string comma
     // parse the value to vector4f
     if (safeParseVector4f(command_value, commandPosition))
     {
-      _targetPostion = commandPosition;
+      _targetPosition = commandPosition;
       RCLCPP_INFO(this->get_logger(), " move to point: (%f,%f,%f,%f)", commandPosition[0], commandPosition[1], commandPosition[2], commandPosition[3]);
     }
     else
@@ -187,7 +187,7 @@ void Px4CommandHandlerNode::exectueCliCommand(uint8_t command, std::string comma
     break;
 
   default:
-    RCLCPP_INFO(this->get_logger(), "Unkown command");
+    RCLCPP_INFO(this->get_logger(), "Unknown command");
     break;
   }
 }
@@ -266,7 +266,7 @@ void Px4CommandHandlerNode::generalCommandService(const std::shared_ptr<drone_ms
   RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "sending back response: [%s]", response->success ? "successful" : "unsuccessful");
 }
 
-void Px4CommandHandlerNode::positionCallback(px4_msgs::msg::VehicleLocalPosition local_position_msg)
+void Px4CommandHandlerNode::positionCallback(const px4_msgs::msg::VehicleLocalPosition& local_position_msg)
 {
   // RCLCPP_INFO(get_logger(), "got the position ...");
 
@@ -280,7 +280,7 @@ void Px4CommandHandlerNode::positionCallback(px4_msgs::msg::VehicleLocalPosition
 
   float yaw_angle = TransformUtil::convertYawNedToEnu(local_position_msg.heading);
   RCLCPP_DEBUG(rclcpp::get_logger("rclcpp"), "Drone yaw is: %f", yaw_angle);
-  _currentPostion = Eigen::Vector4f(enu_coordinates[0], enu_coordinates[1], enu_coordinates[2], yaw_angle);
+  _currentPosition = Eigen::Vector4f(enu_coordinates[0], enu_coordinates[1], enu_coordinates[2], yaw_angle);
 
 }
 
