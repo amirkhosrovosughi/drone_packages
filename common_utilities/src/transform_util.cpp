@@ -40,14 +40,14 @@ Eigen::Matrix3f TransformUtil::enuToNedRotation()
     return rotation;
 }
 
-Eigen::Vector3f TransformUtil::nedToEnu(const Eigen::Vector3f& ned_coordinates)
+Eigen::Vector3f TransformUtil::nedToEnu(const Eigen::Vector3f& nedVector)
 {
-    return nedToEnuRotation()*ned_coordinates;
+    return nedToEnuRotation()*nedVector;
 }
 
-Eigen::Vector3f TransformUtil::enuToNed(const Eigen::Vector3f& enu_coordinates)
+Eigen::Vector3f TransformUtil::enuToNed(const Eigen::Vector3f& enuVector)
 {
-    return enuToNedRotation()*enu_coordinates;
+    return enuToNedRotation()*enuVector;
 }
 
 Eigen::Vector2f TransformUtil::rotate2D(const Eigen::Vector2f& coordinate, const float rotate)
@@ -107,28 +107,6 @@ float TransformUtil::convertYawNedToEnu(float yawNed) {
     return yawEnu;
 }
 
-/**
- * @brief Converts a quaternion from the NED (North-East-Down) coordinate system 
- *        to the ENU (East-North-Up) coordinate system.
- * 
- * This function takes a quaternion representing a rotation in the NED frame
- * and transforms it into the equivalent quaternion in the ENU frame by applying:
- * - A π/2 rotation about the Z-axis (down).
- * - A π rotation about the X-axis (old North → new East).
- * 
- * The transformation is performed using the following quaternions:
- * Q_Z (90° rotation about Z-axis): [sqrt(0.5), 0, 0, sqrt(0.5)].
- * Q_X (180° rotation about X-axis): [0, 1, 0, 0].
- * 
- * Transformation:
- * Q_ENU = Q_X * Q_Z * Q_NED * Q_X^(-1)
- * Reference: https://docs.px4.io/main/en/ros/external_position_estimation
- * 
- * @param nedQuat Eigen::Vector4d representing the quaternion in NED coordinates
- *                 in the order [w, x, y, z].
- * @return Eigen::Vector4d representing the quaternion in ENU coordinates
- *         in the order [w, x, y, z].
- */
  Eigen::Vector4d TransformUtil::nedToEnuQuaternion(const Eigen::Vector4d& nedQuat) {
         // Input quaternion is in (w, x, y, z) order
         Eigen::Quaterniond qNed(nedQuat[0], nedQuat[1], nedQuat[2], nedQuat[3]);
@@ -162,13 +140,6 @@ float TransformUtil::convertYawNedToEnu(float yawNed) {
         return Eigen::Vector4d(q_enu.w(), q_enu.x(), q_enu.y(), q_enu.z());
     }
 
-/**
- * @brief Helper function to perform quaternion multiplication.
- * 
- * @param q1 First quaternion as Eigen::Vector4d [w, x, y, z].
- * @param q2 Second quaternion as Eigen::Vector4d [w, x, y, z].
- * @return Eigen::Vector4d representing the product q1 * q2.
- */
 Eigen::Vector4d TransformUtil::quaternionMultiplication(const Eigen::Vector4d& q1, const Eigen::Vector4d& q2)
 {
     double w1 = q1(0), x1 = q1(1), y1 = q1(2), z1 = q1(3);
