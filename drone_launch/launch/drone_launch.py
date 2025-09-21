@@ -11,7 +11,7 @@ def generate_launch_description():
             executable='static_transform_publisher',
             name='static_transform_publisher',
             output='screen',
-            arguments=['0.12', '0.03', '0.242', '0', '0.785', '0', 'base_link', 'camera_frame']
+            arguments=['0.12', '0.03', '0.242', '0', '1.57', '0', 'base_link', 'camera_frame'] # updated
         ),
         
         # Image bridge nodes
@@ -57,6 +57,13 @@ def generate_launch_description():
             package='feature_2dto3d_transfer',
             executable='feature_2dto3d_transfer',
             name='feature_2dto3d_transfer',
+            output='screen',
+        ),
+
+        Node(
+            package='slam',
+            executable='slam',
+            name='slam',
             output='screen',
         ),
     ])
