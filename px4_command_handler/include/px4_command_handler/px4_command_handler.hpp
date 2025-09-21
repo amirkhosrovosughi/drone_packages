@@ -13,6 +13,7 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "common_utilities/transform_util.hpp"
+#include "px4_command_handler_util.hpp"
 
 #include "geometry_msgs/msg/twist.hpp"
 #include <px4_msgs/msg/vehicle_command.hpp>
@@ -105,16 +106,6 @@ private:
    */
   void positionCallback(const px4_msgs::msg::VehicleLocalPosition& position);
 
-   /**
-   * @brief Convert an Eigen vector to a space-separated string.
-   *
-   * @tparam Derived Eigen type.
-   * @param vector Input Eigen vector.
-   * @return String representation of the vector.
-   */
-  template<typename Derived>
-  std::string getStringFromVector(const Eigen::MatrixBase<Derived>& vector);
-
   /**
    * @brief Execute a CLI drone command (e.g., go to origin, stop).
    *
@@ -122,24 +113,6 @@ private:
    * @param commandValue Additional argument (e.g., heading angle or coordinates).
    */
   void executeCliCommand(uint8_t command, std::string command_value);
-
-  /**
-   * @brief Safely parse a float from a string.
-   *
-   * @param str Input string.
-   * @param result Output parsed float.
-   * @return True if successful, false otherwise.
-   */
-  bool safeParseFloat(const std::string& str, float& result);
-
-  /**
-   * @brief Safely parse a space-separated 4D vector from a string.
-   *
-   * @param str Input string.
-   * @param result Output Eigen::Vector4f.
-   * @return True if successful, false otherwise.
-   */
-  bool safeParseVector4f(const std::string& str, Eigen::Vector4f& result);
 
   // Member variables
   rclcpp::Publisher<px4_msgs::msg::VehicleCommand>::SharedPtr _vehicleCommandPublisher;        ///< Publisher for PX4 vehicle commands.

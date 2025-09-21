@@ -41,7 +41,7 @@ std::vector<std::vector<double>> FeatureExtractClassic::extract(const cv::Mat& i
 #endif
 
     cv::Mat3b hsv;
-    cv::cvtColor(inputImage, hsv, cv::COLOR_BGR2HSV); //AMIR, change for test
+    cv::cvtColor(inputImage, hsv, cv::COLOR_BGR2HSV);
 
     // Extract circle coordinates
     cv::Mat1b colorMask;

@@ -21,6 +21,7 @@ include_directories(include/${PROJECT_NAME})
 
 set(SOURCES
   src/px4_command_handler.cpp
+  src/px4_command_handler_util.cpp
   src/px4_command_handler_node.cpp
 )
 

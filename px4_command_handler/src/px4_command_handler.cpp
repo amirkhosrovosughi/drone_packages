@@ -52,7 +52,7 @@ void Px4CommandHandlerNode::publishTrajectorySetpoint()
 {
   
   Eigen::Vector3f targetNED = TransformUtil::enuToNed(Eigen::Vector3f((_targetPosition.head<3>())));
-  RCLCPP_DEBUG(this->get_logger(), "targetNED is (%s)", getStringFromVector(targetNED).c_str());
+  RCLCPP_DEBUG(this->get_logger(), "targetNED is (%s)", Px4CommandHandlerUtil::getStringFromVector(targetNED).c_str());
 
   px4_msgs::msg::TrajectorySetpoint msg{};
   	msg.position = {targetNED[0], targetNED[1], targetNED[2]};
@@ -98,7 +98,7 @@ void Px4CommandHandlerNode::directionCallback(const drone_msgs::msg::DroneDirect
     if (vertical_step != 0.0f)
     {
       _targetPosition = _targetPosition + Eigen::Vector4f(0.0f, 0.0f, vertical_step, 0.0f);
-      RCLCPP_DEBUG(this->get_logger(), "_targetPosition is (%s)", getStringFromVector(_targetPosition).c_str());
+      RCLCPP_DEBUG(this->get_logger(), "_targetPosition is (%s)", Px4CommandHandlerUtil::getStringFromVector(_targetPosition).c_str());
       RCLCPP_INFO(this->get_logger(), "Vertical Step: %f", vertical_step);
     }
     if (forward_step != 0.0f || lateral_step != 0.0f)
@@ -106,16 +106,16 @@ void Px4CommandHandlerNode::directionCallback(const drone_msgs::msg::DroneDirect
       RCLCPP_DEBUG(this->get_logger(), "steps (Forward, Lateral): (%f, %f), yaw angle: %f", forward_step, lateral_step , _currentPosition[3]);
       // calculate needed rotation:
       Eigen::Vector2f relativeTarget = TransformUtil::rotate2D(Eigen::Vector2f(-1.0 * forward_step, lateral_step), _currentPosition[3]);
-      RCLCPP_DEBUG(this->get_logger(), "relativeTarget is (%s)", getStringFromVector(relativeTarget).c_str());
+      RCLCPP_DEBUG(this->get_logger(), "relativeTarget is (%s)", Px4CommandHandlerUtil::getStringFromVector(relativeTarget).c_str());
 
       _targetPosition = _targetPosition + Eigen::Vector4f(relativeTarget[0], relativeTarget[1], 0.0f, 0.0f);
-      RCLCPP_INFO(this->get_logger(), "_targetPosition is (%s)", getStringFromVector(_targetPosition).c_str());
+      RCLCPP_INFO(this->get_logger(), "_targetPosition is (%s)", Px4CommandHandlerUtil::getStringFromVector(_targetPosition).c_str());
     }
     if (angular_step != 0.0f)
     {
       float targetHeading = std::max(std::min(angular_step, MAX_ROTATING), MIN_ROTATING);
       _targetPosition = _targetPosition - Eigen::Vector4f(0.0f, 0.0f, 0.0f, targetHeading);
-      RCLCPP_DEBUG(this->get_logger(), "_targetPosition is (%s)", getStringFromVector(_targetPosition).c_str());
+      RCLCPP_DEBUG(this->get_logger(), "_targetPosition is (%s)", Px4CommandHandlerUtil::getStringFromVector(_targetPosition).c_str());
       RCLCPP_INFO(this->get_logger(), "Angular Step: %f", -1.0 * angular_step);
     }
 }
@@ -162,7 +162,7 @@ void Px4CommandHandlerNode::executeCliCommand(uint8_t command, std::string comma
     break;
   case drone_msgs::msg::DroneDirectionCommand::HEAD_TO:
     // parsethe value to the target heading angle
-    if (safeParseFloat(command_value, commandHeading))
+    if (Px4CommandHandlerUtil::safeParseFloat(command_value, commandHeading))
     {
       _targetPosition[3] = commandHeading;
       RCLCPP_INFO(this->get_logger(), "Head to angle %f", commandHeading);
@@ -175,7 +175,7 @@ void Px4CommandHandlerNode::executeCliCommand(uint8_t command, std::string comma
 
   case drone_msgs::msg::DroneDirectionCommand::GO_TO:
     // parse the value to vector4f
-    if (safeParseVector4f(command_value, commandPosition))
+    if (Px4CommandHandlerUtil::safeParseVector4f(command_value, commandPosition))
     {
       _targetPosition = commandPosition;
       RCLCPP_INFO(this->get_logger(), " move to point: (%f,%f,%f,%f)", commandPosition[0], commandPosition[1], commandPosition[2], commandPosition[3]);
@@ -190,47 +190,6 @@ void Px4CommandHandlerNode::executeCliCommand(uint8_t command, std::string comma
     RCLCPP_INFO(this->get_logger(), "Unknown command");
     break;
   }
-}
-
-bool Px4CommandHandlerNode::safeParseFloat(const std::string& str, float& result)
-{
-    try {
-        size_t idx;
-        result = std::stof(str, &idx);
-
-        // Check if the whole string was parsed
-        if (idx != str.size()) {
-            return false;
-        }
-        return true;
-    } catch (const std::invalid_argument& e) {
-        // No conversion could be performed
-        return false;
-    } catch (const std::out_of_range& e) {
-        // The converted value would fall out of the range of the result type
-        return false;
-    }
-}
-
-bool Px4CommandHandlerNode::safeParseVector4f(const std::string& str, Eigen::Vector4f& result)
-{
-    std::istringstream iss(str);
-    std::string item;
-    std::vector<float> values;
-    while (std::getline(iss, item, ' ')) {
-        float value;
-        if (!safeParseFloat(item, value)) {
-            return false;
-        }
-        values.push_back(value);
-    }
-
-    if (values.size() != 4) {
-        return false;
-    }
-
-    result << values[0], values[1], values[2], values[3];
-    return true;
 }
 
 void Px4CommandHandlerNode::generalCommandService(const std::shared_ptr<drone_msgs::srv::DroneMode::Request> request,
@@ -268,28 +227,13 @@ void Px4CommandHandlerNode::generalCommandService(const std::shared_ptr<drone_ms
 
 void Px4CommandHandlerNode::positionCallback(const px4_msgs::msg::VehicleLocalPosition& local_position_msg)
 {
-  // RCLCPP_INFO(get_logger(), "got the position ...");
-
   Eigen::Vector3f ned_coordinates(local_position_msg.x, local_position_msg.y, local_position_msg.z);
-
-
-  // RCLCPP_INFO(get_logger(), "ned_coordinates is (%s)",getStringFromVector(ned_coordinates));
-
   Eigen::Vector3f enu_coordinates = TransformUtil::nedToEnu(ned_coordinates);
-  // RCLCPP_INFO(get_logger(), "ned_coordinates is (%s)",getStringFromVector(enu_coordinates));
 
   float yaw_angle = TransformUtil::convertYawNedToEnu(local_position_msg.heading);
   RCLCPP_DEBUG(rclcpp::get_logger("rclcpp"), "Drone yaw is: %f", yaw_angle);
   _currentPosition = Eigen::Vector4f(enu_coordinates[0], enu_coordinates[1], enu_coordinates[2], yaw_angle);
 
-}
-
-template<typename Derived>
-std::string Px4CommandHandlerNode::getStringFromVector(const Eigen::MatrixBase<Derived>& vector)
-{
-    std::stringstream ss;
-    ss << vector.transpose();
-    return ss.str();
 }
 
 void Px4CommandHandlerNode::publishSetpointConfig(bool automatic)

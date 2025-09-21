@@ -67,40 +67,81 @@ public:
     explicit KeyboardControl(bool autostart = true);
 
 private:
-    /// Begin interactive terminal loop (blocking until shutdown).
+    /**
+     * @brief Begin interactive terminal loop.
+     *
+     * Blocking until shutdown. Continuously polls keyboard input and dispatches commands.
+     */
     void startKeyboardControl();
 
-    /// Handle a single key press (already uppercased).
+    /**
+     * @brief Handle a single key press.
+     *
+     * @param key The uppercase key character pressed.
+     */
     void processKeyboardInput(char key);
 
-    /// Publish a movement command with no CLI payload.
+    /**
+     * @brief Publish a movement command without CLI payload.
+     *
+     * @param command Movement command enum.
+     */
     void processMovementCommand(MovementCommand command);
 
-    /// Publish a movement command with CLI payload.
+    /**
+     * @brief Publish a movement command with CLI payload.
+     *
+     * @param command Movement command enum.
+     * @param cliCommand CLI command type (e.g., go to position).
+     * @param cliCommandValue String payload associated with CLI command.
+     */
     void processMovementCommand(MovementCommand command, uint8_t cliCommand, std::string cliCommandValue);
 
-    /// Handle general (non-motion) commands.
+    /**
+     * @brief Handle a general (non-motion) command.
+     *
+     * @param command General command enum.
+     */
     void processGeneralCommand(GeneralCommand command);
 
-    /// Increase step sizes (bounded).
+    /**
+     * @brief Increase translational and rotational step sizes (bounded).
+     */
     void increaseSpeed();
 
-    /// Decrease step sizes (bounded).
+    /**
+     * @brief Decrease translational and rotational step sizes (bounded).
+     */
     void decreaseSpeed();
 
-    /// Send mode change via service request.
+    /**
+     * @brief Send a mode change request via service.
+     *
+     * @param mode Drone mode (PX4 command or custom enum).
+     */
     void sendRequest(uint16_t mode);
 
-    /// Ask user to enter a CLI command (enables canonical mode temporarily).
+    /**
+     * @brief Ask user to enter a CLI command.
+     *
+     * Temporarily enables canonical terminal mode to capture full-line input.
+     */
     void startCliCommandReceive();
 
-    /// Print prompt and mark the node to receive CLI input.
+    /**
+     * @brief Print CLI prompt and mark the node to receive CLI input.
+     */
     void getCommand();
 
-    /// Read one full line as CLI command (blocking).
+    /**
+     * @brief Read a full line as CLI command.
+     *
+     * Blocking until newline is entered.
+     * @return String containing the CLI command.
+     */
     std::string getCliCommand();
 
-    /**
+     /**
      * @brief Parse a CLI input string.
      * @param cliInput Raw line (e.g., "goto 1.0,2.0,3.0").
      * @param commandValue Receives the value part after the first space.
@@ -109,12 +150,12 @@ private:
     int parseCliCommand(const std::string &cliInput, std::string &commandValue);
 
 private:
-    rclcpp::Publisher<drone_msgs::msg::DroneDirectionCommand>::SharedPtr _moveCommandPublisher;
-    rclcpp::Client<drone_msgs::srv::DroneMode>::SharedPtr _generalCommandClient;
+    rclcpp::Publisher<drone_msgs::msg::DroneDirectionCommand>::SharedPtr _moveCommandPublisher; ///< Publisher for drone direction commands.
+    rclcpp::Client<drone_msgs::srv::DroneMode>::SharedPtr _generalCommandClient;               ///< Client for sending general drone mode commands (e.g., arm, disarm).
 
-    float _stepDisplace;
-    float _stepRotate;
-    bool _takeCliCommand = false;
+    float _stepDisplace; ///< Step size for translational movements (meters).
+    float _stepRotate;   ///< Step size for rotational movements (radians).
+    bool _takeCliCommand = false; ///< Flag indicating whether CLI commands are enabled.
 
     /// Known CLI commands mapped to integer codes.
     const std::map<std::string, int> _cliCommandMap = {
