@@ -9,11 +9,16 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
+  <depend>drone_msgs</depend>
+  <depend>px4_msgs</depend>
+  <depend>data_logging_utils</depend>
+  <depend>common_utilities</depend>
+  <depend>rclcpp</depend>
+
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
-    <depend>common_utilities</depend>
   </export>
 </package>
