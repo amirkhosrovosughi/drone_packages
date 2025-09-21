@@ -11,8 +11,8 @@ VisualFeatureExtraction::VisualFeatureExtraction()
   _colorCameraSubscriber.subscribe(this, "camera", rmw_qos_profile);
   _depthCameraSubscriber.subscribe(this, "depth_camera", rmw_qos_profile);
   
-  cameraSync = std::make_shared<message_filters::TimeSynchronizer<sensor_msgs::msg::Image, sensor_msgs::msg::Image>>(_colorCameraSubscriber, _depthCameraSubscriber, 10);
-  cameraSync->registerCallback(std::bind(&VisualFeatureExtraction::CameraSyncCallback, this, std::placeholders::_1, std::placeholders::_2));
+  _cameraSync = std::make_shared<message_filters::TimeSynchronizer<sensor_msgs::msg::Image, sensor_msgs::msg::Image>>(_colorCameraSubscriber, _depthCameraSubscriber, 10);
+  _cameraSync->registerCallback(std::bind(&VisualFeatureExtraction::cameraSyncCallback, this, std::placeholders::_1, std::placeholders::_2));
   
   // create publisher
   _featureCoordinatePublisher = this->create_publisher<drone_msgs::msg::DetectedFeatureList>("/featureDetection/coordinate", 10);
@@ -28,7 +28,7 @@ VisualFeatureExtraction::VisualFeatureExtraction()
 #endif
 }
 
- void VisualFeatureExtraction::CameraSyncCallback(
+ void VisualFeatureExtraction::cameraSyncCallback(
       const sensor_msgs::msg::Image::ConstSharedPtr& imageColor,
       const sensor_msgs::msg::Image::ConstSharedPtr& imageDepth) {
       // Display the message on the console

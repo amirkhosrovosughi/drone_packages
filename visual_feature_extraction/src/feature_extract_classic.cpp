@@ -2,7 +2,7 @@
 
 static const cv::Scalar COLOR_FILTER_LOWER_LIMIT(0, 100, 20);
 static const cv::Scalar COLOR_FILTER_UPPER_LIMIT(10, 255, 255);
-static double AREA_LIMIT = 100.0;
+static constexpr double AREA_LIMIT = 100.0;
 
 /**
  * @brief Constructor for FeatureExtractClassic.
@@ -21,15 +21,9 @@ void FeatureExtractClassic::config(double threshold) {
   _threshold = threshold;
 }
 
-/**
- * @brief Extracts coordinates of detected objects in the input image.
- * 
- * @param inputImage The input image for feature extraction.
- * @return Vector of cv::Point representing detected object coordinates.
- */
 std::vector<std::vector<double>> FeatureExtractClassic::extract(const cv::Mat& inputImage)
 {
-  RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "Extracting feature based on color filteration ...");
+  RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "Extracting feature based on color filtering ...");
   
   // for test only, replace all inputImage with img in rest of this file
   // cv::Mat img = cv::imread("/home/avosughi/test1.jpg"); 
@@ -54,7 +48,7 @@ std::vector<std::vector<double>> FeatureExtractClassic::extract(const cv::Mat& i
     std::vector<std::vector<cv::Point>> circleContours;
     cv::findContours(colorMask, circleContours, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
 
-    RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "Number of counter: %ld", circleContours.size());
+    RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "Number of contours: %ld", circleContours.size());
     RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "Width of colorMask: %d", colorMask.cols);
     RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "Height of colorMask: %d", colorMask.rows);
 
@@ -99,24 +93,11 @@ std::vector<std::vector<double>> FeatureExtractClassic::extract(const cv::Mat& i
     return relativeCoordinate;
 }
 
-/**
- * @brief Fills the center of the mask with a specified width.
- * 
- * @param mask The input mask.
- * @param width The width of the center to be filled.
- * @return The mask with the filled center.
- */
-void FeatureExtractClassic::fillTheCenter(const cv::Mat& mask, int width, cv::Mat& filledMask)
+void FeatureExtractClassic::fillCenter(const cv::Mat& mask, int width, cv::Mat& filledMask)
 {
   cv::rectangle(filledMask, cv::Point(width, width), cv::Point(mask.cols - width, mask.rows - width), cv::Scalar(255), -1);
 }
 
-/**
- * @brief Gets the center coordinates of the contours.
- * 
- * @param contours Vector of contours.
- * @return Vector of cv::Point representing contour center coordinates.
- */
 std::vector<cv::Point> FeatureExtractClassic::getContourCenter(const std::vector<std::vector<cv::Point>>& contours)
 {
   std::vector<cv::Point> coordinates;

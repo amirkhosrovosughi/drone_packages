@@ -3,12 +3,18 @@
 
 #include "feature_extract.hpp"
 
+/**
+ * @brief Feature extraction using deep learning methods (to be implemented).
+ */
 class FeatureExtractDeep : public FeatureExtract {
 public:
-  FeatureExtractDeep();
-  virtual ~FeatureExtractDeep();
+  FeatureExtractDeep() {}
+  virtual ~FeatureExtractDeep() {}
 
-  virtual std::vector<std::vector<double>> extract(const cv::Mat& inputImage) override {}
+  virtual std::vector<std::vector<double>> extract(const cv::Mat& inputImage) override
+  {
+    // TODO: Implement deep feature extraction
+  }
   virtual void config(double threshold) override
   {
     std::vector<cv::Point> detectedCoordinates;
