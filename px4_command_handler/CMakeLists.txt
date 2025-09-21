@@ -57,3 +57,28 @@ install(
 )
 
 ament_package()
+
+# Unit tests
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+
+  ament_add_gtest(test_px4_command_handler_util
+    test/test_px4_command_handler_util.cpp
+    src/px4_command_handler_util.cpp  # link implementation
+  )
+
+  target_include_directories(test_px4_command_handler_util PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  )
+
+  target_link_libraries(test_px4_command_handler_util Eigen3::Eigen)
+
+  ament_target_dependencies(test_px4_command_handler_util
+    rclcpp
+    px4_msgs
+    drone_msgs
+    geometry_msgs
+    sensor_msgs
+    common_utilities
+  )
+endif()
