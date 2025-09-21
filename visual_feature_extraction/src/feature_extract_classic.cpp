@@ -29,7 +29,7 @@ void FeatureExtractClassic::config(double threshold) {
  */
 std::vector<std::vector<double>> FeatureExtractClassic::extract(const cv::Mat& inputImage)
 {
-  RCLCPP_INFO(rclcpp::get_logger("visual_feature_extraction"), "Extracting feature based on color filteration ...");
+  RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "Extracting feature based on color filteration ...");
   
   // for test only, replace all inputImage with img in rest of this file
   // cv::Mat img = cv::imread("/home/avosughi/test1.jpg"); 
