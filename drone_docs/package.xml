@@ -1,0 +1,8 @@
+<package format="3">
+  <name>drone_docs</name>
+  <version>0.0.0</version>
+  <description>Documentation for the drone workspace</description>
+  <maintainer email="you@example.com">You</maintainer>
+  <license>MIT</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+</package>
