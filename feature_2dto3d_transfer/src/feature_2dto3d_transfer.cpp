@@ -18,9 +18,6 @@ Feature2DTo3DTransfer::Feature2DTo3DTransfer()
   _cameraInfoSubscriber = this->create_subscription<sensor_msgs::msg::CameraInfo>(
               "/camera/camera_info", 10, std::bind(&Feature2DTo3DTransfer::cameraInfoCallback, this, std::placeholders::_1));
 
-  auto qos_profile = rclcpp::QoS(rclcpp::KeepLast(1)).best_effort().transient_local();
-  _droneOdometrySubscriber = this->create_subscription<px4_msgs::msg::VehicleOdometry>(
-              "/fmu/out/vehicle_odometry", qos_profile, std::bind(&Feature2DTo3DTransfer::droneOdometryCallback, this, std::placeholders::_1));
   // need to subscribe to tf camera relative position from drone base
   _tfBuffer = std::make_unique<tf2_ros::Buffer>(this->get_clock());
   _tflistener = std::make_shared<tf2_ros::TransformListener>(*_tfBuffer);
@@ -43,7 +40,7 @@ void Feature2DTo3DTransfer::coordinate2DCallback(const drone_msgs::msg::Detected
   {
     if (cooerdinate2DList.features.size() != 0)
     {
-      RCLCPP_DEBUG(this->get_logger(), "get %d new 2D coordinate(s)", cooerdinate2DList.features.size());
+      RCLCPP_DEBUG(this->get_logger(), "get %d feature 2D coordinate(s)", cooerdinate2DList.features.size());
     }
     rclcpp::Time sampleTime = rclcpp::Clock().now();
 
@@ -79,9 +76,6 @@ void Feature2DTo3DTransfer::coordinate2DCallback(const drone_msgs::msg::Detected
       {
         RCLCPP_INFO(this->get_logger(), "Skipped feature since depth value is not available");
         continue; //skip if depth data is not available
-        
-        
-        
       }
       else
       {
@@ -196,55 +190,4 @@ void Feature2DTo3DTransfer::updateTransform()
       return;
     }
   }
-}
-
-void Feature2DTo3DTransfer::droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odometry)
-{
-  _odomTimeStamp = rclcpp::Clock().now();
-  Eigen::Vector3d translation(odometry.position[0],
-                              odometry.position[1],
-                              odometry.position[2]);
-  Eigen::Quaterniond rotation(odometry.q[0],
-                              odometry.q[1],
-                              odometry.q[2],
-                              odometry.q[3]);
-  Eigen::Matrix3d rotation_matrix = rotation.toRotationMatrix();
-  _droneOdom.block<3, 3>(0, 0) = rotation_matrix;
-  _droneOdom.block<3, 1>(0, 3) = translation;
-  _droneHeight = translation[2];
-}
-
-float Feature2DTo3DTransfer::estimateDepth(const Eigen::Matrix3f& rotationMatrix, float droneHeight) {
-    // Extract the forward direction vector from the rotation matrix (z-axis direction)
-    Eigen::Vector3f forwardDirection = rotationMatrix.col(2);
-    RCLCPP_DEBUG(this->get_logger(), "(forwardDirection is: (%f,%f,%f)", forwardDirection[0], forwardDirection[1], forwardDirection[2]); 
-
-    // you need some check to see if it is not heading upward
-    if (forwardDirection[2] > 0) // should be forwardDirection[2] < 0, but for some reason, it is not
-    {
-      RCLCPP_DEBUG(this->get_logger(), "z is negative, should skip this sample");
-      return -1.0;
-    }
-
-    float estimatedDepth = std::abs(droneHeight) *  std::sqrt(std::pow(forwardDirection[0]/forwardDirection[2], 2) + std::pow(forwardDirection[1]/forwardDirection[2], 2) + 1);
-    RCLCPP_DEBUG(this->get_logger(), "Estimated depth is: %f", estimatedDepth);  //---> return this one
-    
-    // // angle based approach
-    // forwardDirection.normalize();
-    // // Compute the pitch angle (angle with respect to the ground plane, which is the x-y plane)
-    // // Pitch angle is the angle between the forward direction and the horizontal (ground) plane
-    // float pitchAngle = std::atan2(forwardDirection.z(), forwardDirection.y());
-    
-
-    // // Check if the forward direction is not pointing up and the pitch is non-zero
-    // if (std::fabs(pitchAngle) < 1e-6) {
-    //     std::cerr << "Skipped feature since camera is heading sky or horizontal\n";
-    //     return std::numeric_limits<float>::infinity();
-    // }
-    
-    // // Calculate the depth
-    // float estimatedDepth_1 = std::fabs(droneHeight / std::sin(pitchAngle));
-    // RCLCPP_DEBUG(this->get_logger(), "result angle based is : %f", estimatedDepth_1); 
-    
-    return estimatedDepth;
 }

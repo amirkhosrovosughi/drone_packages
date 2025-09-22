@@ -29,13 +29,10 @@ private:
   void coordinate2DCallback(const drone_msgs::msg::DetectedFeatureList cooerdinate2DList);
   void cameraInfoCallback(const sensor_msgs::msg::CameraInfo cameraInfo);
   void updateTransform();
-  void droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odometry);
-  float estimateDepth(const Eigen::Matrix3f& rotationMatrix, float droneHeight);
 
 private:
   rclcpp::Subscription<drone_msgs::msg::DetectedFeatureList>::SharedPtr _featureCoordinateSubscriber;
   rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr _cameraInfoSubscriber;
-  rclcpp::Subscription<px4_msgs::msg::VehicleOdometry>::SharedPtr _droneOdometrySubscriber;
 
   rclcpp::Publisher<drone_msgs::msg::PointList>::SharedPtr _feature3DcoordinateCameraPublisher;
   rclcpp::Publisher<drone_msgs::msg::PointList>::SharedPtr _feature3DcoordinateBasePublisher;
@@ -51,9 +48,6 @@ private:
   float _frameFx;
   float _frameFy;
   Matrix4x4 _base2Camera;
-  Matrix4x4 _droneOdom;
-  float _droneHeight;
-  rclcpp::Time _odomTimeStamp;
   bool _cameraInfoLoaded = false;
   bool _cameraTransformLoaded = false;
 };
