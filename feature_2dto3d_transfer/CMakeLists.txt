@@ -5,10 +5,10 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-option(SOTRE_DEBUG_DATA "Enable store debug data" OFF)
+option(STORE_DEBUG_DATA "Enable store debug data" OFF)
 
-if(SOTRE_DEBUG_DATA)
-    add_compile_definitions(SOTRE_DEBUG_DATA)
+if(STORE_DEBUG_DATA)
+    add_compile_definitions(STORE_DEBUG_DATA)
 endif()
 
 # find dependencies
