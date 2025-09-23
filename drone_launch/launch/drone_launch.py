@@ -11,7 +11,7 @@ def generate_launch_description():
             executable='static_transform_publisher',
             name='static_transform_publisher',
             output='screen',
-            arguments=['0.12', '0.03', '0.242', '0', '1.57', '0', 'base_link', 'camera_frame'] # updated
+            arguments=['0.12', '0.03', '0.242', '0', '0.785 ', '0', 'base_link', 'camera_frame'] # updated
         ),
         
         # Image bridge nodes

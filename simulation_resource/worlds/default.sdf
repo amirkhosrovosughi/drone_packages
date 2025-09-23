@@ -151,120 +151,36 @@
     <include>
       <uri>../models/cylinder_model.sdf</uri>
       <!-- Specify a different unique name for each instance -->
-      <name>cylinder_1</name>
-      <pose>1 2 1 0 0 0</pose>
-    </include>
-
-    <include>
-      <uri>../models/cylinder_model.sdf</uri>
-      <!-- Specify a different unique name for each instance -->
       <name>cylinder_2</name>
-      <pose>-2 -3 1 0 0 0</pose>
-    </include>
-
-    <include>
-      <uri>../models/cylinder_model.sdf</uri>
-      <!-- Specify a different unique name for each instance -->
-      <name>cylinder_3</name>
-      <pose>-2 -3 1 0 0 0</pose>
+      <pose>-2 -3 0 0 0 0</pose>
     </include>
 
     <include>
       <uri>../models/cylinder_model.sdf</uri>
       <!-- Specify a different unique name for each instance -->
       <name>cylinder_4</name>
-      <pose>-1 2 1 0 0 0</pose>
+      <pose>-3 -6 0 0 0 0</pose>
     </include>
 
     <include>
       <uri>../models/cylinder_model.sdf</uri>
       <!-- Specify a different unique name for each instance -->
       <name>cylinder_5</name>
-      <pose>4 3 7 0 0 0</pose>
+      <pose>3 -5 0 0 0 0</pose>
     </include>
 
     <include>
       <uri>../models/cylinder_model.sdf</uri>
       <!-- Specify a different unique name for each instance -->
       <name>cylinder_6</name>
-      <pose>2.5 0 1 0 0 0</pose>
-    </include>
-
-    <include>
-      <uri>../models/cylinder_model.sdf</uri>
-      <!-- Specify a different unique name for each instance -->
-      <name>cylinder_7</name>
-      <pose>5 0 1 0 0 0</pose>
-    </include>
-
-    <include>
-      <uri>../models/cylinder_model.sdf</uri>
-      <!-- Specify a different unique name for each instance -->
-      <name>cylinder_8</name>
-      <pose>-5 0 1 0 0 0</pose>
+      <pose>4 0 0 0 0 0</pose>
     </include>
 
     <include>
       <uri>../models/cylinder_model.sdf</uri>
       <!-- Specify a different unique name for each instance -->
       <name>cylinder_9</name>
-      <pose>0 5 1 0 0 0</pose>
-    </include>
-
-    <include>
-      <uri>../models/cylinder_model.sdf</uri>
-      <!-- Specify a different unique name for each instance -->
-      <name>cylinder_10</name>
-      <pose>0 -5 1 0 0 0</pose>
-    </include>
-
-    <include>
-      <uri>../models/cylinder_model.sdf</uri>
-      <!-- Specify a different unique name for each instance -->
-      <name>cylinder_11</name>
-      <pose>5 5 1 0 0 0</pose>
-    </include>
-
-    <include>
-      <uri>../models/cylinder_model.sdf</uri>
-      <!-- Specify a different unique name for each instance -->
-      <name>cylinder_12</name>
-      <pose>-5 5 1 0 0 0</pose>
-    </include>
-
-    <include>
-      <uri>../models/cylinder_model.sdf</uri>
-      <!-- Specify a different unique name for each instance -->
-      <name>cylinder_13</name>
-      <pose>-5 5 1 0 0 0</pose>
-    </include>
-
-    <include>
-      <uri>../models/cylinder_model.sdf</uri>
-      <!-- Specify a different unique name for each instance -->
-      <name>cylinder_14</name>
-      <pose>-5 -5 1 0 0 0</pose>
-    </include>
-
-    <include>
-      <uri>../models/cylinder_model.sdf</uri>
-      <!-- Specify a different unique name for each instance -->
-      <name>cylinder_15</name>
-      <pose>-1.5 0 1 0 0 0</pose>
-    </include>
-
-    <include>
-      <uri>../models/cylinder_model.sdf</uri>
-      <!-- Specify a different unique name for each instance -->
-      <name>cylinder_16</name>
-      <pose>-3.5 0 1 0 0 0</pose>
-    </include>
-
-    <include>
-      <uri>../models/cylinder_model.sdf</uri>
-      <!-- Specify a different unique name for each instance -->
-      <name>cylinder_17</name>
-      <pose>-6.5 0 1 0 0 0</pose>
+      <pose>0 5 0 0 0 0</pose>
     </include>
 
   </world>
