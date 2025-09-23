@@ -4,6 +4,10 @@
 #include <future>
 #include <chrono>
 
+#ifdef STORE_DEBUG_DATA
+#include "data_logging_utils/data_logger.hpp"
+#endif
+
 static const LogLevel HIGH_LEVEL = LogLevel::INFO;
 static const LogLevel LOW_LEVEL = LogLevel::DEBUG;
 static const std::string LOG_SUBSECTION = "[filter] - ";
@@ -61,6 +65,10 @@ void ExtendedKalmanFilter::processPrediction(const OdometryInfo& odom)
         _logger->log(LOW_LEVEL, LOG_SUBSECTION, "_lastUpdateTime is: ", _lastUpdateTime);
         _logger->log(LOW_LEVEL, LOG_SUBSECTION, "timeElapse is: ", timeElapse);
 
+        #ifdef STORE_DEBUG_DATA
+        std::map<std::string, double> mapLog;
+        #endif
+
         if (_odometryType == MotionMeasurementModel::OdometryType::PositionOdometry)
         {
             Velocity velocity = odom.EnuVelocity;
@@ -69,7 +77,14 @@ void ExtendedKalmanFilter::processPrediction(const OdometryInfo& odom)
             Eigen::VectorXd updatedRobotMean = _model->getRobotToRobotJacobian()*_slamMap->getRobotMean() + linearVel * timeElapse;
             _logger->log(LOW_LEVEL, LOG_SUBSECTION, "velocity*timeElapse is: ", "\n", linearVel*timeElapse);
             _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "updatedRobotMean is: ", "\n", updatedRobotMean);
+
             _slamMap->setRobotMean(updatedRobotMean);
+
+            #ifdef STORE_DEBUG_DATA
+            mapLog["updatedRobotMean[0]"] = updatedRobotMean[0];
+            mapLog["updatedRobotMean[1]"] = updatedRobotMean[1];
+            mapLog["updatedRobotMean[2]"] = updatedRobotMean[2];
+            #endif
         }
         else if (_odometryType == MotionMeasurementModel::OdometryType::PoseOdometry)
         {
@@ -89,7 +104,17 @@ void ExtendedKalmanFilter::processPrediction(const OdometryInfo& odom)
         _slamMap->setRobotLandmarkFullCorrelationsHorizontal(updatedRobotLandmarkFullCorrelationsHorizontal);
         _slamMap->setRobotLandmarkFullCorrelationsVertical(updatedRobotLandmarkFullCorrelationsHorizontal.transpose());
 
-        _robotQuaternion = odom.orientation; // TODO: verify it for more complex case --> AMIR: most likely wrong, it should be on other coordinate NED to go to ENU
+        _robotQuaternion = odom.orientation;
+     
+        #ifdef STORE_DEBUG_DATA
+        mapLog["robotQuaternion.w"] = _robotQuaternion.w;
+        mapLog["robotQuaternion.x"] = _robotQuaternion.x;
+        mapLog["robotQuaternion.y"] = _robotQuaternion.y;
+        mapLog["robotQuaternion.z"] = _robotQuaternion.z;
+
+        data_logging_utils::DataLogger::log(mapLog);
+        #endif
+
 
         _logger->log(LOW_LEVEL, LOG_SUBSECTION, "Extended Kalman Filter prediction step" );
     }
