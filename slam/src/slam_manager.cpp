@@ -70,7 +70,7 @@ void SlamManager::createSubscribers()
 
     // need to subscribe to tf camera relative position from drone base
     _tfBuffer = std::make_unique<tf2_ros::Buffer>(this->get_clock());
-    _tflistener = std::make_shared<tf2_ros::TransformListener>(*_tfBuffer);
+    _tfListener = std::make_shared<tf2_ros::TransformListener>(*_tfBuffer);
 
     //TODO: later change it in way that stops listening when it gets the valiue
     _timer = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&SlamManager::updateTransform, this));
@@ -104,9 +104,25 @@ void SlamManager::droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odo
     
     
     Eigen::Vector3f linearVelocityIntertiaNED{odometry.velocity[0], odometry.velocity[1], odometry.velocity[2]}; // do not use this, because it has big accumulative error for odometry
-    _logger->log(LogLevel::DEBUG, "linearVelocityIntertiaNED is:\n", TransformUtil::matrixToString(linearVelocityIntertiaNED).c_str());
+    _logger->log(LogLevel::DEBUG, "linearVelocityIntertiaNED is:\n", TransformUtil::matrixToString(linearVelocityIntertiaNED).c_str()); // TODO: use linearVelocityIntertiaNED 
     
     Eigen::Vector3f newRobotPosition(odometry.position[0], odometry.position[1], odometry.position[2]);
+
+    Eigen::Vector3f directEnuPosition = TransformUtil::nedToEnu(newRobotPosition);
+
+    #ifdef STORE_DEBUG_DATA
+    std::map<std::string, double> mapLog;  // add plotting
+    mapLog["odometry.position[0]"] = odometry.position[0];
+    mapLog["odometry.position[1]"] = odometry.position[1];
+    mapLog["odometry.position[2]"] = odometry.position[2];
+
+    mapLog["directEnuPosition[0]"] = directEnuPosition[0];
+    mapLog["directEnuPosition[1]"] = directEnuPosition[1];
+    mapLog["directEnuPosition[2]"] = directEnuPosition[2];
+    #endif
+
+
+    // convert newRobotPosition directly to ENU here and comprare is to the final result
     Eigen::Vector3f estimatedNEDSpeed = estimateLinearSpeed(newRobotPosition);
     _logger->log(LogLevel::DEBUG, "estimatedNEDSpeed: \n", estimatedNEDSpeed);
 
@@ -125,6 +141,12 @@ void SlamManager::droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odo
     OdometryInfo odomInfo;
 
     Velocity velocityEnu;
+    #ifdef STORE_DEBUG_DATA
+    mapLog["linearVelocityIntertiaENU[0]"] = linearVelocityIntertiaENU[0];
+    mapLog["linearVelocityIntertiaENU[1]"] = linearVelocityIntertiaENU[1];
+    mapLog["linearVelocityIntertiaENU[2]"] = linearVelocityIntertiaENU[2];
+    #endif
+
     velocityEnu.linear.x = linearVelocityIntertiaENU[0];
     velocityEnu.linear.y = linearVelocityIntertiaENU[1];
     velocityEnu.linear.z = linearVelocityIntertiaENU[2];
@@ -146,13 +168,26 @@ void SlamManager::droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odo
     quaternion.z = odometry.q[3];
 
     Eigen::Vector4d quaternionEnuVector = TransformUtil::nedToEnuQuaternion(quaternion.getVector());
-    Quaternion quaternionEnu(quaternionEnuVector); 
+    Quaternion quaternionEnu(quaternionEnuVector);
+
+    #ifdef STORE_DEBUG_DATA
+    mapLog["NED.quaternion.w"] = quaternion.w;
+    mapLog["NED.quaternion.x"] = quaternion.x;
+    mapLog["NED.quaternion.y"] = quaternion.y;
+    mapLog["NED.quaternion.z"] = quaternion.z;
+
+    mapLog["ENU.quaternionEnu.w"] = quaternionEnu.w;
+    mapLog["ENU.quaternionEnu.x"] = quaternionEnu.x;
+    mapLog["ENU.quaternionEnu.y"] = quaternionEnu.y;
+    mapLog["ENU.quaternionEnu.z"] = quaternionEnu.z;
+
+    data_logging_utils::DataLogger::log(mapLog);
+    #endif
 
     odomInfo.NedVelocity = velocityNed;  
     odomInfo.orientation = quaternionEnu; // in this case we assume that orientation is knows, using other
                                           // sensor or odometry and only use position for robot position calculation
 
-    // odomInfo.timeTag = double(odometry.timestamp)/1000000.0f; //TODO: commented for enabling us to work with bagfiles with older tages    
     odomInfo.timeTag = getCurrentTimeInSeconds();
     _logger->log(LogLevel::DEBUG, "time tag receive is: ", odomInfo.timeTag);
     _filter->prediction(odomInfo);

@@ -36,6 +36,12 @@ if(POSE_MOTION_2D_MEASUREMENT)
     add_definitions(-DPOSE_MOTION_2D_MEASUREMENT)
 endif()
 
+option(STORE_DEBUG_DATA "Enable store debug data" OFF)
+
+if(STORE_DEBUG_DATA)
+    add_compile_definitions(STORE_DEBUG_DATA)
+endif()
+
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)

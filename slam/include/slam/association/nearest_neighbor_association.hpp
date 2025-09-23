@@ -7,7 +7,10 @@
 #include <cmath>
 #include <mutex>
 #include "slam_logger.hpp"
+
+#ifdef STORE_DEBUG_DATA
 #include "data_logging_utils/data_logger.hpp"
+#endif
 
 class NearestNeighborAssociation : public BaseAssociation {
 public:
@@ -37,6 +40,7 @@ private:
     Pose _robotPose;
     std::shared_ptr<MotionMeasurementModel> _model;
     LoggerPtr _logger;
+    double _quaternionRate = 0;
 };
 
 #endif  // SLAM__NEAREST_NEIGHBOR_ASSOCIATION_HPP_

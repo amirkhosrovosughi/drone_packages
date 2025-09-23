@@ -49,7 +49,7 @@ private:
   FilterPtr _filter;
   AssociationPtr _associantion;
   std::unique_ptr<tf2_ros::Buffer> _tfBuffer;
-  std::shared_ptr<tf2_ros::TransformListener> _tflistener;
+  std::shared_ptr<tf2_ros::TransformListener> _tfListener;
   LoggerPtr _logger;
   rclcpp::TimerBase::SharedPtr _timer;
   bool _cameraTransformLoaded = false;
