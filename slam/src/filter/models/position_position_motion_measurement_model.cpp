@@ -46,28 +46,13 @@ void PositionPositionMotionMeasurementModel::setSensorInfo(const Eigen::Matrix4d
 bool PositionPositionMotionMeasurementModel::directObservationModel(const Pose& robotPose,
     const Position& landmarkPosition, Measurement& expectedMeasurement)
 {
-    // std::cout << " ------- directObservationModel ------" << std::endl;
-    // std::cout << " ... robotPose is:" << robotPose.position.getPositionVector() << std::endl;
-    // std::cout << " ... landmarkPosition is " << landmarkPosition.getPositionVector() << std::endl;
- 
-    // if (!_sensorTranformationLoaded) // TODO: uncomment after passing  _sensorTranformation
-    // {
-    //     return false;
-    // }
-    // Eigen::Matrix4d robotTransformation = robotPose.getTransformationMatrix()* _sensorTranformation; -> not necessary as we send landmark coordinate in robot frame
-
     Eigen::Matrix4d robotTransformation = robotPose.getTransformationMatrix(); // * _sensorTranformation; -> not necessary as we send landmark coordinate in robot frame
+                                                                               // TODO: make it more general later
     Eigen::Vector4d homogeneousLandmarkPosition;
     homogeneousLandmarkPosition.head<3>() = landmarkPosition.getPositionVector();
-    homogeneousLandmarkPosition(3) = 1.0; //AMIR-> why 1.0, should not be zero ???
-
-    // std::cout << " ... homogeneousLandmarkPosition is: \n " << homogeneousLandmarkPosition << std::endl;
-    // std::cout << " ... robotTransformation.inverse() is: \n " << robotTransformation.inverse() << std::endl;
+    homogeneousLandmarkPosition(3) = 1.0; 
 
     Eigen::Vector4d landMarkInRobotCoordinate = robotTransformation.inverse() * homogeneousLandmarkPosition; // something is wrong here, should not be transpose???
-    // std::cout << "directObservationModel ... landMark In Robot Coordinate is:" << landMarkInRobotCoordinate << std::endl;
-    // std::cout << " -------END directObservationModel ------" << std::endl;
-
 
     expectedMeasurement.position = Position(landMarkInRobotCoordinate.head<3>());
 
@@ -77,19 +62,13 @@ bool PositionPositionMotionMeasurementModel::directObservationModel(const Pose& 
 Position PositionPositionMotionMeasurementModel::inverseObservationModel(const Pose& robotPose,
     const Measurement measurement)
 {
-    // std::cout << " --- robotPose position is:\n" << robotPose.position.getPositionVector() << std::endl;
-    // std::cout << " --- robotPose quaternion is: \n" << robotPose.quaternion.getVector() << std::endl;
-    // std::cout << " --- measurement is \n" << measurement.position.getPositionVector() << std::endl;
     Eigen::Matrix4d robotTransformation = robotPose.getTransformationMatrix();
-
-    // std::cout << "--- robotTransformation is:"<< "\n" << robotTransformation << std::endl;
 
     Eigen::Vector4d homogeneousLandmarkPosition;
     homogeneousLandmarkPosition.head<3>() = measurement.position.getPositionVector();
     homogeneousLandmarkPosition(3) = 1.0;
 
     Eigen::Vector4d landmarkPostion = robotTransformation * homogeneousLandmarkPosition;
-    // std::cout << "inverseObservationModel --- landmark absolute Postion is: \n" << landmarkPostion << std::endl;
 
     return Position(landmarkPostion.head<3>().eval());
 }

@@ -5,8 +5,8 @@
 #include <Eigen/Dense>
 #include <iostream>
 
-const static double robotInitialCorrelation = 0.1;
-const static double landmarkInitialCorrelation = 2;
+const static double ROBOT_INITIAL_CORRELATION = 0.1;
+const static double LANDMARK_INITIAL_CORRELATION = 2;
 
 //(CAUTION) -> we go with assumption that index of landmark on Map is equal id, be caution if this assumption changes later
 struct SlamMap
@@ -33,14 +33,14 @@ struct SlamMap
     mapCorrelation(_robotDimension, _robotDimension)
     {
         mapMean.setZero();
-        mapCorrelation = robotInitialCorrelation * Eigen::MatrixXd::Identity(robotDimension, robotDimension);
+        mapCorrelation = ROBOT_INITIAL_CORRELATION * Eigen::MatrixXd::Identity(robotDimension, robotDimension);
 
-        initialLandmarkSelfCorrelation = landmarkInitialCorrelation * Eigen::MatrixXd::Identity(_landmarkDimension, _landmarkDimension);
+        initialLandmarkSelfCorrelation = LANDMARK_INITIAL_CORRELATION * Eigen::MatrixXd::Identity(_landmarkDimension, _landmarkDimension);
         initialLandmarkCrossCorrelation.setZero();
         initialRobotLandmarkCorrelation.setZero();
     }
 
-    void addLandmak(const Eigen::VectorXd& newLandmark)
+    void addLandmark(const Eigen::VectorXd& newLandmark)
     {
         if (newLandmark.size() == landmarkDimension)
         {
@@ -61,7 +61,7 @@ struct SlamMap
 
             mapCorrelationTemp.block(oldDimension, oldDimension, landmarkDimension, landmarkDimension) = initialLandmarkSelfCorrelation;
             
-            for (int i = 0; i > landmarkCount -1; i++)
+            for (int i = 0; i < landmarkCount -1; i++)
             {
                 mapCorrelationTemp.block(robotDimension + i * landmarkDimension, oldDimension, landmarkDimension, landmarkDimension) = initialLandmarkCrossCorrelation;
                 mapCorrelationTemp.block(oldDimension, robotDimension + i * landmarkDimension, landmarkDimension, landmarkDimension) = initialLandmarkCrossCorrelation.transpose();
@@ -113,7 +113,7 @@ struct SlamMap
 
     Eigen::VectorXd getLandmarkMean(const int indexLandmark)
     {
-        if (indexLandmark < 0 || indexLandmark > landmarkCount)
+        if (indexLandmark < 0 || indexLandmark >= landmarkCount)
         {
             throw std::invalid_argument( "received wrong index landmark" );
         }
@@ -123,7 +123,7 @@ struct SlamMap
 
     bool setLandmarkMean(const Eigen::VectorXd &updatedLandmarkMean, const int indexLandmark)
     {
-        if (indexLandmark < 0 || indexLandmark > landmarkCount)
+        if (indexLandmark < 0 || indexLandmark >= landmarkCount)
         {
             throw std::invalid_argument( "received wrong index landmark" );
         }
@@ -134,7 +134,7 @@ struct SlamMap
 
     Eigen::MatrixXd getLandmarkSelfCorrelation(const int indexLandmark)
     {
-        if (indexLandmark < 0 || indexLandmark > landmarkCount)
+        if (indexLandmark < 0 || indexLandmark >= landmarkCount)
         {
             throw std::invalid_argument( "received wrong index landmark" );
         }
@@ -145,7 +145,7 @@ struct SlamMap
 
     bool setLandmarkSelfCorrelation(const Eigen::MatrixXd &updatedLandmarkSelfCorrelation, const int indexLandmark)
     {
-        if (indexLandmark < 0 || indexLandmark > landmarkCount)
+        if (indexLandmark < 0 || indexLandmark >= landmarkCount)
         {
             throw std::invalid_argument( "received wrong index landmark" );
         }
@@ -163,7 +163,7 @@ struct SlamMap
         }
 
         int row = robotDimension + IndexLandmark1 * landmarkDimension;
-        int col = robotDimension + IndexLandmark1 * landmarkDimension;
+        int col = robotDimension + IndexLandmark2 * landmarkDimension;
         return mapCorrelation.block(row , col, landmarkDimension, landmarkDimension);
     }
 
@@ -196,15 +196,15 @@ struct SlamMap
         return true;
     }
 
-    bool setmapCorrelation(Eigen::MatrixXd &inputMatrix)
+    bool setMapCorrelation(Eigen::MatrixXd &inputMatrix)
     {
         mapCorrelation = inputMatrix;
         return true;
     }
 
-    Eigen::MatrixXd getRobotlandmarkCorrelation(int indexLandmark)
+    Eigen::MatrixXd getRobotLandmarkCorrelation(int indexLandmark)
     {
-        if (indexLandmark < 0 || indexLandmark > landmarkCount)
+        if (indexLandmark < 0 || indexLandmark >= landmarkCount)
         {
             throw std::invalid_argument( "received wrong index landmark" );
         }
@@ -213,9 +213,9 @@ struct SlamMap
         return mapCorrelation.block(0 , col, robotDimension, landmarkDimension);
     }
 
-    bool setRobotlandmarkCorrelation(const Eigen::MatrixXd &correlation, const int indexLandmark)
+    bool setRobotLandmarkCorrelation(const Eigen::MatrixXd &correlation, const int indexLandmark)
     {
-        if (indexLandmark < 0 || indexLandmark > landmarkCount)
+        if (indexLandmark < 0 || indexLandmark >= landmarkCount)
         {
             throw std::invalid_argument( "received wrong index landmark" );
         }
@@ -247,7 +247,7 @@ struct SlamMap
 
     Eigen::MatrixXd getCrossLandmarkFullCorrelation(const int indexLandmark)
     {
-        if (indexLandmark < 0 || indexLandmark > landmarkCount)
+        if (indexLandmark < 0 || indexLandmark >= landmarkCount)
         {
             throw std::invalid_argument( "received wrong index landmark" );
         }

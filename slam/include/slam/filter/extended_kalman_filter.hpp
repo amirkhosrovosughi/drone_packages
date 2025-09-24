@@ -25,7 +25,7 @@ private:
     void processCorrection(const Measurements& meas);
     void updateLandmark(const Measurement& meas);
     void addLandmark(const Measurement& meas);
-    MapSummary summerizeMap();
+    MapSummary summarizeMap();
     double getCurrentTimeInSeconds();
 
 private:
@@ -34,7 +34,7 @@ private:
 
     std::shared_ptr<MotionMeasurementModel> _model;
     std::shared_ptr<SlamMap> _slamMap;
-    std::map<int, int> _landmarkRepeatMap;
+    std::map<int, int> _landmarkObservationCount;
     Quaternion _robotQuaternion;
     MotionMeasurementModel::OdometryType _odometryType;
     double _lastUpdateTime; // in seconds
