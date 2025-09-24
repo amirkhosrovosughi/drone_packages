@@ -9,19 +9,31 @@ const static double ROBOT_INITIAL_CORRELATION = 0.1;
 const static double LANDMARK_INITIAL_CORRELATION = 2;
 
 //(CAUTION) -> we go with assumption that index of landmark on Map is equal id, be caution if this assumption changes later
+
+/**
+ * @brief Represents the SLAM state (robot + landmarks) using mean vector and covariance matrix.
+ *
+ * Maintains robot pose mean and covariance, as well as all landmark means and correlations.
+ * Provides methods for adding landmarks and updating/retrieving sub-blocks of the covariance matrix.
+ *
+ * @note Assumes landmark index in the map equals its ID.
+ */
 struct SlamMap
 {
-    int landmarkCount;
-    int robotDimension;
-    int landmarkDimension;
+    int landmarkCount; ///< Current number of landmarks in the map
+    int robotDimension; ///< State dimension of the robot
+    int landmarkDimension; ///< State dimension of each landmark
 
-    Eigen::VectorXd mapMean;
-    Eigen::MatrixXd mapCorrelation;
+    Eigen::VectorXd mapMean; ///< Full state mean (robot + landmarks)
+    Eigen::MatrixXd mapCorrelation; ///< Full state covariance
 
-    Eigen::MatrixXd initialLandmarkSelfCorrelation;
-    Eigen::MatrixXd initialLandmarkCrossCorrelation;
-    Eigen::MatrixXd initialRobotLandmarkCorrelation;
+    Eigen::MatrixXd initialLandmarkSelfCorrelation; ///< Initial covariance for a single landmark
+    Eigen::MatrixXd initialLandmarkCrossCorrelation; ///< Initial cross-covariance between landmarks
+    Eigen::MatrixXd initialRobotLandmarkCorrelation; ///< Initial cross-covariance between robot and landmark
 
+    /**
+     * @brief Construct a SlamMap with given robot and landmark state dimensions.
+     */
     SlamMap(int _robotDimension, int _landmarkDimension):
     landmarkCount(0),
     robotDimension(_robotDimension),
@@ -40,6 +52,11 @@ struct SlamMap
         initialRobotLandmarkCorrelation.setZero();
     }
 
+    /**
+     * @brief Add a new landmark into the map.
+     * @param newLandmark State vector of the landmark
+     * @throws std::invalid_argument if dimension mismatch
+     */
     void addLandmark(const Eigen::VectorXd& newLandmark)
     {
         if (newLandmark.size() == landmarkDimension)
@@ -75,6 +92,7 @@ struct SlamMap
             throw std::invalid_argument( "received landmark with wrong dimension" );
         }
     }
+
 
     int getLandmarkCount()
     {
@@ -143,6 +161,11 @@ struct SlamMap
         return mapCorrelation.block(startIndex , startIndex, landmarkDimension, landmarkDimension);
     }
 
+    /**
+     * @brief Set self-covariance of a landmark.
+     * @param indexLandmark Landmark index
+     * @param corr Self-covariance block
+     */
     bool setLandmarkSelfCorrelation(const Eigen::MatrixXd &updatedLandmarkSelfCorrelation, const int indexLandmark)
     {
         if (indexLandmark < 0 || indexLandmark >= landmarkCount)
@@ -155,6 +178,12 @@ struct SlamMap
         return true;
     }
 
+    /**
+     * @brief Get cross-covariance between two landmarks.
+     * @param indexLandmark1 First landmark index
+     * @param indexLandmark2 Second landmark index
+     * @return Eigen::MatrixXd Cross-covariance block
+     */
     Eigen::MatrixXd getLandmarkCrossCorrelation(const int IndexLandmark1, const int IndexLandmark2)
     {
         if (std::min(IndexLandmark1, IndexLandmark2) < 0 || std::max(IndexLandmark1, IndexLandmark2) > landmarkCount)
@@ -167,6 +196,12 @@ struct SlamMap
         return mapCorrelation.block(row , col, landmarkDimension, landmarkDimension);
     }
 
+    /**
+     * @brief Set cross-covariance between two landmarks.
+     * @param indexLandmark1 First landmark index
+     * @param indexLandmark2 Second landmark index
+     * @param corr Cross-covariance block
+     */
     bool setLandmarkCrossCorrelation(const Eigen::MatrixXd &updatedLandmarkCrossCorrelation, const int  IndexLandmark1, const int IndexLandmark2)
     {
         if (std::min(IndexLandmark1, IndexLandmark2) < 0 || std::max(IndexLandmark1, IndexLandmark2) > landmarkCount)
@@ -185,6 +220,10 @@ struct SlamMap
         return mapMean;
     }
 
+    /**
+     * @brief Get the full map covariance matrix.
+     * @return Eigen::MatrixXd Map covariance
+     */
     Eigen::MatrixXd getMapCorrelation()
     {
         return mapCorrelation;
@@ -196,12 +235,21 @@ struct SlamMap
         return true;
     }
 
+     /**
+     * @brief Set the full map covariance matrix.
+     * @param corr New covariance matrix
+     */
     bool setMapCorrelation(Eigen::MatrixXd &inputMatrix)
     {
         mapCorrelation = inputMatrix;
         return true;
     }
 
+    /**
+     * @brief Get covariance between robot and a landmark.
+     * @param indexLandmark Landmark index
+     * @return Eigen::MatrixXd Covariance block
+     */
     Eigen::MatrixXd getRobotLandmarkCorrelation(int indexLandmark)
     {
         if (indexLandmark < 0 || indexLandmark >= landmarkCount)
@@ -213,6 +261,11 @@ struct SlamMap
         return mapCorrelation.block(0 , col, robotDimension, landmarkDimension);
     }
 
+    /**
+     * @brief Set covariance between robot and a landmark.
+     * @param indexLandmark Landmark index
+     * @param corr Covariance block
+     */
     bool setRobotLandmarkCorrelation(const Eigen::MatrixXd &correlation, const int indexLandmark)
     {
         if (indexLandmark < 0 || indexLandmark >= landmarkCount)
@@ -225,6 +278,11 @@ struct SlamMap
         return true;
     }
 
+    /**
+     * @brief Get self-covariance of a landmark.
+     * @param indexLandmark Landmark index
+     * @return Eigen::MatrixXd Self-covariance block
+     */
     Eigen::MatrixXd getRobotLandmarkFullCorrelationsVertical()
     {
         return mapCorrelation.block(robotDimension, 0, landmarkDimension * landmarkCount, robotDimension);

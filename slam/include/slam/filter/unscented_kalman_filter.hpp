@@ -3,6 +3,9 @@
 
 #include "filter/kalman_filter.hpp"
 
+/**
+ * @brief Unscented Kalman Filter implementation for SLAM. TODO
+ */
 class UnscentedKalmanFilter : public KalmanFilter {
 public:
     UnscentedKalmanFilter();

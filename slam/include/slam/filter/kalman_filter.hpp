@@ -3,6 +3,9 @@
 
 #include "base_filter.hpp"
 
+/**
+ * @brief Base class for all Kalman filter variants.
+ */
 class KalmanFilter : public BaseFilter {
 public:
     virtual ~KalmanFilter() = default;

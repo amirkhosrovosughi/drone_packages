@@ -3,6 +3,9 @@
 
 #include "base_filter.hpp"
 
+/**
+ * @brief Implementation of FastSLAM filter. TODO
+ */
 class FastSlam : public BaseFilter {
 public:
     FastSlam();
