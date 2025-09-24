@@ -15,31 +15,31 @@ enum class LogLevel
 class SlamLogger
 {
 public:
-    explicit SlamLogger(const rclcpp::Logger& logger) : logger_(logger) {}
+    explicit SlamLogger(const rclcpp::Logger& logger) : _logger(logger) {}
 
     // Template method to accept stream-like inputs
     template <typename... Args>
     void logInfo(Args&&... args)
     {
-        RCLCPP_INFO(logger_, "%s", buildMessage(std::forward<Args>(args)...).c_str());
+        RCLCPP_INFO(_logger, "%s", buildMessage(std::forward<Args>(args)...).c_str());
     }
 
     template <typename... Args>
     void logWarn(Args&&... args)
     {
-        RCLCPP_WARN(logger_, "%s", buildMessage(std::forward<Args>(args)...).c_str());
+        RCLCPP_WARN(_logger, "%s", buildMessage(std::forward<Args>(args)...).c_str());
     }
 
     template <typename... Args>
     void logError(Args&&... args)
     {
-        RCLCPP_ERROR(logger_, "%s", buildMessage(std::forward<Args>(args)...).c_str());
+        RCLCPP_ERROR(_logger, "%s", buildMessage(std::forward<Args>(args)...).c_str());
     }
 
     template <typename... Args>
     void logDebug(Args&&... args)
     {
-        RCLCPP_DEBUG(logger_, "%s", buildMessage(std::forward<Args>(args)...).c_str());
+        RCLCPP_DEBUG(_logger, "%s", buildMessage(std::forward<Args>(args)...).c_str());
     }
 
     // Unified log method with level support
@@ -67,7 +67,7 @@ public:
     }
 
 private:
-    rclcpp::Logger logger_;
+    rclcpp::Logger _logger;
 
     // Helper function to build a string message from stream-like arguments
     template <typename... Args>

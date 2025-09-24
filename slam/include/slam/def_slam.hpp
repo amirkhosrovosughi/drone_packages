@@ -62,11 +62,11 @@ struct Pose {
                                     quaternion.z);
 
         // Construct the transformation matrix
-        Eigen::Matrix4d tranformation_matrix = Eigen::Matrix4d::Identity();
+        Eigen::Matrix4d transformationMatrix = Eigen::Matrix4d::Identity();
         Eigen::Matrix3d rotation_matrix = rotation.toRotationMatrix();
-        tranformation_matrix.block<3, 3>(0, 0) = rotation_matrix;
-        tranformation_matrix.block<3, 1>(0, 3) = translation;
-        return tranformation_matrix;
+        transformationMatrix.block<3, 3>(0, 0) = rotation_matrix;
+        transformationMatrix.block<3, 1>(0, 3) = translation;
+        return transformationMatrix;
     }
 };
 
@@ -109,17 +109,17 @@ struct Landmark {
     using Landmarks = std::vector<Landmark>;
 
 // Structure for RobotPose
-struct RobotStatic {
+struct RobotState {
     Pose pose;
     Variance2D variance;
 
-    RobotStatic(const Pose& pose = Pose(), const Variance2D& variance = Variance2D())
+    RobotState(const Pose& pose = Pose(), const Variance2D& variance = Variance2D())
         : pose(pose), variance(variance) {}
 };
 
 // Structure for Map information summary
 struct MapSummary {
-    RobotStatic robot;
+    RobotState robot;
     Landmarks landmarks;
 
     MapSummary() {}
@@ -133,25 +133,25 @@ struct LinearVelocity {
     LinearVelocity(double x = 0.0, double y = 0.0, double z = 0.0) : x(x), y(y), z(z) {}
 };
 
-struct AngularVelicity {
+struct AngularVelocity {
     double roll;
     double pitch;
     double yaw;
 
-    AngularVelicity(double roll = 0.0, double pitch = 0.0, double yaw = 0.0)
+    AngularVelocity(double roll = 0.0, double pitch = 0.0, double yaw = 0.0)
         : roll(roll), pitch(pitch), yaw(yaw) {}
 };
 
 struct Velocity {
     LinearVelocity linear;
-    AngularVelicity angular;
+    AngularVelocity angular;
 
     Velocity() {}
 };
 
 struct OdometryInfo {
-    Velocity NedVelocity;
-    Velocity EnuVelocity;
+    Velocity nedVelocity;
+    Velocity enuVelocity;
     Quaternion orientation;
     double timeTag;
 

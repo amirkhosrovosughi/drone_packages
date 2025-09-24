@@ -71,7 +71,7 @@ void ExtendedKalmanFilter::processPrediction(const OdometryInfo& odom)
 
         if (_odometryType == MotionMeasurementModel::OdometryType::PositionOdometry)
         {
-            Velocity velocity = odom.EnuVelocity;
+            Velocity velocity = odom.enuVelocity;
             Eigen::VectorXd linearVel(3);
             linearVel << velocity.linear.x, velocity.linear.y, velocity.linear.z;
             Eigen::VectorXd updatedRobotMean = _model->getRobotToRobotJacobian()*_slamMap->getRobotMean() + linearVel * timeElapse;

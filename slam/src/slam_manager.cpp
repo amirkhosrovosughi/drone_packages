@@ -30,14 +30,14 @@ SlamManager::SlamManager()
 
   //create the current association based on flag
 #ifdef NEAREST_NEIGHBOR
-    _associantion = std::make_shared<NearestNeighborAssociation>();
+    _association = std::make_shared<NearestNeighborAssociation>();
 #elif  JOINT_COMPATIBILITY
-    _associantion = std::make_shared<JointCompatibilityAssociation>();
+    _association = std::make_shared<JointCompatibilityAssociation>();
 #else
-    _associantion = std::make_shared<NearestNeighborAssociation>();
+    _association = std::make_shared<NearestNeighborAssociation>();
 #endif
 
-    _associantion->setLogger(_logger);
+    _association->setLogger(_logger);
     _filter->setLogger(_logger);
 
   initialize();
@@ -48,14 +48,14 @@ SlamManager::SlamManager()
 void SlamManager::initialize()
 {
     _logger->log(LogLevel::INFO, "Initializing Slam.");
-    _previousRobotPositiom << 0, 0, 0;
+    _previousRobotPosition << 0, 0, 0;
     _lastOdomTime = getCurrentTimeInSeconds();
 
     _filter->registerCallback([this](const MapSummary& map) {
         this->filterCallback(map);
     });
 
-    _associantion->registerCallback([this](const Measurements& meas) {
+    _association->registerCallback([this](const Measurements& meas) {
         this->associationCallback(meas);
     });
 }
@@ -65,14 +65,14 @@ void SlamManager::createSubscribers()
     auto qos_profile = rclcpp::QoS(rclcpp::KeepLast(1)).best_effort().transient_local();
     _droneOdometrySubscriber = this->create_subscription<px4_msgs::msg::VehicleOdometry>(
               "/fmu/out/vehicle_odometry", qos_profile, std::bind(&SlamManager::droneOdometryCallback, this, std::placeholders::_1));
-    _feature3DcoordinatSubscriber = this->create_subscription<drone_msgs::msg::PointList>(
+    _feature3DCoordinateSubscriber = this->create_subscription<drone_msgs::msg::PointList>(
               "/feature/coordinate/baseLink", 10, std::bind(&SlamManager::featureDetectionCallback, this, std::placeholders::_1));
 
     // need to subscribe to tf camera relative position from drone base
     _tfBuffer = std::make_unique<tf2_ros::Buffer>(this->get_clock());
     _tfListener = std::make_shared<tf2_ros::TransformListener>(*_tfBuffer);
 
-    //TODO: later change it in way that stops listening when it gets the valiue
+    //TODO: later change it in way that stops listening when it gets the value
     _timer = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&SlamManager::updateTransform, this));
 }
 
@@ -87,14 +87,14 @@ void SlamManager::filterCallback(const MapSummary& map)
     // publish result
     publishMap(map);
     // notify association
-    _associantion->handleUpdate(map);
+    _association->handleUpdate(map);
 }
 
 void SlamManager::associationCallback(const Measurements& meas)
 { 
     RCLCPP_INFO(rclcpp::get_logger("slam"), "---- associationCallback called with measurements ----");
     _logger->log(LogLevel::DEBUG, "---- associationCallback called with measurements ----");
-    // send result to fllter 
+    // send result to filter 
     _filter->correction(meas);
 }
 
@@ -122,7 +122,7 @@ void SlamManager::droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odo
     #endif
 
 
-    // convert newRobotPosition directly to ENU here and comprare is to the final result
+    // convert newRobotPosition directly to ENU here and compare is to the final result
     Eigen::Vector3f estimatedNEDSpeed = estimateLinearSpeed(newRobotPosition);
     _logger->log(LogLevel::DEBUG, "estimatedNEDSpeed: \n", estimatedNEDSpeed);
 
@@ -154,7 +154,7 @@ void SlamManager::droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odo
     velocityEnu.angular.roll = angularVelocityIntertiaENU[0];
     velocityEnu.angular.pitch = angularVelocityIntertiaENU[1];
     velocityEnu.angular.yaw = angularVelocityIntertiaENU[2];
-    odomInfo.EnuVelocity = velocityEnu;
+    odomInfo.enuVelocity = velocityEnu;
 
     Velocity velocityNed;
     velocityNed.linear.x = estimatedNEDSpeed[0];
@@ -184,7 +184,7 @@ void SlamManager::droneOdometryCallback(const px4_msgs::msg::VehicleOdometry odo
     data_logging_utils::DataLogger::log(mapLog);
     #endif
 
-    odomInfo.NedVelocity = velocityNed;  
+    odomInfo.nedVelocity = velocityNed;  
     odomInfo.orientation = quaternionEnu; // in this case we assume that orientation is knows, using other
                                           // sensor or odometry and only use position for robot position calculation
 
@@ -200,13 +200,13 @@ void SlamManager::featureDetectionCallback(const drone_msgs::msg::PointList feat
     Measurements meas;
     meas.reserve(features.points.size());
 
-    //put it is a approperiae interal structure
+    //put it in an appropriate internal structure
     for (auto point : features.points)
     {
         // feature are in FLU (local ENU coordinate)
         meas.emplace_back(1, Position(point.x, point.y, point.z));
     }
-    _associantion->onReceiveMeasurement(meas); // Comment to run without correction, purely odometry
+    _association->onReceiveMeasurement(meas); // Comment to run without correction, purely odometry
 }
 
 void SlamManager::publishMap(const MapSummary& map)
@@ -293,11 +293,11 @@ double SlamManager::getCurrentTimeInSeconds()
 */
 Eigen::Vector3f SlamManager::estimateLinearSpeed(const Eigen::Vector3f& newRobotPosition)
 {
-    Eigen::Vector3f  posDiff = newRobotPosition - _previousRobotPositiom;
+    Eigen::Vector3f  posDiff = newRobotPosition - _previousRobotPosition;
     double timeElapse = getCurrentTimeInSeconds() - _lastOdomTime;
     Eigen::Vector3f estimatedSpeed = posDiff / timeElapse;
     
-    _previousRobotPositiom = newRobotPosition;
+    _previousRobotPosition = newRobotPosition;
     _lastOdomTime = getCurrentTimeInSeconds();
 
     return estimatedSpeed;

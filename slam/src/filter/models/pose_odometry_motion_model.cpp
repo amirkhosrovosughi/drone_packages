@@ -11,7 +11,7 @@ int PoseOdometryMotionModel::getDimension()
 
 Eigen::VectorXd stateUpdate(const OdometryInfo& odom, const Eigen::VectorXd& state, double dt) override;
 {
-     Velocity velocity = odom.EnuVelocity;
+     Velocity velocity = odom.enuVelocity;
     // Transform linear velocity to inertial frame
     Eigen::Vector3f linearVel{velocity.linear.x, velocity.linear.y, velocity.linear.z};
     Eigen::Vector3f angular_velocity_body{velocity.angular.roll, velocity.angular.pitch, velocity.angular.yaw};

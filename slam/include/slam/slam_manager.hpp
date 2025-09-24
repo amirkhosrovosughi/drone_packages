@@ -44,17 +44,17 @@ private:
 
 private:
   rclcpp::Subscription<px4_msgs::msg::VehicleOdometry>::SharedPtr _droneOdometrySubscriber;
-  rclcpp::Subscription<drone_msgs::msg::PointList>::SharedPtr _feature3DcoordinatSubscriber;
+  rclcpp::Subscription<drone_msgs::msg::PointList>::SharedPtr _feature3DCoordinateSubscriber;
   rclcpp::Publisher<drone_msgs::msg::MapSummary>::SharedPtr _mapPublisher;
   FilterPtr _filter;
-  AssociationPtr _associantion;
+  AssociationPtr _association;
   std::unique_ptr<tf2_ros::Buffer> _tfBuffer;
   std::shared_ptr<tf2_ros::TransformListener> _tfListener;
   LoggerPtr _logger;
   rclcpp::TimerBase::SharedPtr _timer;
   bool _cameraTransformLoaded = false;
 
-  Eigen::Vector3f _previousRobotPositiom; // used to calculate linear speed for odometry
+  Eigen::Vector3f _previousRobotPosition; // used to calculate linear speed for odometry
   double _lastOdomTime;                   // used to calculate linear speed for odometry
 };
 
