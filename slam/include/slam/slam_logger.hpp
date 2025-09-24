@@ -12,37 +12,60 @@ enum class LogLevel
     ERROR
 };
 
+/**
+ * @class SlamLogger
+ * @brief Lightweight logging wrapper for ROS 2 logger with support for multiple log levels.
+ */
 class SlamLogger
 {
 public:
+    /**
+     * @brief Construct a new SlamLogger object.
+     * @param logger ROS 2 logger to use.
+     */
     explicit SlamLogger(const rclcpp::Logger& logger) : _logger(logger) {}
 
-    // Template method to accept stream-like inputs
+    /**
+     * @brief Template method to accept stream-like inputs to log information message.
+     */
     template <typename... Args>
     void logInfo(Args&&... args)
     {
         RCLCPP_INFO(_logger, "%s", buildMessage(std::forward<Args>(args)...).c_str());
     }
 
+    /**
+     * @brief Template method to accept stream-like inputs to log warning message.
+     */
     template <typename... Args>
     void logWarn(Args&&... args)
     {
         RCLCPP_WARN(_logger, "%s", buildMessage(std::forward<Args>(args)...).c_str());
     }
 
+    /**
+     * @brief Template method to accept stream-like inputs to log error message.
+     */
     template <typename... Args>
     void logError(Args&&... args)
     {
         RCLCPP_ERROR(_logger, "%s", buildMessage(std::forward<Args>(args)...).c_str());
     }
 
+    /**
+     * @brief Template method to accept stream-like inputs to log debug message.
+     */
     template <typename... Args>
     void logDebug(Args&&... args)
     {
         RCLCPP_DEBUG(_logger, "%s", buildMessage(std::forward<Args>(args)...).c_str());
     }
 
-    // Unified log method with level support
+    /**
+     * @brief Generic log method with specified log level.
+     * @param level Log level.
+     * @param args Message components.
+     */
     template <typename... Args>
     void log(LogLevel level, Args&&... args)
     {
@@ -67,9 +90,11 @@ public:
     }
 
 private:
-    rclcpp::Logger _logger;
+    rclcpp::Logger _logger;  ///< Underlying ROS 2 logger instance.
 
-    // Helper function to build a string message from stream-like arguments
+    /**
+     * @brief Helper function to build a concatenated string message from multiple arguments.
+     */
     template <typename... Args>
     std::string buildMessage(Args&&... args)
     {

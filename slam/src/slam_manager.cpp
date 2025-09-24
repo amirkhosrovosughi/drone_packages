@@ -9,8 +9,6 @@ const static int ROBOT_ID = 1;
 SlamManager::SlamManager()
     : Node("slam_manager")
 {
-  // Initialization code here
-
     _logger = std::make_shared<SlamLogger>(this->get_logger());
 
   //TODO: determine motion_measurement_model here and pass it to
