@@ -4,7 +4,7 @@
 #include <future>
 
 
-static const double GATHING_DISTANCE = 0.5;
+static const double GATING_DISTANCE = 0.5;
 static const double QUATERNION_RATE_LIMIT = 0.2;
 
 static const LogLevel HIGH_LEVEL = LogLevel::INFO;
@@ -101,7 +101,7 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
         data_logging_utils::DataLogger::log("robotPose.quaternion.z", _robotPose.quaternion.z);
         #endif
 
-        std::vector<int> assingedFeature(_landmarks.size(), 0);
+        std::vector<int> assignedFeature(_landmarks.size(), 0);
 
         _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "size measurements is:", measurements.size(), ", size Landmark is: (( ", _landmarks.size(), " ))");
 
@@ -138,10 +138,10 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
 
             // Find the first unassigend feature
             int startingLandmarkIndex = 0;
-            auto it = std::find_if(assingedFeature.begin(), assingedFeature.end(), [](int value) { return value == 0; });
-            if (it != assingedFeature.end())
+            auto it = std::find_if(assignedFeature.begin(), assignedFeature.end(), [](int value) { return value == 0; });
+            if (it != assignedFeature.end())
             {
-                startingLandmarkIndex = std::distance(assingedFeature.begin(), it);
+                startingLandmarkIndex = std::distance(assignedFeature.begin(), it);
                 _logger->log(LOW_LEVEL, LOG_SUBSECTION, "First unassigned landmark is: ", startingLandmarkIndex, "\n");
 
             }
@@ -150,7 +150,7 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
                 _logger->log(LOW_LEVEL, LOG_SUBSECTION, "!-------------------------------------!");
                 _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Adding a new landmark ...");
                 _logger->log(LOW_LEVEL, LOG_SUBSECTION, "No unassigned landmark left, it is a new landmark.\n");
-                landmark.id = numberLandmarks++;
+                landmark.id = _numberLandmarks++;
                 landmark.observeRepeat = 1;
                 Measurement meas(landmark.id, measurement.position);
                 meas.isNew = true;
@@ -182,7 +182,7 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
                         " ]]], shortestDistance: ", shortestDistance, " \n");
 
             int landmarkId = 0;
-            if (shortestDistance < GATHING_DISTANCE)
+            if (shortestDistance < GATING_DISTANCE)
             {
                 _logger->log(LOW_LEVEL, LOG_SUBSECTION, "Find a matching landmark\n.");
                 _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Nearest machitng id is", _landmarks[nearestIndex].id, ", and it landmark ",
@@ -196,14 +196,14 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
                 meas.isNew = false;
 
                 associatedMeasurement.push_back(meas);
-                assingedFeature[nearestIndex] = 1;
+                assignedFeature[nearestIndex] = 1;
             }
             else
             {
                 _logger->log(LOW_LEVEL, LOG_SUBSECTION, "!-------------------------------------!");
                 _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Adding a new landmark ...");
                 _logger->log(LOW_LEVEL, LOG_SUBSECTION, "Not match any of landmarks, marks as a new feature.\n");
-                landmark.id = numberLandmarks++;
+                landmark.id = _numberLandmarks++;
                 landmark.observeRepeat = 1;
                 Measurement meas(landmark.id, measurement.position);
                 meas.isNew = true;

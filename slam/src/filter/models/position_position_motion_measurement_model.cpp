@@ -1,8 +1,8 @@
 #include "filter/models/position_position_motion_measurement_model.hpp"
 #include <iostream>
 
-static int MOTION_DIMENSION = 3;
-static int MEASUREMENT_DIMENSION = 3;
+static constexpr int MOTION_DIMENSION = 3;
+static constexpr int MEASUREMENT_DIMENSION = 3;
   
 int PositionPositionMotionMeasurementModel::getMotionDimension()
 {
@@ -29,8 +29,8 @@ void PositionPositionMotionMeasurementModel::setSensorInfo(const Eigen::Matrix4d
 {
     // -> TODO: can make it more general, with passing idendity and using it later
     // measurement is in robot frame, so don't need to do that
-    // _sensorTranformation = transform;
-    // _sensorTranformationLoaded = true;
+    // _sensorTransformation = transform;
+    // _sensorTransformationLoaded = true;
 }
 
  /**
@@ -46,7 +46,7 @@ void PositionPositionMotionMeasurementModel::setSensorInfo(const Eigen::Matrix4d
 bool PositionPositionMotionMeasurementModel::directObservationModel(const Pose& robotPose,
     const Position& landmarkPosition, Measurement& expectedMeasurement)
 {
-    Eigen::Matrix4d robotTransformation = robotPose.getTransformationMatrix(); // * _sensorTranformation; -> not necessary as we send landmark coordinate in robot frame
+    Eigen::Matrix4d robotTransformation = robotPose.getTransformationMatrix(); // * _sensorTransformation; -> not necessary as we send landmark coordinate in robot frame
                                                                                // TODO: make it more general later
     Eigen::Vector4d homogeneousLandmarkPosition;
     homogeneousLandmarkPosition.head<3>() = landmarkPosition.getPositionVector();
@@ -68,9 +68,9 @@ Position PositionPositionMotionMeasurementModel::inverseObservationModel(const P
     homogeneousLandmarkPosition.head<3>() = measurement.position.getPositionVector();
     homogeneousLandmarkPosition(3) = 1.0;
 
-    Eigen::Vector4d landmarkPostion = robotTransformation * homogeneousLandmarkPosition;
+    Eigen::Vector4d landmarkPosition = robotTransformation * homogeneousLandmarkPosition;
 
-    return Position(landmarkPostion.head<3>().eval());
+    return Position(landmarkPosition.head<3>().eval());
 }
 
 Eigen::MatrixXd PositionPositionMotionMeasurementModel::getMeasurementToRobotJacobian(const Pose& robotPose)
