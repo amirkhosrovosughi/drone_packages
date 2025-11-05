@@ -1,0 +1,8 @@
+<sdf version="1.9">
+  <model name="pole">
+    <!-- Currently using power_pole as base -->
+    <include>
+      <uri>model://power_pole</uri>
+    </include>
+  </model>
+</sdf>

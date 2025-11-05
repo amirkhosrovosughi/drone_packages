@@ -1,0 +1,95 @@
+<sdf version="1.9">
+  <model name="power_pole">
+    <static>true</static>
+    <pose>0 0 0 0 0 0</pose>
+
+    <!-- Main wooden pole -->
+    <link name="main_pole">
+      <visual name="main_pole_visual">
+        <geometry>
+          <cylinder>
+            <radius>0.075</radius>    <!-- 2.5x bigger -->
+            <length>1.0</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <!-- Wood-like color -->
+          <ambient>0.55 0.27 0.07 1</ambient>
+          <diffuse>0.55 0.27 0.07 1</diffuse>
+          <specular>0.2 0.2 0.2 1</specular>
+        </material>
+        <pose>0 0 0.5 0 0 0</pose>
+      </visual>
+    </link>
+
+    <!-- Crossarm -->
+    <link name="crossarm">
+      <visual name="crossarm_visual">
+        <geometry>
+          <box>
+            <size>0.6 0.06 0.06</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.6 0.4 0.2 1</ambient>
+          <diffuse>0.6 0.4 0.2 1</diffuse>
+          <specular>0.3 0.3 0.3 1</specular>
+        </material>
+        <pose>0 0 1.0 0 0 0</pose>
+      </visual>
+    </link>
+
+    <!-- Insulators (uniform light gray color) -->
+    <link name="insulator_left">
+      <visual name="insulator_left_visual">
+        <geometry>
+          <cylinder>
+            <radius>0.04</radius>
+            <length>0.05</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.7 0.7 0.7 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.9 0.9 0.9 1</specular>
+        </material>
+        <pose>-0.25 0 1.05 0 0 0</pose>
+      </visual>
+    </link>
+
+    <link name="insulator_center">
+      <visual name="insulator_center_visual">
+        <geometry>
+          <cylinder>
+            <radius>0.04</radius>
+            <length>0.05</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.7 0.7 0.7 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.9 0.9 0.9 1</specular>
+        </material>
+        <pose>0 0 1.05 0 0 0</pose>
+      </visual>
+    </link>
+
+    <link name="insulator_right">
+      <visual name="insulator_right_visual">
+        <geometry>
+          <cylinder>
+            <radius>0.04</radius>
+            <length>0.05</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.7 0.7 0.7 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.9 0.9 0.9 1</specular>
+        </material>
+        <pose>0.25 0 1.05 0 0 0</pose>
+      </visual>
+    </link>
+
+  </model>
+</sdf>

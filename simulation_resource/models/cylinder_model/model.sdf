@@ -1,5 +1,5 @@
 <sdf version='1.9'>
-  <model name='__MODEL_NAME__'>
+  <model name='cylinder_model'>
     <link name='cylinder_link'>
       <collision name='collision'>
         <geometry>
@@ -20,7 +20,6 @@
           <ambient>1 0 0 1</ambient>
           <diffuse>1 0 0 1</diffuse>
           <specular>1 0 0 1</specular>
-          <emissive>0 0 0 1</emissive>
         </material>
       </visual>
     </link>

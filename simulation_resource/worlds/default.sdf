@@ -5,6 +5,8 @@
       <real_time_factor>1.0</real_time_factor>
       <real_time_update_rate>250</real_time_update_rate>
     </physics>
+
+    <!-- Simulation Systems -->
     <plugin name='gz::sim::systems::Physics' filename='gz-sim-physics-system'/>
     <plugin name='gz::sim::systems::UserCommands' filename='gz-sim-user-commands-system'/>
     <plugin name='gz::sim::systems::SceneBroadcaster' filename='gz-sim-scene-broadcaster-system'/>
@@ -15,6 +17,8 @@
     <plugin name='gz::sim::systems::Sensors' filename='gz-sim-sensors-system'>
       <render_engine>ogre2</render_engine>
     </plugin>
+
+    <!-- GUI Configuration -->
     <gui fullscreen='false'>
       <plugin name='3D View' filename='GzScene3D'>
         <gz-gui>
@@ -28,6 +32,7 @@
         <background_color>0.8984631152222222 0.8984631152222222 0.8984631152222222</background_color>
         <camera_pose>-6 0 6 0 0.5 0</camera_pose>
       </plugin>
+
       <plugin name='World control' filename='WorldControl'>
         <gz-gui>
           <title>World control</title>
@@ -46,6 +51,7 @@
         <step>1</step>
         <start_paused>1</start_paused>
       </plugin>
+
       <plugin name='World stats' filename='WorldStats'>
         <gz-gui>
           <title>World stats</title>
@@ -65,17 +71,23 @@
         <real_time_factor>1</real_time_factor>
         <iterations>1</iterations>
       </plugin>
+
       <plugin name='Entity tree' filename='EntityTree'/>
     </gui>
+
+    <!-- Environment -->
     <gravity>0 0 -9.8</gravity>
     <magnetic_field>6e-06 2.3e-05 -4.2e-05</magnetic_field>
     <atmosphere type='adiabatic'/>
+
     <scene>
       <grid>false</grid>
       <ambient>0.4 0.4 0.4 1</ambient>
       <background>0.7 0.7 0.7 1</background>
       <shadows>true</shadows>
     </scene>
+
+    <!-- Ground plane -->
     <model name='ground_plane'>
       <static>true</static>
       <link name='link'>
@@ -87,47 +99,33 @@
             </plane>
           </geometry>
           <surface>
-            <friction>
-              <ode/>
-            </friction>
+            <friction><ode/></friction>
             <bounce/>
             <contact/>
           </surface>
         </collision>
-        <visual name='visual'>
-            <geometry>
-                <plane>
-                    <normal>0 0 1</normal>
-                    <size>100 100</size>
-                </plane>
-            </geometry>
-            <material>
-                <!-- Set the color to a grass-like color -->
-                <ambient>0.2 0.8 0.2 1</ambient>
-                <diffuse>0.2 0.8 0.2 1</diffuse>
-                <specular>0.2 0.8 0.2 1</specular>
 
-                <!-- <uri>file://path/to/your/grass_texture.jpg</uri> -->
-            </material>
+        <visual name='visual'>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>100 100</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.2 0.8 0.2 1</ambient>
+            <diffuse>0.2 0.8 0.2 1</diffuse>
+            <specular>0.2 0.8 0.2 1</specular>
+          </material>
         </visual>
+
         <pose>0 0 0 0 -0 0</pose>
-        <inertial>
-          <pose>0 0 0 0 -0 0</pose>
-          <mass>1</mass>
-          <inertia>
-            <ixx>1</ixx>
-            <ixy>0</ixy>
-            <ixz>0</ixz>
-            <iyy>1</iyy>
-            <iyz>0</iyz>
-            <izz>1</izz>
-          </inertia>
-        </inertial>
-        <enable_wind>false</enable_wind>
       </link>
       <pose>0 0 0 0 -0 0</pose>
       <self_collide>false</self_collide>
     </model>
+
+    <!-- Sun light -->
     <light name='sunUTC' type='directional'>
       <pose>0 0 500 0 -0 0</pose>
       <cast_shadows>true</cast_shadows>
@@ -148,40 +146,43 @@
       </spot>
     </light>
 
+    <!-- ================================================ -->
+    <!-- Abstracted models using model:// URIs -->
+    <!-- ================================================ -->
+
+    <!-- Poles (abstraction around cylinder_model or other base) -->
+
     <include>
-      <uri>../models/cylinder_model.sdf</uri>
-      <!-- Specify a different unique name for each instance -->
-      <name>cylinder_2</name>
-      <pose>-2 -3 0 0 0 0</pose>
+      <uri>model://pole</uri>
+      <name>pole_1</name>
+      <pose>2.7 -0.8 0 0 0 1.8</pose>
     </include>
 
     <include>
-      <uri>../models/cylinder_model.sdf</uri>
-      <!-- Specify a different unique name for each instance -->
-      <name>cylinder_4</name>
-      <pose>-3 -6 0 0 0 0</pose>
+      <uri>model://pole</uri>
+      <name>pole_2</name>
+      <pose>1 -1.9 0 0 0 1.9</pose>
+    </include>
+
+
+    <include>
+      <uri>model://pole</uri>
+      <name>pole_3</name>
+      <pose>-1.3 -3 0 0 0 1.7</pose>
     </include>
 
     <include>
-      <uri>../models/cylinder_model.sdf</uri>
-      <!-- Specify a different unique name for each instance -->
-      <name>cylinder_5</name>
-      <pose>3 -5 0 0 0 0</pose>
+      <uri>model://pole</uri>
+      <name>pole_4</name>
+      <pose>3.1 -4 0 0 0 -1.6</pose>
     </include>
 
     <include>
-      <uri>../models/cylinder_model.sdf</uri>
-      <!-- Specify a different unique name for each instance -->
-      <name>cylinder_6</name>
-      <pose>4 0 0 0 0 0</pose>
+      <uri>model://pole</uri>
+      <name>pole_5</name>
+      <pose>5.9 -5 0 0 0 -1.45</pose>
     </include>
 
-    <include>
-      <uri>../models/cylinder_model.sdf</uri>
-      <!-- Specify a different unique name for each instance -->
-      <name>cylinder_9</name>
-      <pose>0 5 0 0 0 0</pose>
-    </include>
 
   </world>
 </sdf>
