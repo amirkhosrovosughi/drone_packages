@@ -11,7 +11,7 @@ def generate_launch_description():
             executable='static_transform_publisher',
             name='static_transform_publisher',
             output='screen',
-            arguments=['0.12', '0.03', '0.242', '0', '0.785 ', '0', 'base_link', 'camera_frame'] # updated
+            arguments=['0.12', '0.03', '0.242', '0', '0.785', '0', 'base_link', 'camera_frame'] # camera look downwards 1.57
         ),
         
         # Image bridge nodes
@@ -29,6 +29,13 @@ def generate_launch_description():
             output='screen',
             arguments=['/camera']
         ),
+        Node(
+            package='ros_gz_bridge',
+            executable='parameter_bridge',
+            name='camera_info_bridge',
+            arguments=['camera_info@sensor_msgs/msg/CameraInfo@gz.msgs.CameraInfo'],
+            output='screen'
+        ),
 
         # PX4 command handler node
         Node(
@@ -44,13 +51,6 @@ def generate_launch_description():
             executable='visual_feature_extraction',
             name='visual_feature_extraction',
             output='screen'
-        ),
-
-        Node(
-            package='camera_info_publisher',
-            executable='camera_info_publisher',
-            name='camera_info_publisher_node',
-            output='screen',
         ),
 
         Node(
