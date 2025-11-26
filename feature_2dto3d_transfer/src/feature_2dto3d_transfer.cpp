@@ -15,7 +15,7 @@ Feature2DTo3DTransfer::Feature2DTo3DTransfer()
   _featureCoordinateSubscriber = this->create_subscription<drone_msgs::msg::DetectedFeatureList>(
               "/featureDetection/coordinate", 10, std::bind(&Feature2DTo3DTransfer::coordinate2DCallback, this, std::placeholders::_1));
   _cameraInfoSubscriber = this->create_subscription<sensor_msgs::msg::CameraInfo>(
-              "/camera/camera_info", 10, std::bind(&Feature2DTo3DTransfer::cameraInfoCallback, this, std::placeholders::_1));
+              "/camera_info", 10, std::bind(&Feature2DTo3DTransfer::cameraInfoCallback, this, std::placeholders::_1));
 
   // need to subscribe to tf camera relative position from drone base
   _tfBuffer = std::make_unique<tf2_ros::Buffer>(this->get_clock());
@@ -39,7 +39,7 @@ void Feature2DTo3DTransfer::coordinate2DCallback(const drone_msgs::msg::Detected
   {
     if (coordinate2DList.features.size() != 0)
     {
-      RCLCPP_DEBUG(this->get_logger(), "get %d feature 2D coordinate(s)", coordinate2DList.features.size());
+      RCLCPP_DEBUG(this->get_logger(), "get %ld feature 2D coordinate(s)", coordinate2DList.features.size());
     }
     rclcpp::Time sampleTime = rclcpp::Clock().now();
 
@@ -140,6 +140,12 @@ void Feature2DTo3DTransfer::cameraInfoCallback(const sensor_msgs::msg::CameraInf
 {
   if (!_cameraInfoLoaded)
   {
+    if (cameraInfo.header.frame_id.find("IMX214") == std::string::npos)
+    {
+      RCLCPP_INFO(this->get_logger(), "Skip Stereo camera frame info");
+      return;
+    }
+
     _frameWidth = cameraInfo.width;
     _frameHeight = cameraInfo.height;
     _frameCx = cameraInfo.k[2];

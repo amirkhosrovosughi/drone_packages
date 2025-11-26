@@ -3,6 +3,8 @@
 #include "ament_index_cpp/get_package_prefix.hpp"
 #include "yaml-cpp/yaml.h"
 
+// OBSOLETE: Do not use this node, instead use ros_gz_bridge to provide camera_info from gz simulator directly.
+
 int main(int argc, char *argv[])
 {
   rclcpp::init(argc, argv);
