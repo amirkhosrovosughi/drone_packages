@@ -11,6 +11,7 @@
 
 #include "feature_extract.hpp"
 #include "feature_extract_classic.hpp"
+#include "feature_extract_deep.hpp"
 #include <drone_msgs/msg/detected_feature.hpp>
 #include <drone_msgs/msg/detected_feature_list.hpp>
 

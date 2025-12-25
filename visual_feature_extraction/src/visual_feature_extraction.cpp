@@ -23,8 +23,10 @@ VisualFeatureExtraction::VisualFeatureExtraction()
 // Decide which FeatureExtract child to use based on CMAKE flags
 #ifndef DEEP_DETECTION
   _featureExtractor = std::make_unique<FeatureExtractClassic>();
+  RCLCPP_INFO(get_logger(), "Using simple classic pole detector, using color contrast");
 #else
-  _featureExtractor = std::make_unique<FeatureExtractDeep>();  
+  _featureExtractor = std::make_unique<FeatureExtractDeep>();
+  RCLCPP_INFO(get_logger(), "Using deep pole detector, using YOLO8 model");
 #endif
 }
 
@@ -54,6 +56,8 @@ VisualFeatureExtraction::VisualFeatureExtraction()
   // Object Detection (Replace with your own tool)
   // Placeholder: Replace this block with your feature detection logic
   std::vector<std::vector<double>> detectedCoordinates = _featureExtractor->extract(_currentFrame);
+
+  RCLCPP_DEBUG(get_logger(), "Number detection poles %d", detectedCoordinates.size());
 
   auto featureList = drone_msgs::msg::DetectedFeatureList();
 

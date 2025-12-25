@@ -1,12 +1,12 @@
 cmake_minimum_required(VERSION 3.8)
 project(slam)
 
-# chooose flag to select the type of FILTER
+# Flag to select the type of FILTER
 add_definitions(-DEKF)
 # add_definitions(-DUKF)
 # add_definitions(-DFAST_SLAM)
 
-# chooose flag to select the type of ASSOSSIATION
+# Flag to select the type of ASSOSSIATION
 add_definitions(-DNEAREST_NEIGHBOR)
 # add_definitions(-DJOINT_COMPATIBILITY)
 

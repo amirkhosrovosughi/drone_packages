@@ -1,0 +1,14 @@
+# dataset.yaml
+# YOLO dataset generated from:
+#   - train_1_2025_11_27-11_09_41.zip
+#   - train_2_2025_11_30-14_17_05.zip
+# Using scripts/import_dataset.py imported to the path
+
+path: ~/pole_perception/data/yolo_pole_dataset
+
+train: images/train
+val: images/val
+
+nc: 1
+names:
+  - pole

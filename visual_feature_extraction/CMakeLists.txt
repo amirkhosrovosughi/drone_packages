@@ -6,9 +6,17 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 option(DEBUG_FEATURE "Enable debug features" ON)
+option(DEEP_DETECTION "Enable deep learning based detection" ON)
 
 if(DEBUG_FEATURE)
     add_compile_definitions(DEBUG_FEATURE)
+endif()
+
+if(DEEP_DETECTION)
+  # Flag to select the type of detection
+  add_definitions(-DDEEP_DETECTION)
+
+  set(ONNXRUNTIME_ROOT "$ENV{HOME}/onnxruntime")
 endif()
 
 # find dependencies
@@ -20,14 +28,21 @@ find_package(OpenCV REQUIRED)
 find_package(drone_msgs REQUIRED)
 find_package(message_filters REQUIRED)
 
-
-include_directories(include/${PROJECT_NAME})
-
 set(SOURCES
   src/visual_feature_extraction.cpp
   src/visual_feature_extraction_node.cpp
   src/feature_extract_classic.cpp
+  src/feature_extract_deep.cpp
 )
+
+if(DEEP_DETECTION)
+  include_directories(include/${PROJECT_NAME}
+      ${ONNXRUNTIME_ROOT}/include)
+
+  link_directories(
+      ${ONNXRUNTIME_ROOT}/lib
+  )
+endif()
 
 add_executable(${PROJECT_NAME} ${SOURCES})
 
@@ -37,6 +52,12 @@ target_include_directories(${PROJECT_NAME}
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>)
 
+if(DEEP_DETECTION)
+  target_link_libraries(${PROJECT_NAME}
+    onnxruntime
+    ${OpenCV_LIBS}
+  )
+endif()
 
 ament_target_dependencies(${PROJECT_NAME}
   rclcpp
@@ -56,6 +77,13 @@ install(
   DIRECTORY include/
   DESTINATION include
 )
+
+if(DEEP_DETECTION)
+  install(
+    DIRECTORY model/
+    DESTINATION share/${PROJECT_NAME}/model
+  )
+endif()
 
 install(
   DIRECTORY

@@ -1,0 +1,22 @@
+# YOLO Training Command Documentation
+# Model: yolo11n.pt
+# Dataset: data/yolo_pole_dataset/dataset.yaml
+# Source zips:
+#   - train_1_2025_11_27-11_09_41.zip
+#   - train_2_2025_11_30-14_17_05.zip
+
+yolo train \
+    model=yolo11n.pt \
+    data=data/yolo_pole_dataset/dataset.yaml \
+    imgsz=512 \
+    batch=4 \
+    epochs=100 \
+    mosaic=0 \
+    auto_augment=0 \
+    erasing=0
+
+# Notes:
+# - No augmentations (mosaic/auto_augment/erasing disabled)
+# - Trained using GPU (CUDA)
+# - Best model saved in: runs/detect/train*/weights/best.pt
+# - Details of model training Data available at: https://github.com/amirkhosrovosughi/pole-perception
