@@ -47,11 +47,11 @@ FeatureExtractDeep::FeatureExtractDeep()
     try {
         // Print element type
         ONNXTensorElementDataType elemType = inputInfo.GetElementType();
-        RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "Element type %s", elemType);
+        RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "Element type %d", (int)elemType);
 
         // Print number of dimensions
         size_t dimCount = inputInfo.GetDimensionsCount();
-        RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "Element type %d", dimCount);
+        RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "Element type %d", (int)dimCount);
 
         // Try to print each dimension one by one
         std::vector<int64_t> dims(dimCount);
@@ -76,8 +76,8 @@ FeatureExtractDeep::FeatureExtractDeep()
     _inputHeight    = inputShape[2];
     _inputWidth     = inputShape[3];
 
-    _confThreshold = 0.25;
-    _nmsThreshold  = 0.45;
+    _confThreshold = 0.20;
+    _nmsThreshold  = 0.35;
 
     RCLCPP_INFO(rclcpp::get_logger("visual_feature_extraction"), "[INFO] ONNX Runtime YOLO model loaded");
 
@@ -93,15 +93,16 @@ FeatureExtractDeep::~FeatureExtractDeep()
 
 void FeatureExtractDeep::config(double threshold)
 {
-    _threshold = threshold;
     _confThreshold = threshold;
 }
 
 void FeatureExtractDeep::preprocess(const cv::Mat& frame, cv::Mat& blob)
 {
     cv::Mat resized, floatImg;
-    cv::resize(frame, resized, cv::Size(_inputWidth, _inputHeight));
-    resized.convertTo(floatImg, CV_32F, 1.0 / 255.0);
+    cv::Mat letterboxed;
+    _letterboxInfo = letterbox(frame, letterboxed, _inputWidth, _inputHeight);
+
+    letterboxed.convertTo(floatImg, CV_32F, 1.0 / 255.0);
 
     // HWC → CHW
     std::vector<cv::Mat> channels(3);
@@ -132,12 +133,14 @@ std::vector<FeatureExtractDeep::Detection> FeatureExtractDeep::postprocess(
     {
         float conf = preds[4 * num_positions + i];
 
+        // if (conf > 0.05f) std::cout << "conf: " << conf << "\n";
+
         if (conf < _confThreshold)
         {
             continue;
         }
 
-        RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "conf confidence: %f ", conf);
+        RCLCPP_INFO(rclcpp::get_logger("visual_feature_extraction"), "conf confidence: %f ", conf);
 
         float cx = preds[0 * num_positions + i];
         float cy = preds[1 * num_positions + i];
@@ -147,12 +150,12 @@ std::vector<FeatureExtractDeep::Detection> FeatureExtractDeep::postprocess(
         float scale_x = (float)frame.cols / _inputWidth;
         float scale_y = (float)frame.rows / _inputHeight;
 
-        float x = (cx - 0.5f * w) * scale_x;
-        float y = (cy - 0.5f * h) * scale_y;
-        float width  = w * scale_x;
-        float height = h * scale_y;
+        float x = (cx - 0.5f * w - _letterboxInfo.pad_x) / _letterboxInfo.scale;
+        float y = (cy - 0.5f * h - _letterboxInfo.pad_y) / _letterboxInfo.scale;
+        float width  = w / _letterboxInfo.scale;
+        float height = h / _letterboxInfo.scale;
 
-        RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "(cx, cy): (%d, %d)", cx, cy);
+        RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "(cx, cy): (%f, %f)", cx, cy);
         RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "(x, y): (%d, %d)", x, y);
 
         RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "(w, h): (%d, %d)", w, h);
