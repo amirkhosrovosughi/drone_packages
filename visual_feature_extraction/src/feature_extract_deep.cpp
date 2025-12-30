@@ -1,8 +1,7 @@
-#include "feature_extract_deep.hpp"
+#include "visual_feature_extraction/feature_extract_deep.hpp"
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
 #include "ament_index_cpp/get_package_share_directory.hpp"
-// #include <onnxruntime_cxx_api.h>
 
 static const std::string MODEL_PATH = "/model/best.onnx";
 
@@ -116,7 +115,7 @@ void FeatureExtractDeep::preprocess(const cv::Mat& frame, cv::Mat& blob)
     }
 }
 
-std::vector<FeatureExtractDeep::Detection> FeatureExtractDeep::postprocess(
+std::vector<Detection> FeatureExtractDeep::postprocess(
         const cv::Mat& frame,
         const std::vector<float>& preds,
         int rows, int cols)
@@ -146,9 +145,6 @@ std::vector<FeatureExtractDeep::Detection> FeatureExtractDeep::postprocess(
         float cy = preds[1 * num_positions + i];
         float w  = preds[2 * num_positions + i];
         float h = preds[3 * num_positions + i];
-
-        float scale_x = (float)frame.cols / _inputWidth;
-        float scale_y = (float)frame.rows / _inputHeight;
 
         float x = (cx - 0.5f * w - _letterboxInfo.pad_x) / _letterboxInfo.scale;
         float y = (cy - 0.5f * h - _letterboxInfo.pad_y) / _letterboxInfo.scale;
@@ -185,7 +181,7 @@ std::vector<FeatureExtractDeep::Detection> FeatureExtractDeep::postprocess(
     return detections;
 }
 
-std::vector<std::vector<double>> FeatureExtractDeep::extract(const cv::Mat& inputImage)
+std::vector<Detection> FeatureExtractDeep::extract(const cv::Mat& inputImage)
 {
     RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "deep extraction of features");
     if (inputImage.empty())
@@ -227,20 +223,15 @@ std::vector<std::vector<double>> FeatureExtractDeep::extract(const cv::Mat& inpu
     int rows = outShape[1];
     int cols = outShape[2];
 
-    RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "onnx output shape:  (%d, %d, %d): %d", outShape[0], rows, cols);
+    RCLCPP_DEBUG(
+        rclcpp::get_logger("visual_feature_extraction"),
+        "onnx output shape: (%ld, %d, %d)",
+        outShape[0], rows, cols
+    );
 
     std::vector<float> outputVec(rawOutput, rawOutput + rows * cols);
 
     auto detections = postprocess(inputImage, outputVec, rows, cols);
-
-    std::vector<std::vector<double>> result;
-    for (const auto& d : detections)
-    {
-        result.push_back({
-            (d.box.x + d.box.width  * 0.5) / inputImage.cols,
-            (d.box.y + d.box.height * 0.5) / inputImage.rows
-        });
-    }
 
     RCLCPP_INFO(rclcpp::get_logger("visual_feature_extraction"), "Number of detection poles  %ld", detections.size());
 
@@ -265,5 +256,5 @@ std::vector<std::vector<double>> FeatureExtractDeep::extract(const cv::Mat& inpu
     cv::waitKey(1);
     #endif
 
-    return result;
+    return detections;
 }

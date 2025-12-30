@@ -8,12 +8,14 @@
 
 const std::string FROM_FRAME = "base_link";
 const std::string TO_FRAME = "camera_frame";
+const std::string POLE_CLASS = "0";
+const float MINIMUM_CONFIDENCE = 0.7f;
 
 Feature2DTo3DTransfer::Feature2DTo3DTransfer()
   : Node("feature_2dto3d_transfer")
 {
-  _featureCoordinateSubscriber = this->create_subscription<drone_msgs::msg::DetectedFeatureList>(
-              "/featureDetection/coordinate", 10, std::bind(&Feature2DTo3DTransfer::coordinate2DCallback, this, std::placeholders::_1));
+  _featureBoundingBoxSubscriber = this->create_subscription<vision_msgs::msg::Detection3DArray>(
+              "/featureDetection/bbox", rclcpp::SensorDataQoS(), std::bind(&Feature2DTo3DTransfer::detectionCallback, this, std::placeholders::_1));
   _cameraInfoSubscriber = this->create_subscription<sensor_msgs::msg::CameraInfo>(
               "/camera_info", 10, std::bind(&Feature2DTo3DTransfer::cameraInfoCallback, this, std::placeholders::_1));
 
@@ -30,31 +32,46 @@ Feature2DTo3DTransfer::Feature2DTo3DTransfer()
   _timer = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&Feature2DTo3DTransfer::updateTransform, this));
 }
 
-void Feature2DTo3DTransfer::coordinate2DCallback(const drone_msgs::msg::DetectedFeatureList coordinate2DList)
+void Feature2DTo3DTransfer::detectionCallback(const vision_msgs::msg::Detection3DArray bboxArray)
 {
   #ifdef STORE_DEBUG_DATA
   int plotCounter = 0;
   #endif
   if (_cameraInfoLoaded)
   {
-    if (coordinate2DList.features.size() != 0)
+    if (bboxArray.detections.size() != 0)
     {
-      RCLCPP_DEBUG(this->get_logger(), "get %ld feature 2D coordinate(s)", coordinate2DList.features.size());
+      RCLCPP_DEBUG(this->get_logger(), "get %ld feature 2D coordinate(s)", bboxArray.detections.size());
     }
     rclcpp::Time sampleTime = rclcpp::Clock().now();
 
     drone_msgs::msg::PointList pointListCamera;
     drone_msgs::msg::PointList pointListBase;
-    for (drone_msgs::msg::DetectedFeature coordinate2D : coordinate2DList.features)
+    for (vision_msgs::msg::Detection3D detection : bboxArray.detections)
     {
+      // if class != 0
+      for (const auto& hypothesis : detection.results) {
+        RCLCPP_DEBUG(this->get_logger(), "Object Class ID: '%s', Score: %f", 
+                    hypothesis.hypothesis.class_id.c_str(), hypothesis.hypothesis.score);
+        if (hypothesis.hypothesis.class_id != POLE_CLASS &&
+            hypothesis.hypothesis.score > MINIMUM_CONFIDENCE)
+        {
+          RCLCPP_WARN(this->get_logger(), "None pole object, to not proceed"); 
+          // there is no other object at the moment, mostly place holder for future
+          continue;
+        }
+      }
+
       #ifdef STORE_DEBUG_DATA
       std::map<std::string, double> mapLog;  // add plotting
       #endif
-      RCLCPP_DEBUG(this->get_logger(), "2D coordinate: (x,y) = (%f,%f)", coordinate2D.x , coordinate2D.y);
+      RCLCPP_DEBUG(this->get_logger(), "bounding box center: (x,y) = (%f,%f)",
+              detection.bbox.center.position.x , detection.bbox.center.position.y);
       float estimatedDepth = 0.0;
 
-      float pixelX = (coordinate2D.x + 0.5) * _frameWidth;
-      float pixelY = (coordinate2D.y + 0.5) * _frameHeight;
+      float pixelX = detection.bbox.center.position.x * _frameWidth;
+      float pixelY = detection.bbox.center.position.y * _frameHeight;
+      float depth = detection.bbox.center.position.z;  
 
       #ifdef STORE_DEBUG_DATA
       mapLog["pixelX_" + std::to_string(plotCounter)] = pixelX;
@@ -70,20 +87,20 @@ void Feature2DTo3DTransfer::coordinate2DCallback(const drone_msgs::msg::Detected
       Vector3 unitVector = pixelDirection; //.normalized(); no need to normalization here as depth camera return depth in z axis direction not  distance
       RCLCPP_DEBUG(this->get_logger(), " unitVector (%f,%f,%f)", unitVector[0], unitVector[1], unitVector[2]);
 
-      RCLCPP_DEBUG(this->get_logger(), "stereo camera depth is %f", coordinate2D.depth);
-      if (coordinate2D.depth <= 0.0 || coordinate2D.depth > 100.0)
+      RCLCPP_DEBUG(this->get_logger(), "stereo camera depth is %f", depth);
+      if (depth <= 0.0 || depth > 100.0)
       {
         RCLCPP_INFO(this->get_logger(), "Skipped feature since depth value is not available");
         continue; //skip if depth data is not available
       }
       else
       {
-        estimatedDepth = coordinate2D.depth;
+        estimatedDepth = depth;
         RCLCPP_DEBUG(this->get_logger(), "using camera depth %f", estimatedDepth);
       }
 
       #ifdef STORE_DEBUG_DATA
-      mapLog["coordinate2D.depth_" + std::to_string(plotCounter)] = coordinate2D.depth;
+      mapLog["depth_" + std::to_string(plotCounter)] = depth;
       #endif
     
       Vector3 camera2Feature = unitVector * estimatedDepth;

@@ -23,6 +23,7 @@ find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(px4_msgs REQUIRED)
 find_package(data_logging_utils REQUIRED)
+find_package(vision_msgs REQUIRED)
 
 include_directories(include/${PROJECT_NAME})
 
@@ -48,7 +49,8 @@ ament_target_dependencies(${PROJECT_NAME}
   tf2
   tf2_ros
   data_logging_utils
-  px4_msgs)
+  px4_msgs
+  vision_msgs)
 
 # Install
 install(TARGETS ${PROJECT_NAME}

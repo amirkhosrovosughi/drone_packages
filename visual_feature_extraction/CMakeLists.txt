@@ -27,13 +27,17 @@ find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(drone_msgs REQUIRED)
 find_package(message_filters REQUIRED)
+find_package(vision_msgs REQUIRED)
 
 set(SOURCES
   src/visual_feature_extraction.cpp
   src/visual_feature_extraction_node.cpp
   src/feature_extract_classic.cpp
-  src/feature_extract_deep.cpp
 )
+
+if(DEEP_DETECTION)
+  list(APPEND SOURCES src/feature_extract_deep.cpp)
+endif()
 
 if(DEEP_DETECTION)
   include_directories(include/${PROJECT_NAME}
@@ -66,7 +70,8 @@ ament_target_dependencies(${PROJECT_NAME}
   cv_bridge
   OpenCV
   drone_msgs
-  message_filters)
+  message_filters
+  vision_msgs)
 
 # Install
 install(TARGETS ${PROJECT_NAME}

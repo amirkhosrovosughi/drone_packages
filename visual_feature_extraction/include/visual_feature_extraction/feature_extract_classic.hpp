@@ -22,7 +22,7 @@ public:
      * @param inputImage The input image for feature extraction.
      * @return Vector of cv::Point representing detected object coordinates.
      */
-    virtual std::vector<std::vector<double>> extract(const cv::Mat& inputImage) override;
+    virtual std::vector<Detection> extract(const cv::Mat& inputImage) override;
 
     /**
      * @brief Configures the extractor.

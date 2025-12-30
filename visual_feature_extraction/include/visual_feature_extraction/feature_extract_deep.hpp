@@ -5,21 +5,17 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include <opencv2/dnn.hpp>
-#include <onnxruntime_cxx_api.h>
 #include <string>
+
+#ifdef DEEP_DETECTION
+#include <onnxruntime_cxx_api.h>
+#endif
 
 /**
  * @brief Deep-learning based feature extractor using YOLO ONNX.
  */
 class FeatureExtractDeep : public FeatureExtract {
 private:
-    struct Detection
-    {
-        cv::Rect box;
-        float confidence;
-        int classId;
-    };
-
     struct LetterBoxInfo
     {
         float scale;
@@ -69,7 +65,7 @@ public:
     FeatureExtractDeep();
     virtual ~FeatureExtractDeep();
 
-    std::vector<std::vector<double>> extract(const cv::Mat& inputImage) override;
+    std::vector<Detection> extract(const cv::Mat& inputImage) override;
 
     void config(double threshold) override;
 
@@ -88,6 +84,7 @@ private:
     int _inputWidth      = 640;
     int _inputHeight     = 640;
     
+#ifdef DEEP_DETECTION
     Ort::Env _env{ORT_LOGGING_LEVEL_WARNING, "yolo_inference"};
     Ort::SessionOptions _sessionOptions;
     std::unique_ptr<Ort::Session> _session;
@@ -96,6 +93,7 @@ private:
     std::optional<Ort::AllocatedStringPtr> _inputName;
     std::optional<Ort::AllocatedStringPtr> _outputName;
     LetterBoxInfo _letterboxInfo;
+#endif
 };
 
 #endif  // FEATURE_EXTRACT_DEEP_HPP

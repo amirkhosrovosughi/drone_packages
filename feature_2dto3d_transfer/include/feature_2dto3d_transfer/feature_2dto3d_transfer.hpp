@@ -9,11 +9,11 @@
 #include "tf2_ros/transform_listener.h"
 #include "tf2_ros/buffer.h"
 
-#include <drone_msgs/msg/detected_feature.hpp>
-#include <drone_msgs/msg/detected_feature_list.hpp>
 #include <drone_msgs/msg/point_list.hpp>
 #include "common_utilities/transform_util.hpp"
 #include <px4_msgs/msg/vehicle_odometry.hpp>
+#include <vision_msgs/msg/object_hypothesis_with_pose.hpp>
+#include <vision_msgs/msg/detection3_d_array.hpp>
 
 /**
  * @class Feature2DTo3DTransfer
@@ -37,7 +37,7 @@ private:
    * @brief Callback to process incoming 2D feature coordinates and convert them to 3D points.
    * @param coordinate2DList List of detected 2D features with depth info.
    */
-  void coordinate2DCallback(const drone_msgs::msg::DetectedFeatureList coordinate2DList);
+  void detectionCallback(const vision_msgs::msg::Detection3DArray bboxArray);
 
   /**
    * @brief Callback to store camera intrinsic parameters from CameraInfo message.
@@ -51,7 +51,7 @@ private:
   void updateTransform();
 
 private:
-  rclcpp::Subscription<drone_msgs::msg::DetectedFeatureList>::SharedPtr _featureCoordinateSubscriber; ///< Subscriber for 2D feature coordinates
+  rclcpp::Subscription<vision_msgs::msg::Detection3DArray>::SharedPtr _featureBoundingBoxSubscriber; ///< Subscriber for detected 2D bounding boxes with depth
   rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr _cameraInfoSubscriber; ///< Subscriber for camera intrinsic information
 
   rclcpp::Publisher<drone_msgs::msg::PointList>::SharedPtr _feature3DCoordinateCameraPublisher; ///< Publisher for 3D features in camera frame

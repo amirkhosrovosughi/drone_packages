@@ -1,6 +1,6 @@
 // visual_feature_extraction_node.cpp
 
-#include "visual_feature_extraction.hpp"
+#include "visual_feature_extraction/visual_feature_extraction.hpp"
 
 int main(int argc, char** argv) {
   rclcpp::init(argc, argv);

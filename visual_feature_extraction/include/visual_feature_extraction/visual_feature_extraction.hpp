@@ -10,10 +10,10 @@
 #include <message_filters/time_synchronizer.h>
 
 #include "feature_extract.hpp"
-#include "feature_extract_classic.hpp"
-#include "feature_extract_deep.hpp"
-#include <drone_msgs/msg/detected_feature.hpp>
-#include <drone_msgs/msg/detected_feature_list.hpp>
+#include "visual_feature_extraction/feature_extract_classic.hpp"
+#include "visual_feature_extraction/feature_extract_deep.hpp"
+#include <vision_msgs/msg/object_hypothesis_with_pose.hpp>
+#include <vision_msgs/msg/detection3_d_array.hpp>
 
 /**
  * @brief ROS2 node for visual feature extraction from synchronized camera streams.
@@ -35,7 +35,7 @@ private:
   void cameraSyncCallback( const sensor_msgs::msg::Image::ConstSharedPtr& msg_1,
       const sensor_msgs::msg::Image::ConstSharedPtr& msg_2);
 
-    rclcpp::Publisher<drone_msgs::msg::DetectedFeatureList>::SharedPtr _featureCoordinatePublisher; ///< Publisher for extracted features.
+    rclcpp::Publisher<vision_msgs::msg::Detection3DArray>::SharedPtr _featureBoundingBoxPublisher; ///< Publisher for detected bboxs
 
   message_filters::Subscriber<sensor_msgs::msg::Image> _colorCameraSubscriber; ///< Color image subscriber.
   message_filters::Subscriber<sensor_msgs::msg::Image> _depthCameraSubscriber; ///< Depth image subscriber.
