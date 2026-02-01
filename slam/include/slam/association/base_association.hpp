@@ -2,8 +2,9 @@
 #define SLAM__ASSOCIATION_HPP_
 
 #include <functional>
-#include "def_slam.hpp"
-#include "slam_logger.hpp"
+#include "common/def_slam.hpp"
+#include "measurement/measurement.hpp"
+#include "common/slam_logger.hpp"
 
 /**
  * @brief Abstract base class for data association in SLAM.
@@ -30,7 +31,7 @@ public:
      * @brief Register callback for publishing associated measurements.
      * @param callback Function to be called with processed measurements.
      */
-    virtual void registerCallback(std::function<void(Measurements)> callback) = 0;
+    virtual void registerCallback(std::function<void(AssignedMeasurements)> callback) = 0;
 
     /**
      * @brief Set logger instance.

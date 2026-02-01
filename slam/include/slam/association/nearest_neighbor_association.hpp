@@ -2,11 +2,12 @@
 #define SLAM__NEAREST_NEIGHBOR_ASSOCIATION_HPP_
 
 #include "base_association.hpp"
-#include "filter/models/motion_measurement_model.hpp"
-#include "filter/models/position_position_motion_measurement_model.hpp"
+#include "motion/motion_model.hpp"
+#include "measurement/measurement_model.hpp"
+#include "measurement/measurement.hpp"
 #include <cmath>
 #include <mutex>
-#include "slam_logger.hpp"
+#include "common/slam_logger.hpp"
 
 #ifdef STORE_DEBUG_DATA
 #include "data_logging_utils/data_logger.hpp"
@@ -49,7 +50,7 @@ public:
      *
      * @param callback Function to call after association completes.
      */
-    void registerCallback(std::function<void(Measurements)> callback) override
+    void registerCallback(std::function<void(AssignedMeasurements)> callback) override
     {
         _callback = callback;
     }
@@ -99,12 +100,11 @@ private:
     double matchingScore(double distance);
 
 private:
-    std::function<void(Measurements)> _callback;               ///< Callback invoked with associated measurements
+    std::function<void(AssignedMeasurements)> _callback;       ///< Callback invoked with associated measurements
     std::mutex _mutex;                                         ///< Mutex to protect internal state
     Landmarks _landmarks;                                      ///< Current list of landmarks
     int _numberLandmarks = 0;                                  ///< Counter used to assign new landmark ids
     Pose _robotPose;                                           ///< Latest robot pose
-    std::shared_ptr<MotionMeasurementModel> _model;            ///< Motion/measurement model used for conversions
     LoggerPtr _logger;                                         ///< Logger instance
     double _quaternionRate = 0.0;                              ///< Rate of quaternion change (used for skipping)
 };

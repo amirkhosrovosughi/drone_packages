@@ -70,19 +70,6 @@ struct Pose {
     }
 };
 
-// Structure for Measurement
-struct Measurement {
-    int id;
-    Position position;
-    bool isNew;
-
-    Measurement() : id(0), position(Position()), isNew(false) {}
-    Measurement(int id, const Position& position) : id(id), position(position), isNew(false) {}
-};
-
-// Vector of Measurements
-using Measurements = std::vector<Measurement>;
-
 // Structure for Variance2D
 struct Variance2D {
     double xx;
@@ -123,6 +110,8 @@ struct MapSummary {
     Landmarks landmarks;
 
     MapSummary() {}
+
+    bool is_valid() const { return true; }
 };
 
 struct LinearVelocity {
@@ -149,13 +138,31 @@ struct Velocity {
     Velocity() {}
 };
 
-struct OdometryInfo {
-    Velocity nedVelocity;
-    Velocity enuVelocity;
-    Quaternion orientation;
-    double timeTag;
+struct MotionConstraint
+{
+  // Relative translation in world or local frame (meters)
+  Eigen::Vector3d delta_position = Eigen::Vector3d::Zero();
 
-    OdometryInfo() {}
+  // Absolute orientation at the end of the motion (trusted input)
+  // Used only for frame transformations, not estimated.
+  Eigen::Quaterniond orientation = Eigen::Quaterniond::Identity();
+
+  MotionConstraint() = default;
+};
+
+struct PredictionInput
+{
+
+    Eigen::Vector3d delta_position;  // or velocity * dt
+
+    // External attitude reference (not estimated)
+    Eigen::Quaterniond orientation;
+
+    PredictionInput() = default;
+    PredictionInput(MotionConstraint m) {
+        this->delta_position = m.delta_position;
+        this->orientation = m.orientation;
+    }
 };
 
 #endif // DEF_SLAM_HPP_

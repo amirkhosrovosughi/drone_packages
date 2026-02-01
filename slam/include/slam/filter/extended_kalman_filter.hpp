@@ -2,9 +2,9 @@
 #define SLAM__EXTENDED_KALMAN_FILTER_HPP_
 
 #include "kalman_filter.hpp"
-#include "filter/models/motion_measurement_model.hpp"
-#include "filter/models/position_position_motion_measurement_model.hpp"
-#include "filter/slam_map.hpp"
+#include "motion/motion_model.hpp"
+#include "measurement/measurement_model.hpp"
+#include "map/slam_map.hpp"
 
 #include <functional>
 #include <iostream>
@@ -22,19 +22,20 @@ public:
     /**
      * @brief Construct a new ExtendedKalmanFilter object.
      */
-    ExtendedKalmanFilter();
+    ExtendedKalmanFilter(
+        std::shared_ptr<MotionModel> motionModel);
 
     /**
      * @brief EKF prediction step.
-     * @param odom Odometry information
+     * @param predictionInput prediction input
      */
-    void prediction(const OdometryInfo& odom) override;
+    void prediction(const PredictionInput& predictionInput) override;
 
     /**
      * @brief EKF correction step using measurements.
      * @param meas Landmark measurements
      */
-    void correction(const Measurements& meas) override;
+    void correction(const AssignedMeasurements& meas) override;
 
     /**
      * @brief Register callback to return map updates.
@@ -54,30 +55,34 @@ public:
      */
     void setLogger(LoggerPtr logger) override;
 
+    MapSummary getMap();
+
+    void reset();
+
 private:
 /**
      * @brief Internal EKF prediction step.
      * @param odom Odometry information
      */
-    void processPrediction(const OdometryInfo& odom);
+    void processPrediction(const PredictionInput& odom);
 
     /**
      * @brief Internal EKF correction step.
      * @param meas Landmark measurements
      */
-    void processCorrection(const Measurements& meas);
+    void processCorrection(const AssignedMeasurements& meas);
 
     /**
      * @brief EKF update for an existing landmark.
      * @param meas Measurement of the landmark
      */
-    void updateLandmark(const Measurement& meas);
+    void updateLandmark(const AssignedMeasurement& meas);
 
     /**
      * @brief Add a new landmark to the map.
      * @param meas Measurement of the landmark
      */
-    void addLandmark(const Measurement& meas);
+    void addLandmark(const AssignedMeasurement& meas);
 
     /**
      * @brief Build a summary of the current map state.
@@ -94,12 +99,12 @@ private:
 private:
     std::function<void(const MapSummary& map)> _callback; ///< Map update callback
     std::mutex _mutex; ///< Synchronization for prediction/correction
-    std::shared_ptr<MotionMeasurementModel> _model; ///< Motion/measurement model
+    std::shared_ptr<MotionModel> _motionModel;          ///< Robot motion model
+    // measurement model is provided per-measurement via MeasurementFactory
+    // std::shared_ptr<MeasurementModel> _measurementModel;///< Landmark measurement model
     std::shared_ptr<SlamMap> _slamMap; ///< SLAM state map
     std::map<int, int> _landmarkObservationCount; ///< Landmark observation counts
     Quaternion _robotQuaternion; ///< Current robot orientation
-    MotionMeasurementModel::OdometryType _odometryType; ///< Type of odometry used
-    double _lastUpdateTime; ///< Last update timestamp [s]
     LoggerPtr _logger; ///< Logger instance
 };
 

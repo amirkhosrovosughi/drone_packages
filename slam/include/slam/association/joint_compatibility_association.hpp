@@ -43,7 +43,7 @@ public:
      *
      * @param callback Function to call with associated measurements.
      */
-    void registerCallback(std::function<void(Measurements)> callback) override
+    void registerCallback(std::function<void(AssignedMeasurements)> callback) override
     {
         _callback = callback;
     }
@@ -66,7 +66,7 @@ private:
     void processMeasurement(const Measurements& meas) override;
 
 private:
-    std::function<void(Measurements)> _callback;  ///< Callback invoked with associated measurements
+    std::function<void(AssignedMeasurements)> _callback;  ///< Callback invoked with associated measurements
 };
 
 #endif  // SLAM__JOINT_COMPATIBILITY_ASSOCIATION_HPP_

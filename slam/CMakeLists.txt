@@ -3,7 +3,7 @@ project(slam)
 
 # Flag to select the type of FILTER
 add_definitions(-DEKF)
-# add_definitions(-DUKF)
+# add_definitions(-DGRAPH)
 # add_definitions(-DFAST_SLAM)
 
 # Flag to select the type of ASSOSSIATION
@@ -57,12 +57,15 @@ find_package(tf2_ros REQUIRED)
 include_directories(include/${PROJECT_NAME})
 
 set(SOURCES
-  src/slam_node.cpp
-  src/slam_manager.cpp
+  src/node/slam_node.cpp
+  src/node/slam_manager.cpp
+  src/backend/ekf_slam_backend.cpp
   src/filter/extended_kalman_filter.cpp
-  src/filter/unscented_kalman_filter.cpp
-  src/filter/fast_slam.cpp
-  src/filter/models/position_position_motion_measurement_model.cpp
+  src/motion/position_only_motion_model.cpp
+  src/observation/observation_builder.cpp
+  src/measurement/measurement_factory.cpp
+  src/measurement/point3d_measurement_model.cpp
+  src/measurement/bbox_measurement_model.cpp
   src/association/joint_compatibility_association.cpp
   src/association/nearest_neighbor_association.cpp
 )

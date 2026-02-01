@@ -2,6 +2,7 @@
 #include <iostream>
 #include <thread>
 #include <future>
+#include <algorithm>
 
 
 static const double GATING_DISTANCE = 0.5;
@@ -13,20 +14,6 @@ static const std::string LOG_SUBSECTION = "[association] - ";
 
 NearestNeighborAssociation::NearestNeighborAssociation()
 {
-#ifdef POSITION_MOTION_POSITION_MEASUREMENT
-    _model = std::make_shared<PositionPositionMotionMeasurementModel>();
-#elif POSE_MOTION_POSITION_MEASUREMENT
-    throw std::runtime_error("have not implemented yet");
-#elif POSITION_MOTION_2D_MEASUREMENT
-    throw std::runtime_error("have not implemented yet");
-#elif POSE_MOTION_2D_MEASUREMENT
-    throw std::runtime_error("have not implemented yet");
-#else
-    RCLCPP_ERROR(rclcpp::get_logger("slam"), "Have not define compile tag for motion model");
-    throw std::runtime_error("motion measurement model is not specified");
-#endif
-
-
 }
 
 void NearestNeighborAssociation::onReceiveMeasurement(const Measurements& meas) 
@@ -79,7 +66,7 @@ void NearestNeighborAssociation::handleUpdate(const MapSummary& map)
 
 void NearestNeighborAssociation::processMeasurement(const Measurements& measurements)
 {
-    Measurements  associatedMeasurement;
+    AssignedMeasurements  assignedMeasurements;
     {
         std::lock_guard<std::mutex> lock(_mutex);
 
@@ -109,22 +96,35 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
         int measurementCounter = 0;
         #endif
 
-        for (const Measurement measurement : measurements)
+        for (const Measurement& measurement : measurements)
         {
             #ifdef STORE_DEBUG_DATA
             std::string plotTagMeas =  "MeasurementPosition_" +  std::to_string(measurementCounter++) + "_";
-            data_logging_utils::DataLogger::log(plotTagMeas + "x", measurement.position.x);
-            data_logging_utils::DataLogger::log(plotTagMeas + "y", measurement.position.y);
-            data_logging_utils::DataLogger::log(plotTagMeas + "z", measurement.position.z);
+            data_logging_utils::DataLogger::log(plotTagMeas + "x", measurement.payload[0]);
+            data_logging_utils::DataLogger::log(plotTagMeas + "y", measurement.payload[1]);
+            data_logging_utils::DataLogger::log(plotTagMeas + "z", measurement.payload[2]);
             #endif
 
+            auto capturedLandmarkPosition = measurement.model->inverse(_robotPose, measurement);
+            if (!capturedLandmarkPosition)
+            {
+                
+                // TODO:  The landmark should still be initialized, but as a high-uncertainty hypothesis 
+                //along the bearing ray, and refined over multiple observations.
 
-            _logger->log(LOW_LEVEL, LOG_SUBSECTION, "==> measurement is: (", measurement.position.x, ", ",
-                        measurement.position.y, ", ", measurement.position.z, ") \n");
-
-            Position capturedLandmarkPosition = _model->inverseObservationModel(_robotPose, measurement);
+                // TODO (bearing-only / under-constrained measurement):
+                // This measurement does not admit a unique inverse observation.
+                // Landmark should still be initialized as a high-uncertainty hypothesis
+                // (e.g., along the bearing ray with large covariance), or delayed until
+                // sufficient parallax is available. This requires:
+                //   - Landmark lifecycle states (uninitialized / tentative / confirmed)
+                //   - EKF / SLAM support for large anisotropic covariance
+                //   - Association logic that refines hypotheses over multiple observations
+                // Graph-SLAM can naturally handle this via ray constraint factors.
+                continue;
+            }
             Landmark landmark;
-            landmark.position = capturedLandmarkPosition;
+            landmark.position = capturedLandmarkPosition.value();
             
             _logger->log(LOW_LEVEL, LOG_SUBSECTION, "landmark position is: \n (", landmark.position.x,
                         ", ", landmark.position.y, ", ", landmark.position.z, ") \n");
@@ -152,11 +152,11 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
                 _logger->log(LOW_LEVEL, LOG_SUBSECTION, "No unassigned landmark left, it is a new landmark.\n");
                 landmark.id = _numberLandmarks++;
                 landmark.observeRepeat = 1;
-                Measurement meas(landmark.id, measurement.position);
+                AssignedMeasurement meas(measurement, landmark.id);
                 meas.isNew = true;
 
                 _landmarks.push_back(landmark);
-                associatedMeasurement.push_back(meas);
+                assignedMeasurements.push_back(meas);
                 continue;
             }
 
@@ -192,10 +192,10 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
                 _landmarks[nearestIndex].observeRepeat ++;
                 landmarkId = nearestIndex;
 
-                Measurement meas(_landmarks[nearestIndex].id, measurement.position);
+                AssignedMeasurement meas(measurement, _landmarks[nearestIndex].id);
                 meas.isNew = false;
 
-                associatedMeasurement.push_back(meas);
+                assignedMeasurements.push_back(meas);
                 assignedFeature[nearestIndex] = 1;
             }
             else
@@ -205,12 +205,12 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
                 _logger->log(LOW_LEVEL, LOG_SUBSECTION, "Not match any of landmarks, marks as a new feature.\n");
                 landmark.id = _numberLandmarks++;
                 landmark.observeRepeat = 1;
-                Measurement meas(landmark.id, measurement.position);
+                AssignedMeasurement meas(measurement, landmark.id);
                 meas.isNew = true;
                 landmarkId = landmark.id;
 
                 _landmarks.push_back(landmark);
-                associatedMeasurement.push_back(meas);
+                assignedMeasurements.push_back(meas);
             }
 
             #ifdef STORE_DEBUG_DATA
@@ -221,9 +221,9 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
     }
     _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Number of landmarks is ", _landmarks.size());
 
-    if (_callback) // AMIR TO BE uncommented
+    if (_callback)
     {
-        std::async(std::launch::async, _callback, associatedMeasurement);
+        std::async(std::launch::async, _callback, assignedMeasurements);
     }
 
     _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "callback measurement is called.");

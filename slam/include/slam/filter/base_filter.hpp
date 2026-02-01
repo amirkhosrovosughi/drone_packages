@@ -3,8 +3,9 @@
 
 #include <functional>
 #include <Eigen/Dense>
-#include "def_slam.hpp"
-#include "slam_logger.hpp"
+#include "common/def_slam.hpp"
+#include "common/slam_logger.hpp"
+#include "measurement/measurement.hpp"
 
 /**
  * @brief Abstract base class for all SLAM filters.
@@ -23,13 +24,13 @@ public:
      * @brief Perform the filter prediction step.
      * @param odom Odometry information used for motion update
      */
-    virtual void prediction(const OdometryInfo& odom) = 0;
+    virtual void prediction(const PredictionInput& predictionInpu) = 0;
 
     /**
      * @brief Perform the filter correction step.
      * @param meas Measurements used for observation update
      */
-    virtual void correction(const Measurements& meas) = 0;
+    virtual void correction(const AssignedMeasurements& meas) = 0;
 
     /**
      * @brief Register callback to return map updates.

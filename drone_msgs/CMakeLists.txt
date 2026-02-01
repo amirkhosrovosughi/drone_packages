@@ -16,6 +16,8 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/RobotPose.msg"
   "msg/Variance2D.msg"
   "msg/MapSummary.msg"
+  "msg/BoundingBox.msg"
+  "msg/BoundingBoxes.msg"
   "srv/DroneMode.srv"
   DEPENDENCIES std_msgs geometry_msgs
 )

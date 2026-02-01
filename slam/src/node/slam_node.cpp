@@ -1,4 +1,4 @@
-#include "slam_manager.hpp"
+#include "node/slam_manager.hpp"
 
 int main(int argc, char** argv) {
   rclcpp::init(argc, argv);
