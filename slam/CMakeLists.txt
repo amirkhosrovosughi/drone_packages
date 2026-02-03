@@ -53,6 +53,7 @@ find_package(Eigen3 REQUIRED)
 find_package(eigen3_cmake_module REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(sensor_msgs REQUIRED)
 
 include_directories(include/${PROJECT_NAME})
 
@@ -80,6 +81,7 @@ ament_target_dependencies(${PROJECT_NAME}
   px4_msgs
   tf2
   tf2_ros
+  sensor_msgs
 )
 
 # Install

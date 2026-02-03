@@ -29,13 +29,13 @@ SlamManager::SlamManager()
   auto motionModel = std::make_shared<PositionOnlyMotionModel>();
   auto ekf = std::make_shared<ExtendedKalmanFilter>(motionModel);
   auto association = std::make_shared<NearestNeighborAssociation>();
-  auto measurementFactory = std::make_shared<MeasurementFactory>();
+  _measurementFactory = std::make_shared<MeasurementFactory>();
 
   association->setLogger(_logger);
   ekf->setLogger(_logger);
 
   // Construct backend with injected dependencies
-  _backend = std::make_shared<slam::EkfSlamBackend>(ekf, association, measurementFactory);
+  _backend = std::make_shared<slam::EkfSlamBackend>(ekf, association, _measurementFactory);
   _backend->setLogger(_logger);
   _backend->initialize();
 
@@ -46,11 +46,11 @@ SlamManager::SlamManager()
   _tfBuffer = std::make_unique<tf2_ros::Buffer>(this->get_clock());
   _tfListener = std::make_shared<tf2_ros::TransformListener>(*_tfBuffer);
 
-  _sensor_transform_timer = this->create_wall_timer(
+  _cameraExtrinsicTimer = this->create_wall_timer(
     std::chrono::milliseconds(100),
-    std::bind(&SlamManager::updateSensorTransform, this));
+    std::bind(&SlamManager::updateCameraExtrinsic, this));
 
-  _map_pub_timer = this->create_wall_timer(
+  _mapPubTimer = this->create_wall_timer(
     std::chrono::milliseconds(500),
     [this]()
     {
@@ -79,6 +79,11 @@ void SlamManager::createSubscribers()
     "/feature/coordinate/baseLink",
     10,
     std::bind(&SlamManager::featureDetectionCallback, this, std::placeholders::_1));
+
+    _cameraIntrinsicSubscriber = this->create_subscription<sensor_msgs::msg::CameraInfo>(
+      "/camera_info",
+      10,
+      std::bind(&SlamManager::cameraIntrinsicCallback, this, std::placeholders::_1));
 }
 
 void SlamManager::createPublishers()
@@ -183,9 +188,9 @@ void SlamManager::publishMap(const MapSummary& map)
   _mapPub->publish(msg);
 }
 
-void SlamManager::updateSensorTransform()
+void SlamManager::updateCameraExtrinsic()
 {
-  if (_sensorTransformLoaded)
+  if (_cameraExtrinsicLoaded)
     return;
 
   try
@@ -212,10 +217,13 @@ void SlamManager::updateSensorTransform()
     T.block<3,1>(0,3) = t;
 
     // _backend->setSensorTransform(T); // TODO: this is wrong, it should go to ObservationBuilder
-    _sensorTransformLoaded = true;
+    _cameraInfo.extrinsics = CameraExtrinsics(T);
+    _cameraExtrinsicLoaded = true;
 
-    RCLCPP_INFO(this->get_logger(), "Sensor transform loaded");
+    _cameraExtrinsicTimer->cancel();
 
+    RCLCPP_INFO(this->get_logger(), "Camera extrinsic transform loaded");
+    initializeCameraInfo();
   }
   catch (const tf2::TransformException& ex)
   {
@@ -223,6 +231,40 @@ void SlamManager::updateSensorTransform()
       this->get_logger(),
       "TF unavailable: %s",
       ex.what());
+  }
+}
+
+void SlamManager::cameraIntrinsicCallback(const sensor_msgs::msg::CameraInfo cameraInfo)
+{
+  if (!_cameraIntrinsicLoaded)
+  {
+    if (cameraInfo.header.frame_id.find("IMX214") == std::string::npos)
+    {
+      RCLCPP_INFO(this->get_logger(), "Skip Stereo camera frame info");
+      return;
+    }
+    
+    _cameraInfo.intrinsic = CameraIntrinsic(
+      cameraInfo.width,
+      cameraInfo.height,
+      cameraInfo.k[0],
+      cameraInfo.k[4],
+      cameraInfo.k[2],
+      cameraInfo.k[5]);
+
+    _cameraIntrinsicLoaded = true;
+    _cameraIntrinsicSubscriber.reset();
+
+    RCLCPP_INFO(this->get_logger(), "Camera intrinsic parameters loaded");
+    initializeCameraInfo();  
+  }
+}
+
+void SlamManager::initializeCameraInfo()
+{
+  if (_cameraIntrinsicLoaded && _cameraExtrinsicLoaded)
+  {
+    _measurementFactory->setCameraInfo(_cameraInfo);
   }
 }
 

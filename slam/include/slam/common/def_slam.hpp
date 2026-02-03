@@ -93,7 +93,7 @@ struct Landmark {
 };
 
 // Vector of landmarks
-    using Landmarks = std::vector<Landmark>;
+using Landmarks = std::vector<Landmark>;
 
 // Structure for RobotPose
 struct RobotState {
@@ -163,6 +163,28 @@ struct PredictionInput
         this->delta_position = m.delta_position;
         this->orientation = m.orientation;
     }
+};
+
+using CameraExtrinsics = Eigen::Matrix4d;
+struct CameraIntrinsic
+{
+    int width;
+    int height;
+    double fx;
+    double fy;
+    double cx;
+    double cy;
+
+    CameraIntrinsic(int width = 0, int height = 0, double fx = 0.0, double fy = 0.0, double cx = 0.0, double cy = 0.0)
+        : width(width), height(height), fx(fx), fy(fy), cx(cx), cy(cy) {}
+};
+
+struct CameraInfo
+{
+    CameraExtrinsics extrinsics;
+    CameraIntrinsic intrinsic;
+
+    CameraInfo() : extrinsics(CameraExtrinsics::Identity()), intrinsic(CameraIntrinsic()) {}
 };
 
 #endif // DEF_SLAM_HPP_

@@ -59,3 +59,8 @@ Measurement MeasurementFactory::buildBBox(const slam::Observation& obs)
 
   return m;
 }
+
+void MeasurementFactory::setCameraInfo(const CameraInfo& info)
+{
+  _bboxModel->setCameraInfo(info);
+}

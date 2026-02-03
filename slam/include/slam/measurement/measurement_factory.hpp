@@ -15,6 +15,8 @@ public:
   MeasurementFactory();
   ~MeasurementFactory() = default;
 
+  void setCameraInfo(const CameraInfo& info);
+
   /**
    * @brief Build measurements from a vector of observations.
    */

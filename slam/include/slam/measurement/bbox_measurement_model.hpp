@@ -16,20 +16,7 @@ class BBoxMeasurementModel : public MeasurementModel {
 public:
     BBoxMeasurementModel();
 
-    /**
-     * @brief Set camera intrinsic matrix.
-     *
-     * K =
-     * [ fx  0  cx ]
-     * [ 0  fy  cy ]
-     * [ 0   0   1 ]
-     */
-    void setCameraIntrinsics(const Eigen::Matrix3d& K);
-
-    /**
-     * @brief Check whether camera intrinsics are available.
-     */
-    bool hasCameraIntrinsics() const;
+    void setCameraInfo(const CameraInfo& info);
 
     int measurementDimension() const override;
 
@@ -53,9 +40,8 @@ public:
     std::optional<Position> inverse(const Pose &robot_pose, const Measurement &m) const override;
 
 private:
-    void assertIntrinsicsAvailable() const;
-
-    std::optional<Eigen::Matrix3d> _K; ///< Camera intrinsic matrix
+    void assertCameraInfoAvailable() const;
+    std::optional<CameraInfo> _cameraInfo; ///< Camera intrinsic and extrinsic information
 };
 
 #endif  // BBOX_MEASUREMENT_MODEL_HPP_

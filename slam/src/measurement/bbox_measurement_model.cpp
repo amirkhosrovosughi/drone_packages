@@ -4,14 +4,9 @@
 
 BBoxMeasurementModel::BBoxMeasurementModel() = default;
 
-void BBoxMeasurementModel::setCameraIntrinsics(const Eigen::Matrix3d& K)
+void BBoxMeasurementModel::setCameraInfo(const CameraInfo& cameraInfo)
 {
-    _K = K;
-}
-
-bool BBoxMeasurementModel::hasCameraIntrinsics() const
-{
-    return _K.has_value();
+    _cameraInfo = cameraInfo;
 }
 
 int BBoxMeasurementModel::measurementDimension() const
@@ -20,11 +15,11 @@ int BBoxMeasurementModel::measurementDimension() const
     return 2;
 }
 
-void BBoxMeasurementModel::assertIntrinsicsAvailable() const
+void BBoxMeasurementModel::assertCameraInfoAvailable() const
 {
-    if (!_K.has_value()) {
-        throw std::runtime_error(
-            "BBoxMeasurementModel: Camera intrinsics not set");
+    if (!_cameraInfo.has_value())
+    {
+        throw std::runtime_error("Camera info not set in BBoxMeasurementModel");
     }
 }
 
@@ -32,31 +27,59 @@ Measurement BBoxMeasurementModel::predict(
     const Pose& robot_pose,
     const Position& landmark_position) const
 {
-    assertIntrinsicsAvailable();
+    assertCameraInfoAvailable();
+
+    const auto& cam = _cameraInfo.value();
 
     Measurement z_hat;
 
-    Eigen::Vector3d p_r(robot_pose.position.x,
-                        robot_pose.position.y,
-                        robot_pose.position.z);
+    /* -------------------------------
+     * World -> Robot -> Camera
+     * ------------------------------- */
 
-    Eigen::Vector3d p_l(landmark_position.x,
-                        landmark_position.y,
-                        landmark_position.z);
+    Eigen::Vector4d p_w;
+    p_w << landmark_position.x,
+           landmark_position.y,
+           landmark_position.z,
+           1.0;
 
-    Eigen::Vector3d rel = p_l - p_r;
+    // World -> Robot
+    Eigen::Matrix4d T_wr = robot_pose.getTransformationMatrix();
 
-    double x = rel.x();
-    double y = rel.y();
-    double z = rel.z();
+    // Robot -> Camera (extrinsics)
+    const Eigen::Matrix4d& T_rc = cam.extrinsics;
 
-    // Bearing-only measurement
-    double yaw   = std::atan2(y, x);
-    double pitch = std::atan2(z, std::sqrt(x * x + y * y));
+    // World -> Camera
+    Eigen::Vector4d p_c = T_rc.inverse() * T_wr.inverse() * p_w;
+
+    double X = p_c.x();
+    double Y = p_c.y();
+    double Z = p_c.z();
+
+    if (Z <= 0.0)
+    {
+        throw std::runtime_error("Landmark is behind the camera");
+    }
+
+    /* -------------------------------
+     * Camera projection
+     * ------------------------------- */
+
+    // Normalized image coordinates
+    double u_n = X / Z;
+    double v_n = Y / Z;
+
+    // Bearings (camera frame)
+    double yaw   = std::atan(u_n);
+    double pitch = std::atan(v_n);
 
     z_hat.payload = Eigen::VectorXd(2);
     z_hat.payload << yaw, pitch;
-    z_hat.model = std::make_shared<BBoxMeasurementModel>();
+
+    // Preserve camera info inside model copy
+    auto model = std::make_shared<BBoxMeasurementModel>();
+    model->setCameraInfo(cam);
+    z_hat.model = model;
 
     return z_hat;
 }
@@ -65,7 +88,7 @@ Eigen::MatrixXd BBoxMeasurementModel::jacobianWrtRobot(
     const Pose&,
     const Position&) const
 {
-    // Placeholder: proper Jacobian will be implemented later
+    // TODO: derive analytically (non-trivial due to projection)
     return Eigen::MatrixXd::Zero(2, 3);
 }
 
@@ -73,7 +96,7 @@ Eigen::MatrixXd BBoxMeasurementModel::jacobianWrtLandmark(
     const Pose&,
     const Position&) const
 {
-    // Placeholder: proper Jacobian will be implemented later
+    // TODO: derive analytically (non-trivial due to projection)
     return Eigen::MatrixXd::Zero(2, 3);
 }
 
@@ -86,10 +109,8 @@ Eigen::MatrixXd BBoxMeasurementModel::measurementNoise() const
 }
 
 std::optional<Position> BBoxMeasurementModel::inverse(
-    const Pose& robot_pose,
-    const Measurement& m
-) const
+    const Pose& robot_pose, const Measurement&) const
 {
-    // cannot initialize a 3D landmark from a single bearing
+    // Bearing-only → cannot initialize landmark depth
     return std::nullopt;
 }
