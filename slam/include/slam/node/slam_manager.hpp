@@ -6,6 +6,8 @@
 
 #include "tf2_ros/transform_listener.h"
 #include "tf2_ros/buffer.h"
+#include <vision_msgs/msg/object_hypothesis_with_pose.hpp>
+#include <vision_msgs/msg/detection3_d_array.hpp>
 
 #include "backend/slam_backend.hpp"
 #include "common/slam_logger.hpp"
@@ -60,8 +62,15 @@ private:
    * @brief Feature observation callback.
    * @param msg Unified feature observation
    */
-  void featureDetectionCallback(
+  void feature3dPointCallback(
     const drone_msgs::msg::PointList::SharedPtr msg);
+
+  /**
+   * @brief Feature bbox observation callback.
+   * @param msg Unified feature bbox observation
+   */
+  void featureBboxCallback(
+    const vision_msgs::msg::Detection3DArray::SharedPtr msg);
 
   /**
    * @brief Publish map output.
@@ -95,7 +104,8 @@ private:
   std::shared_ptr<slam::SlamBackend> _backend; ///< Active SLAM backend
   std::shared_ptr<MeasurementFactory> _measurementFactory; ///< Measurement factory for backend
   rclcpp::Subscription<px4_msgs::msg::VehicleOdometry>::SharedPtr _odomSub; ///< Odometry subscriber
-  rclcpp::Subscription<drone_msgs::msg::PointList>::SharedPtr _obsSub; ///< Observation subscriber
+  rclcpp::Subscription<drone_msgs::msg::PointList>::SharedPtr _obs3dPointSub; ///< Observation 3D coordinate subscriber
+  rclcpp::Subscription<vision_msgs::msg::Detection3DArray>::SharedPtr _obsBboxSub; ///< Observation bbox subscriber
   rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr _cameraIntrinsicSubscriber; ///< Subscriber for camera intrinsic information
   rclcpp::Publisher<drone_msgs::msg::MapSummary>::SharedPtr _mapPub; ///< Map publisher
   rclcpp::TimerBase::SharedPtr _cameraExtrinsicTimer; ///< Timer for sensor transform update

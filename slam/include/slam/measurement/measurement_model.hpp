@@ -3,6 +3,7 @@
 
 #include <Eigen/Dense>
 #include <optional>
+#include <memory>
 #include "common/def_slam.hpp"
 #include "observation/observation.hpp"
 #include "measurement/measurement.hpp"
@@ -13,7 +14,7 @@
  * A measurement model defines how an Observation relates
  * to the robot pose and a landmark.
  */
-class MeasurementModel {
+class MeasurementModel : public std::enable_shared_from_this<MeasurementModel> {
 public:
     virtual ~MeasurementModel() = default;
 
@@ -30,7 +31,7 @@ public:
     virtual Measurement predict(
         const Pose& robot_pose,
         const Position& landmark_position
-    ) const = 0;
+    ) = 0;
 
     /**
      * @brief Jacobian of measurement w.r.t robot pose.

@@ -75,15 +75,20 @@ void SlamManager::createSubscribers()
     qos,
     std::bind(&SlamManager::odometryCallback, this, std::placeholders::_1));
 
-  _obsSub = this->create_subscription<drone_msgs::msg::PointList>(
+  _obs3dPointSub = this->create_subscription<drone_msgs::msg::PointList>(
     "/feature/coordinate/baseLink",
     10,
-    std::bind(&SlamManager::featureDetectionCallback, this, std::placeholders::_1));
+    std::bind(&SlamManager::feature3dPointCallback, this, std::placeholders::_1));
 
-    _cameraIntrinsicSubscriber = this->create_subscription<sensor_msgs::msg::CameraInfo>(
-      "/camera_info",
-      10,
-      std::bind(&SlamManager::cameraIntrinsicCallback, this, std::placeholders::_1));
+  _obsBboxSub = this->create_subscription<vision_msgs::msg::Detection3DArray>(
+    "/feature/bbox/cameraFrame",
+    10,
+    std::bind(&SlamManager::featureBboxCallback, this, std::placeholders::_1));
+
+  _cameraIntrinsicSubscriber = this->create_subscription<sensor_msgs::msg::CameraInfo>(
+    "/camera_info",
+    10,
+    std::bind(&SlamManager::cameraIntrinsicCallback, this, std::placeholders::_1));
 }
 
 void SlamManager::createPublishers()
@@ -133,7 +138,7 @@ void SlamManager::odometryCallback(
   _last_position_enu = pos_enu;
 }
 
-void SlamManager::featureDetectionCallback(
+void SlamManager::feature3dPointCallback(
     const drone_msgs::msg::PointList::SharedPtr msg)
 {
     // Get timestamp (prefer message time if available)
@@ -151,6 +156,27 @@ void SlamManager::featureDetectionCallback(
     // Build Observations via builder
     slam::Observations obs = slam::ObservationBuilder::fromPointList(*msg, timeTag);
     _backend->processObservation(obs);
+}
+
+void SlamManager::featureBboxCallback(
+    const vision_msgs::msg::Detection3DArray::SharedPtr msg)
+{
+  // Get timestamp (prefer message time if available)
+  double timeTag;
+  if (msg->header.stamp.sec != 0 || msg->header.stamp.nanosec != 0)
+  {
+    timeTag = msg->header.stamp.sec +
+          msg->header.stamp.nanosec * 1e-9;
+  }
+  else
+  {
+    timeTag = getCurrentTimeInSeconds();
+  }
+
+  // Build Observations via builder
+  slam::Observations obs = slam::ObservationBuilder::fromBboxArray(*msg, timeTag);
+  // _backend->processObservation(obs); // TODO: uncomment after implementing   Nearest Neighbor
+                                        // Association – Under-Constrained Measurements
 }
 
 void SlamManager::publishMap(const MapSummary& map)
@@ -222,7 +248,7 @@ void SlamManager::updateCameraExtrinsic()
 
     _cameraExtrinsicTimer->cancel();
 
-    RCLCPP_INFO(this->get_logger(), "Camera extrinsic transform loaded");
+    RCLCPP_INFO(this->get_logger(), "Camera extrinsic transform loaded");    
     initializeCameraInfo();
   }
   catch (const tf2::TransformException& ex)
@@ -264,7 +290,8 @@ void SlamManager::initializeCameraInfo()
 {
   if (_cameraIntrinsicLoaded && _cameraExtrinsicLoaded)
   {
-    _measurementFactory->setCameraInfo(_cameraInfo);
+    _measurementFactory->setCameraInfo(_cameraInfo); // should I remove this??
+    slam::ObservationBuilder::setCameraInfo(_cameraInfo);
   }
 }
 

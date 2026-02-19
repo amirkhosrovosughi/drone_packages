@@ -31,6 +31,21 @@ struct BoundingBox
     std::string class_label;
 };
 
+/// Observation payload (constraint)
+/**
+ * @brief Bearing-only observation expressed in camera frame.
+ *
+ * Represents the direction from the camera optical center to the observed
+ * feature as two angles: yaw (azimuth) and pitch (elevation). This is a
+ * purely geometric/math representation and contains no image-dependent
+ * bounding box metadata.
+ */
+struct Bearing
+{
+    double yaw = 0.0;   // azimuth (radians)
+    double pitch = 0.0; // elevation (radians)
+};
+
 /**
  * @brief Unified Observation abstraction for SLAM backend.
  *
@@ -44,8 +59,7 @@ struct Observation
     /// Timestamp (seconds)
     double timeTag = 0.0;
 
-    /// Observation payload (constraint)
-    using Payload = std::variant<Point3D, BoundingBox>;
+    using Payload = std::variant<Point3D, BoundingBox, Bearing>;
     Payload payload;
 
     Observation() = default;

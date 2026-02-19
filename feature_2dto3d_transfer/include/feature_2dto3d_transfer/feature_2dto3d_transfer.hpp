@@ -54,8 +54,9 @@ private:
   rclcpp::Subscription<vision_msgs::msg::Detection3DArray>::SharedPtr _featureBoundingBoxSubscriber; ///< Subscriber for detected 2D bounding boxes with depth
   rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr _cameraInfoSubscriber; ///< Subscriber for camera intrinsic information
 
-  rclcpp::Publisher<drone_msgs::msg::PointList>::SharedPtr _feature3DCoordinateCameraPublisher; ///< Publisher for 3D features in camera frame
-  rclcpp::Publisher<drone_msgs::msg::PointList>::SharedPtr _feature3DCoordinateBasePublisher; ///< Publisher for 3D features in base frame
+  rclcpp::Publisher<drone_msgs::msg::PointList>::SharedPtr _feature3DCoordinateCameraPublisher; ///< Publisher for 3D features in camera frame  coordinate
+  rclcpp::Publisher<drone_msgs::msg::PointList>::SharedPtr _feature3DCoordinateBasePublisher; ///< Publisher for 3D features in base frame coordinate
+  rclcpp::Publisher<vision_msgs::msg::Detection3DArray>::SharedPtr _featureBoundingBoxPublisher; ///< Publisher for bbox without valid depth
 
   std::unique_ptr<tf2_ros::Buffer> _tfBuffer; ///< TF2 buffer for transform lookup
   std::shared_ptr<tf2_ros::TransformListener> _tfListener; ///< TF2 listener

@@ -27,6 +27,7 @@ Feature2DTo3DTransfer::Feature2DTo3DTransfer()
   // create publisher
   _feature3DCoordinateCameraPublisher = this->create_publisher<drone_msgs::msg::PointList>("/feature/coordinate/cameraFrame", 10);
   _feature3DCoordinateBasePublisher = this->create_publisher<drone_msgs::msg::PointList>("/feature/coordinate/baseLink", 10);
+  _featureBoundingBoxPublisher = this->create_publisher<vision_msgs::msg::Detection3DArray>("/feature/bbox/cameraFrame", 10);
 
   //TODO: later change it in way that stops listening when it gets the valiue
   _timer = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&Feature2DTo3DTransfer::updateTransform, this));
@@ -34,6 +35,9 @@ Feature2DTo3DTransfer::Feature2DTo3DTransfer()
 
 void Feature2DTo3DTransfer::detectionCallback(const vision_msgs::msg::Detection3DArray bboxArray)
 {
+  vision_msgs::msg::Detection3DArray bboxWithoutValidDepth;
+  bboxWithoutValidDepth.header = bboxArray.header;
+
   #ifdef STORE_DEBUG_DATA
   int plotCounter = 0;
   #endif
@@ -90,8 +94,9 @@ void Feature2DTo3DTransfer::detectionCallback(const vision_msgs::msg::Detection3
       RCLCPP_DEBUG(this->get_logger(), "stereo camera depth is %f", depth);
       if (depth <= 0.0 || depth > 100.0)
       {
-        RCLCPP_INFO(this->get_logger(), "Skipped feature since depth value is not available");
-        continue; //skip if depth data is not available
+        RCLCPP_DEBUG(this->get_logger(), "Send as bbox without valid depth");
+        bboxWithoutValidDepth.detections.push_back(detection);
+        continue;
       }
       else
       {
@@ -150,6 +155,7 @@ void Feature2DTo3DTransfer::detectionCallback(const vision_msgs::msg::Detection3
     {
       _feature3DCoordinateBasePublisher->publish(pointListBase);
     }
+    _featureBoundingBoxPublisher->publish(bboxWithoutValidDepth);
   }
 }
 
@@ -206,7 +212,9 @@ void Feature2DTo3DTransfer::updateTransform()
       
       _cameraTransformLoaded = true;
       RCLCPP_INFO(this->get_logger(), "Camera relative coordinate is loaded successfully");
-  
+      if (_timer) {
+        _timer->cancel();
+      } 
     } catch (tf2::TransformException & ex) {
       RCLCPP_INFO(this->get_logger(), "Could not find transform %s to %s: %s", TO_FRAME.c_str(), FROM_FRAME.c_str(), ex.what());
       return;

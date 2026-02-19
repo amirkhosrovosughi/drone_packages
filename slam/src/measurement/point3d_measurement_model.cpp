@@ -11,7 +11,7 @@ int Point3DMeasurementModel::measurementDimension() const
 
 Measurement Point3DMeasurementModel::predict(
     const Pose& robot_pose,
-    const Position& landmark_position) const
+    const Position& landmark_position)
 {
     Measurement z_hat;
 
@@ -28,7 +28,7 @@ Measurement Point3DMeasurementModel::predict(
 
     z_hat.payload = Eigen::VectorXd(3);
     z_hat.payload << rel.x(), rel.y(), rel.z();
-    z_hat.model = std::make_shared<Point3DMeasurementModel>(_T_sensor_robot);
+    z_hat.model = shared_from_this();
     return z_hat;
 }
 

@@ -1,20 +1,19 @@
-#ifndef BBOX_MEASUREMENT_MODEL_HPP_
-#define BBOX_MEASUREMENT_MODEL_HPP_
+#ifndef BEARING_MEASUREMENT_MODEL_HPP_
+#define BEARING_MEASUREMENT_MODEL_HPP_
 
 #include <Eigen/Dense>
 #include <optional>
 #include "measurement/measurement_model.hpp"
 
 /**
- * @brief Measurement model for camera bounding box observations.
+ * @brief Measurement model for bearing-only observations (yaw, pitch).
  *
- * Produces bearing-only measurements (yaw, pitch) from a landmark.
- *
- * Requires camera intrinsics to be set before use.
+ * Converts a landmark position into a bearing vector expressed in the
+ * camera frame. Requires camera intrinsics/extrinsics to be set before use.
  */
-class BBoxMeasurementModel : public MeasurementModel {
+class BearingMeasurementModel : public MeasurementModel {
 public:
-    BBoxMeasurementModel();
+    BearingMeasurementModel();
 
     void setCameraInfo(const CameraInfo& info);
 
@@ -41,7 +40,7 @@ public:
 
 private:
     void assertCameraInfoAvailable() const;
-    std::optional<CameraInfo> _cameraInfo; ///< Camera intrinsic and extrinsic information
+    std::optional<CameraInfo> _cameraInfo;
 };
 
-#endif  // BBOX_MEASUREMENT_MODEL_HPP_
+#endif // BEARING_MEASUREMENT_MODEL_HPP_

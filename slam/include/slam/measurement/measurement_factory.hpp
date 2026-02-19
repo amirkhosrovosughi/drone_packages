@@ -3,10 +3,12 @@
 
 #include <vector>
 #include <memory>
+#include <mutex>
 #include "observation/observation.hpp"
 #include "measurement/measurement_model.hpp"
 #include "measurement/point3d_measurement_model.hpp"
 #include "measurement/bbox_measurement_model.hpp"
+#include "measurement/bearing_measurement_model.hpp"
 
 #include "common/def_slam.hpp"
 
@@ -26,10 +28,13 @@ private:
   // Singleton models
   std::shared_ptr<Point3DMeasurementModel> _point3dModel;
   std::shared_ptr<BBoxMeasurementModel> _bboxModel;
+  std::shared_ptr<BearingMeasurementModel> _bearingModel;
+  std::mutex _mutex;
 
   // Helper builders
   Measurement buildPoint3D(const slam::Observation& obs);
   Measurement buildBBox(const slam::Observation& obs);
+  Measurement buildBearing(const slam::Observation& obs);
 };
 
 #endif  // MEASUREMENT_FACTORY_HPP_

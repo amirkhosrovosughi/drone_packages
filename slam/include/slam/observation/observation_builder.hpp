@@ -2,11 +2,13 @@
 #define OBSERVATION_BUILDER_HPP_
 
 #include "observation/observation.hpp"
-
 #include "drone_msgs/msg/point_list.hpp"
 #include "drone_msgs/msg/bounding_boxes.hpp"
+#include <vision_msgs/msg/detection3_d_array.hpp>
+#include "common/def_slam.hpp"
 
 #include <vector>
+#include <optional>
 
 namespace slam
 {
@@ -38,6 +40,27 @@ public:
   static std::vector<Observation>
   fromBoundingBoxes(const drone_msgs::msg::BoundingBoxes& msg,
                     double timeTag);
+
+  /**
+   * @brief Convert vision_msgs::Detection3DArray into bearing Observations.
+   *
+   * This method uses the camera intrinsics/extrinsics previously set via
+   * `setCameraInfo` to compute purely geometric bearing observations
+   * (yaw, pitch) for each detection.
+   */
+  static std::vector<Observation>
+  fromBboxArray(const vision_msgs::msg::Detection3DArray& msg,
+                double timeTag);
+
+  /**
+   * @brief Provide camera intrinsic/extrinsic info to the builder.
+   *
+   * ObservationBuilder stores camera geometry and converts image-space
+   * detections into purely mathematical observations for the backend.
+   */
+  static void setCameraInfo(const CameraInfo& info);
+private:
+  static std::optional<CameraInfo> s_camera_info;
 };
 
 } // namespace slam

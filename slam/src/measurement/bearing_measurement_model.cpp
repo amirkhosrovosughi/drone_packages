@@ -1,29 +1,28 @@
-#include "measurement/bbox_measurement_model.hpp"
+#include "measurement/bearing_measurement_model.hpp"
 #include <stdexcept>
 #include <cmath>
 
-BBoxMeasurementModel::BBoxMeasurementModel() = default;
+BearingMeasurementModel::BearingMeasurementModel() = default;
 
-void BBoxMeasurementModel::setCameraInfo(const CameraInfo& cameraInfo)
+void BearingMeasurementModel::setCameraInfo(const CameraInfo& cameraInfo)
 {
     _cameraInfo = cameraInfo;
 }
 
-int BBoxMeasurementModel::measurementDimension() const
+int BearingMeasurementModel::measurementDimension() const
 {
-    // bearing: [yaw, pitch]
-    return 2;
+    return 2; // yaw, pitch
 }
 
-void BBoxMeasurementModel::assertCameraInfoAvailable() const
+void BearingMeasurementModel::assertCameraInfoAvailable() const
 {
     if (!_cameraInfo.has_value())
     {
-        throw std::runtime_error("Camera info not set in BBoxMeasurementModel");
+        throw std::runtime_error("Camera info not set in BearingMeasurementModel");
     }
 }
 
-Measurement BBoxMeasurementModel::predict(
+Measurement BearingMeasurementModel::predict(
     const Pose& robot_pose,
     const Position& landmark_position)
 {
@@ -62,14 +61,12 @@ Measurement BBoxMeasurementModel::predict(
     }
 
     /* -------------------------------
-     * Camera projection
+     * Camera projection -> bearings
      * ------------------------------- */
 
-    // Normalized image coordinates
     double u_n = X / Z;
     double v_n = Y / Z;
 
-    // Bearings (camera frame)
     double yaw   = std::atan(u_n);
     double pitch = std::atan(v_n);
 
@@ -82,23 +79,21 @@ Measurement BBoxMeasurementModel::predict(
     return z_hat;
 }
 
-Eigen::MatrixXd BBoxMeasurementModel::jacobianWrtRobot(
+Eigen::MatrixXd BearingMeasurementModel::jacobianWrtRobot(
     const Pose&,
     const Position&) const
 {
-    // TODO: derive analytically (non-trivial due to projection)
     return Eigen::MatrixXd::Zero(2, 3);
 }
 
-Eigen::MatrixXd BBoxMeasurementModel::jacobianWrtLandmark(
+Eigen::MatrixXd BearingMeasurementModel::jacobianWrtLandmark(
     const Pose&,
     const Position&) const
 {
-    // TODO: derive analytically (non-trivial due to projection)
     return Eigen::MatrixXd::Zero(2, 3);
 }
 
-Eigen::MatrixXd BBoxMeasurementModel::measurementNoise() const
+Eigen::MatrixXd BearingMeasurementModel::measurementNoise() const
 {
     Eigen::MatrixXd R = Eigen::MatrixXd::Zero(2, 2);
     R(0, 0) = 0.01;  // yaw noise
@@ -106,9 +101,9 @@ Eigen::MatrixXd BBoxMeasurementModel::measurementNoise() const
     return R;
 }
 
-std::optional<Position> BBoxMeasurementModel::inverse(
+std::optional<Position> BearingMeasurementModel::inverse(
     const Pose& robot_pose, const Measurement&) const
 {
-    // Bearing-only → cannot initialize landmark depth
+    // Bearing-only -> cannot determine depth
     return std::nullopt;
 }

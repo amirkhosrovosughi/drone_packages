@@ -54,6 +54,7 @@ find_package(eigen3_cmake_module REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(vision_msgs REQUIRED)
 
 include_directories(include/${PROJECT_NAME})
 
@@ -67,6 +68,7 @@ set(SOURCES
   src/measurement/measurement_factory.cpp
   src/measurement/point3d_measurement_model.cpp
   src/measurement/bbox_measurement_model.cpp
+  src/measurement/bearing_measurement_model.cpp
   src/association/joint_compatibility_association.cpp
   src/association/nearest_neighbor_association.cpp
 )
@@ -82,6 +84,7 @@ ament_target_dependencies(${PROJECT_NAME}
   tf2
   tf2_ros
   sensor_msgs
+  vision_msgs
 )
 
 # Install

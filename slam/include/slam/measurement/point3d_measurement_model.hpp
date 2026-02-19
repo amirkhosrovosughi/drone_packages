@@ -23,7 +23,7 @@ public:
     Measurement predict(
         const Pose& robot_pose,
         const Position& landmark_position
-    ) const override;
+    ) override;
 
     Eigen::MatrixXd jacobianWrtRobot(
         const Pose& robot_pose,
