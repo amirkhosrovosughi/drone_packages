@@ -10,6 +10,7 @@
 #include "observation/observation_builder.hpp"
 
 #include "common_utilities/transform_util.hpp"
+#include "common/ros_slam_logger.hpp"
 
 static constexpr const char* FROM_FRAME = "base_link";
 static constexpr const char* TO_FRAME   = "camera_frame";
@@ -18,7 +19,7 @@ static constexpr int ROBOT_ID = 1;
 SlamManager::SlamManager()
 : Node("slam_manager")
 {
-  _logger = std::make_shared<SlamLogger>(this->get_logger());
+  _logger = std::make_shared<RosSlamLogger>(this->get_logger());
 
 
   // --------------------------------------------------------------------------

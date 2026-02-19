@@ -1,7 +1,8 @@
 #pragma once
 
-#include <rclcpp/rclcpp.hpp>
+#include <memory>
 #include <sstream>
+#include <string>
 
 // Logging levels
 enum class LogLevel
@@ -14,92 +15,56 @@ enum class LogLevel
 
 /**
  * @class SlamLogger
- * @brief Lightweight logging wrapper for ROS 2 logger with support for multiple log levels.
+ * @brief Abstract, ROS-agnostic logger interface.
+ *
+ * This base class provides a templated, stream-style `log(...)` API that
+ * forwards the formatted message to the pure-virtual `write(...)` method.
+ * Implementations (ROS or mock) only need to implement `write`.
  */
 class SlamLogger
 {
 public:
-    /**
-     * @brief Construct a new SlamLogger object.
-     * @param logger ROS 2 logger to use.
-     */
-    explicit SlamLogger(const rclcpp::Logger& logger) : _logger(logger) {}
+    virtual ~SlamLogger() = default;
 
-    /**
-     * @brief Template method to accept stream-like inputs to log information message.
-     */
     template <typename... Args>
     void logInfo(Args&&... args)
     {
-        RCLCPP_INFO(_logger, "%s", buildMessage(std::forward<Args>(args)...).c_str());
+        write(LogLevel::INFO, buildMessage(std::forward<Args>(args)...));
     }
 
-    /**
-     * @brief Template method to accept stream-like inputs to log warning message.
-     */
     template <typename... Args>
     void logWarn(Args&&... args)
     {
-        RCLCPP_WARN(_logger, "%s", buildMessage(std::forward<Args>(args)...).c_str());
+        write(LogLevel::WARN, buildMessage(std::forward<Args>(args)...));
     }
 
-    /**
-     * @brief Template method to accept stream-like inputs to log error message.
-     */
     template <typename... Args>
     void logError(Args&&... args)
     {
-        RCLCPP_ERROR(_logger, "%s", buildMessage(std::forward<Args>(args)...).c_str());
+        write(LogLevel::ERROR, buildMessage(std::forward<Args>(args)...));
     }
 
-    /**
-     * @brief Template method to accept stream-like inputs to log debug message.
-     */
     template <typename... Args>
     void logDebug(Args&&... args)
     {
-        RCLCPP_DEBUG(_logger, "%s", buildMessage(std::forward<Args>(args)...).c_str());
+        write(LogLevel::DEBUG, buildMessage(std::forward<Args>(args)...));
     }
 
-    /**
-     * @brief Generic log method with specified log level.
-     * @param level Log level.
-     * @param args Message components.
-     */
     template <typename... Args>
     void log(LogLevel level, Args&&... args)
     {
-        switch (level)
-        {
-        case LogLevel::DEBUG:
-            logDebug(std::forward<Args>(args)...);
-            break;
-        case LogLevel::INFO:
-            logInfo(std::forward<Args>(args)...);
-            break;
-        case LogLevel::WARN:
-            logWarn(std::forward<Args>(args)...);
-            break;
-        case LogLevel::ERROR:
-            logError(std::forward<Args>(args)...);
-            break;
-        default:
-            logInfo(std::forward<Args>(args)...);
-            break;
-        }
+        write(level, buildMessage(std::forward<Args>(args)...));
     }
 
-private:
-    rclcpp::Logger _logger;  ///< Underlying ROS 2 logger instance.
+protected:
+    virtual void write(LogLevel level, const std::string& message) = 0;
 
-    /**
-     * @brief Helper function to build a concatenated string message from multiple arguments.
-     */
+private:
     template <typename... Args>
     std::string buildMessage(Args&&... args)
     {
         std::ostringstream stream;
-        (stream << ... << args); // Fold expression to concatenate inputs
+        (stream << ... << args);
         return stream.str();
     }
 };
