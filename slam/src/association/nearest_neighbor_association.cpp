@@ -37,17 +37,21 @@ void NearestNeighborAssociation::handleUpdate(const MapSummary& map)
 
     preQuaternion = _robotPose.quaternion;
 
-    Landmarks updatedLandmarks = map.landmarks; // ==> commented out to make sure we do isolate error
-    for (Landmark landmark : _landmarks)
+    // Copy updated landmarks from the provided map for matching
+    Landmarks updatedLandmarks = map.landmarks;
+
+    // Iterate by reference so we update the stored landmarks in-place
+    // Instead of this we can do: _landmarks = map.landmarks
+    // But keep it like that to catch potential id mismatch bugs
+    for (Landmark& landmark : _landmarks)
     {
         bool foundMatchedLandmark = false;
-        for (const Landmark updatedLandmark : updatedLandmarks) //why not simply say: _landmarks = map.landmarks, instead of this map???
-                                                                // to catch error if that happens
+        for (const Landmark& updatedLandmark : updatedLandmarks)
         {
             if (landmark.id == updatedLandmark.id)
             {
                 _logger->log(LOW_LEVEL, LOG_SUBSECTION, "!--! landmark:" , landmark.id, " has been updated from (",
-                            landmark.position.x, ", ", landmark.position.y, ", ", landmark.position.z, "to ",
+                            landmark.position.x, ", ", landmark.position.y, ", ", landmark.position.z, " to ",
                             updatedLandmark.position.x, ", ", updatedLandmark.position.y, ", ",
                             updatedLandmark.position.z, ") \n");
                 landmark.position = updatedLandmark.position;

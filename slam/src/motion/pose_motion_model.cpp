@@ -9,19 +9,34 @@
  * Orientation is explicitly part of the state.
  */
 
-int PoseMotionModel::getMotionDimension()
+int PoseMotionModel::getStateDimension() const
 {
     return 6;  // x, y, z, roll, pitch, yaw
 }
 
-Eigen::MatrixXd PoseMotionModel::getRobotToRobotJacobian()
+MotionModel::State PoseMotionModel::propagate(
+    const State& current_state,
+    const Eigen::VectorXd& motionDisplacement) const
 {
-    // First-order EKF approximation
-    // x_k+1 = x_k + u
+    MotionModel::State next = current_state;
+    if (next.size() == 0) {
+        next = MotionModel::State::Zero(6);
+    }
+    if (motionDisplacement.size() == 6) {
+        next.segment(0, 6) = next.segment(0, 6) + motionDisplacement;
+    }
+    return next;
+}
+
+Eigen::MatrixXd PoseMotionModel::computeStateJacobian(
+    const State& /*state*/,
+    const Eigen::VectorXd& /*delta_position*/) const
+{
+    // ∂x_{k+1}/∂x_k = I
     return Eigen::MatrixXd::Identity(6, 6);
 }
 
-Eigen::MatrixXd PoseMotionModel::getMotionNoise()
+Eigen::MatrixXd PoseMotionModel::getProcessNoise() const
 {
     Eigen::MatrixXd Q = Eigen::MatrixXd::Zero(6, 6);
 

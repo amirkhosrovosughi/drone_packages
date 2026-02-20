@@ -80,6 +80,8 @@ private:
      * @param feature Existing map feature to compare against.
      * @return Euclidean distance.
      */
+
+protected:
     double euclideanDistance(const Landmark& meas, Landmark feature);
 
     /**
