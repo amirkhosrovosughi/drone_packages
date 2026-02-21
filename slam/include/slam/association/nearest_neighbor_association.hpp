@@ -7,11 +7,38 @@
 #include "measurement/measurement.hpp"
 #include <cmath>
 #include <mutex>
+#include <unordered_map>
 #include "common/slam_logger.hpp"
 
 #ifdef STORE_DEBUG_DATA
 #include "data_logging_utils/data_logger.hpp"
 #endif
+
+/**
+ * @brief Tentative landmark candidate tracked before EKF insertion.
+ *
+ * Stores running statistics and lifecycle counters used to decide
+ * whether a candidate should be confirmed or rejected.
+ */
+struct TentativeLandmark {
+        int candidateId;
+        Position position;
+        Variance2D variance;
+        int consistentObservations;
+        int missedFrames;
+        bool seenInCurrentFrame;
+        int sampleCount;
+        double meanX;
+        double meanY;
+        double meanZ;
+        double m2X;
+        double m2Y;
+
+        TentativeLandmark()
+                : candidateId(0), position(Position()), variance(Variance2D()), consistentObservations(0),
+                    missedFrames(0), seenInCurrentFrame(false), sampleCount(0), meanX(0.0), meanY(0.0),
+                    meanZ(0.0), m2X(0.0), m2Y(0.0) {}
+};
 
 /**
  * @brief Nearest Neighbor Association implementation.
@@ -102,13 +129,52 @@ protected:
     double matchingScore(double distance);
 
 private:
-    std::function<void(AssignedMeasurements)> _callback;       ///< Callback invoked with associated measurements
-    std::mutex _mutex;                                         ///< Mutex to protect internal state
-    Landmarks _landmarks;                                      ///< Current list of landmarks
-    int _numberLandmarks = 0;                                  ///< Counter used to assign new landmark ids
-    Pose _robotPose;                                           ///< Latest robot pose
-    LoggerPtr _logger;                                         ///< Logger instance
-    double _quaternionRate = 0.0;                              ///< Rate of quaternion change (used for skipping)
+    /**
+        * @brief Mark all tentative candidates as not observed for the current frame.
+        *
+        * This prepares lifecycle bookkeeping before processing incoming measurements.
+        */
+        void markTentativeCandidatesUnseenForCurrentFrame();
+
+        /**
+     * @brief Update tentative landmark running statistics from a new observation.
+     *
+     * @param candidate Tentative candidate to update.
+     * @param measurementPosition Position inferred from current measurement.
+     */
+    void updateTentativeLandmark(TentativeLandmark& candidate, const Position& measurementPosition);
+
+    /**
+     * @brief Check whether a tentative candidate is ready for confirmation.
+     *
+     * @param candidate Tentative candidate to evaluate.
+     * @return True when confirmation criteria are satisfied.
+     */
+    bool shouldConfirmTentativeLandmark(const TentativeLandmark& candidate) const;
+
+    /**
+     * @brief Remove stale tentative candidates that were not re-observed.
+     */
+    void pruneTentativeLandmarks();
+
+    /**
+     * @brief Find nearest tentative candidate for a measurement-derived landmark.
+     *
+     * @param measurementLandmark Landmark estimated from current measurement.
+     * @return Candidate id if within gating distance, otherwise -1.
+     */
+    int findNearestTentativeCandidate(const Landmark& measurementLandmark) const;
+
+    std::function<void(AssignedMeasurements)> _callback;            ///< Callback invoked with associated measurements
+    std::mutex _mutex;                                              ///< Mutex to protect internal state
+    Landmarks _landmarks;                                           ///< Current list of landmarks
+    std::unordered_map<int, TentativeLandmark> _tentativeLandmarks; ///< Tentative landmarks pending confirmation
+    int _numberLandmarks = 0;                                       ///< Counter used to assign new landmark ids
+    int _nextTentativeId = 0;                                       ///< Counter used to assign tentative candidate ids
+    std::size_t _frameCounter = 0;                                  ///< Internal frame counter for lifecycle updates
+    Pose _robotPose;                                                ///< Latest robot pose
+    LoggerPtr _logger;                                              ///< Logger instance
+    double _quaternionRate = 0.0;                                   ///< Rate of quaternion change (used for skipping)
 };
 
 #endif  // SLAM__NEAREST_NEIGHBOR_ASSOCIATION_HPP_

@@ -263,8 +263,7 @@ void ExtendedKalmanFilter::addLandmark(const AssignedMeasurement& meas)
         return;
     }
     Position newLandmarkPosition = *optLandmarkPosition;
-    // TODO:  landmark confirmation ( tentative landmarks),
-    // Landmark aging & pruning
+    // TODO: // Landmark aging & pruning (for dynamic environments, spurious detections)
 
     _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Landmark added with coordinate:\n", newLandmarkPosition.getPositionVector());
     _slamMap->addLandmark(newLandmarkPosition.getPositionVector());

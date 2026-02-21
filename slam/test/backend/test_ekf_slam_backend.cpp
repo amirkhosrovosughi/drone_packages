@@ -215,7 +215,11 @@ TEST(EkfSlamBackendTest, EndToEndObservationCreatesLandmarkAndResetClearsIt)
   backend.processMotion(motionConstraint);
 
   Observation obs(0.0, Point3D{Eigen::Vector3d(1.0, 0.0, 1.0)});
-  backend.processObservation(Observations{obs});
+  for (int i = 0; i < 5; ++i)
+  {
+    backend.processObservation(Observations{obs});
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
 
   bool gotLandmark = false;
   for (int i = 0; i < 20; ++i)

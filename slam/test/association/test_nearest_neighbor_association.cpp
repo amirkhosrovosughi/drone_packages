@@ -16,16 +16,21 @@ TEST(NearestNeighborAssociationTest, CreatesThenMatchesLandmark)
     NearestNeighborAssociation assoc;
     assoc.setLogger(std::make_shared<MockSlamLogger>());
 
-    std::promise<AssignedMeasurements> prom;
-    auto fut = prom.get_future();
-
-    assoc.registerCallback([&prom](AssignedMeasurements am)
-                           {
-        try {
-            prom.set_value(am);
-        } catch (...) {
-            // ignore if promise already satisfied
-        } });
+    auto sendAndGet = [&assoc](const Measurements& measurements) {
+        std::promise<AssignedMeasurements> prom;
+        auto fut = prom.get_future();
+        assoc.registerCallback([&prom](AssignedMeasurements am)
+                               {
+            try {
+                prom.set_value(am);
+            } catch (...) {
+                // ignore if promise already satisfied
+            } });
+        assoc.onReceiveMeasurement(measurements);
+        auto status = fut.wait_for(std::chrono::seconds(5));
+        EXPECT_EQ(status, std::future_status::ready);
+        return fut.get();
+    };
 
     // Build a single point measurement at (1,2,3)
     Measurement meas;
@@ -33,27 +38,21 @@ TEST(NearestNeighborAssociationTest, CreatesThenMatchesLandmark)
     meas.payload << 1.0, 2.0, 3.0;
     meas.model = std::make_shared<Point3DMeasurementModel>();
 
-    // First call: should create a new landmark
-    assoc.onReceiveMeasurement(Measurements{meas});
-    // give async task some time to run; wait up to 5s for callback
-    auto status = fut.wait_for(std::chrono::seconds(5));
-    ASSERT_EQ(status, std::future_status::ready);
-    AssignedMeasurements result = fut.get();
-    ASSERT_EQ(result.size(), 1u);
-    EXPECT_TRUE(result[0].isNew);
-    int firstId = result[0].id;
+    // First 4 calls: landmark should stay tentative (not emitted as new yet)
+    for (int i = 0; i < 4; i++)
+    {
+        AssignedMeasurements tentativeResult = sendAndGet(Measurements{meas});
+        EXPECT_TRUE(tentativeResult.empty());
+    }
 
-    // Prepare for second call; expect it to match the existing landmark
-    // prepare a fresh promise for the second call
-    std::promise<AssignedMeasurements> prom2;
-    auto fut2 = prom2.get_future();
-    assoc.registerCallback([&prom2](AssignedMeasurements am)
-                           {
-        try { prom2.set_value(am); } catch(...) {} });
-    assoc.onReceiveMeasurement(Measurements{meas});
-    auto status2 = fut2.wait_for(std::chrono::seconds(5));
-    ASSERT_EQ(status2, std::future_status::ready);
-    AssignedMeasurements result2 = fut2.get();
+    // 5th call: landmark should be confirmed and emitted as new
+    AssignedMeasurements confirmedResult = sendAndGet(Measurements{meas});
+    ASSERT_EQ(confirmedResult.size(), 1u);
+    EXPECT_TRUE(confirmedResult[0].isNew);
+    int firstId = confirmedResult[0].id;
+
+    // Next call: should match existing confirmed landmark
+    AssignedMeasurements result2 = sendAndGet(Measurements{meas});
     ASSERT_EQ(result2.size(), 1u);
     EXPECT_FALSE(result2[0].isNew);
     EXPECT_EQ(result2[0].id, firstId);
@@ -77,18 +76,26 @@ TEST(NearestNeighborAssociationTest, EuclideanDistanceAndHandleUpdate)
     double d = assoc.euclideanDistance(a, b);
     EXPECT_NEAR(d, 5.0, 1e-9);
 
+    auto sendAndGet = [&assoc](const Measurements& measurements) {
+        std::promise<AssignedMeasurements> prom;
+        auto fut = prom.get_future();
+        assoc.registerCallback([&prom](AssignedMeasurements am)
+                               { try { prom.set_value(am);} catch(...){} });
+        assoc.onReceiveMeasurement(measurements);
+        EXPECT_EQ(fut.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+        return fut.get();
+    };
+
     // Now test handleUpdate: create initial landmark at (0,0,0)
-    std::promise<AssignedMeasurements> prom;
-    auto fut = prom.get_future();
-    assoc.registerCallback([&prom](AssignedMeasurements am)
-                           { try { prom.set_value(am);} catch(...){} });
     Measurement meas;
     meas.payload = Eigen::VectorXd(3);
     meas.payload << 0.0, 0.0, 0.0;
     meas.model = std::make_shared<Point3DMeasurementModel>();
-    assoc.onReceiveMeasurement(Measurements{meas});
-    ASSERT_EQ(fut.wait_for(std::chrono::seconds(5)), std::future_status::ready);
-    AssignedMeasurements res = fut.get();
+    AssignedMeasurements res;
+    for (int i = 0; i < 5; i++)
+    {
+        res = sendAndGet(Measurements{meas});
+    }
     ASSERT_EQ(res.size(), 1u);
     int initialId = res[0].id;
 
@@ -104,18 +111,57 @@ TEST(NearestNeighborAssociationTest, EuclideanDistanceAndHandleUpdate)
     assoc.handleUpdate(map);
 
     // Now send measurement near (10,0,0) and expect a match (not new)
-    std::promise<AssignedMeasurements> prom2;
-    auto fut2 = prom2.get_future();
-    assoc.registerCallback([&prom2](AssignedMeasurements am)
-                           { try { prom2.set_value(am);} catch(...){} });
     Measurement meas2;
     meas2.payload = Eigen::VectorXd(3);
     meas2.payload << 10.0, 0.0, 0.0;
     meas2.model = std::make_shared<Point3DMeasurementModel>();
-    assoc.onReceiveMeasurement(Measurements{meas2});
-    ASSERT_EQ(fut2.wait_for(std::chrono::seconds(5)), std::future_status::ready);
-    AssignedMeasurements res2 = fut2.get();
+    AssignedMeasurements res2 = sendAndGet(Measurements{meas2});
     ASSERT_EQ(res2.size(), 1u);
     EXPECT_FALSE(res2[0].isNew);
     EXPECT_EQ(res2[0].id, initialId);
+}
+
+TEST(NearestNeighborAssociationTest, TentativeConsistencyRequiresConsecutiveObservations)
+{
+    NearestNeighborAssociation assoc;
+    assoc.setLogger(std::make_shared<MockSlamLogger>());
+
+    auto sendAndGet = [&assoc](const Measurements& measurements) {
+        std::promise<AssignedMeasurements> prom;
+        auto fut = prom.get_future();
+        assoc.registerCallback([&prom](AssignedMeasurements am)
+                               { try { prom.set_value(am);} catch(...){} });
+        assoc.onReceiveMeasurement(measurements);
+        EXPECT_EQ(fut.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+        return fut.get();
+    };
+
+    Measurement pointA;
+    pointA.payload = Eigen::VectorXd(3);
+    pointA.payload << 1.0, 2.0, 3.0;
+    pointA.model = std::make_shared<Point3DMeasurementModel>();
+
+    Measurement pointFar;
+    pointFar.payload = Eigen::VectorXd(3);
+    pointFar.payload << 3.0, 2.0, 3.0;
+    pointFar.model = std::make_shared<Point3DMeasurementModel>();
+
+    for (int i = 0; i < 4; i++)
+    {
+        AssignedMeasurements result = sendAndGet(Measurements{pointA});
+        EXPECT_TRUE(result.empty());
+    }
+
+    AssignedMeasurements farResult = sendAndGet(Measurements{pointFar});
+    EXPECT_TRUE(farResult.empty());
+
+    for (int i = 0; i < 4; i++)
+    {
+        AssignedMeasurements result = sendAndGet(Measurements{pointA});
+        EXPECT_TRUE(result.empty());
+    }
+
+    AssignedMeasurements confirmedResult = sendAndGet(Measurements{pointA});
+    ASSERT_EQ(confirmedResult.size(), 1u);
+    EXPECT_TRUE(confirmedResult[0].isNew);
 }
