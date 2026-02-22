@@ -40,6 +40,7 @@ public:
     std::optional<Position> inverse(const Pose &robot_pose, const Measurement &m) const override;
 
 private:
+    static Eigen::Quaterniond normalizedRobotQuaternion(const Pose& robot_pose);
     Eigen::Matrix4d _T_sensor_robot; ///< Sensor extrinsic transform
 };
 

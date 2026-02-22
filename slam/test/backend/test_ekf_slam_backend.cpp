@@ -9,6 +9,9 @@
 #include <future>
 #include <chrono>
 #include <thread>
+#include <Eigen/Geometry>
+#include <cmath>
+#include <tuple>
 
 namespace slam
 {
@@ -238,5 +241,137 @@ TEST(EkfSlamBackendTest, EndToEndObservationCreatesLandmarkAndResetClearsIt)
   auto mapAfterReset = backend.getMap();
   EXPECT_TRUE(mapAfterReset.landmarks.empty());
 }
+
+class EkfSlamBackendHeadingTest : public ::testing::TestWithParam<double>
+{
+protected:
+  static void runRepeatedStaticObservationScenario(double yaw_rad)
+  {
+    auto motion = std::make_shared<PositionOnlyMotionModel>();
+    auto ekf = std::make_shared<ExtendedKalmanFilter>(motion);
+    auto assoc = std::make_shared<NearestNeighborAssociation>();
+    auto factory = std::make_shared<MeasurementFactory>();
+
+    EkfSlamBackend backend(ekf, assoc, factory);
+    backend.setLogger(std::make_shared<MockSlamLogger>());
+    backend.initialize();
+
+    MotionConstraint motionConstraint;
+    motionConstraint.delta_position = Eigen::Vector3d::Zero();
+    Eigen::Quaterniond yaw(Eigen::AngleAxisd(yaw_rad, Eigen::Vector3d::UnitZ()));
+    motionConstraint.orientation = yaw;
+
+    Observation obs(0.0, Point3D{Eigen::Vector3d(1.0, 0.0, 1.0)});
+    for (int i = 0; i < 12; ++i)
+    {
+      backend.processMotion(motionConstraint);
+      backend.processObservation(Observations{obs});
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+
+    bool gotAnyLandmark = false;
+    MapSummary map;
+    for (int i = 0; i < 30; ++i)
+    {
+      map = backend.getMap();
+      if (!map.landmarks.empty())
+      {
+        gotAnyLandmark = true;
+        break;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+
+    EXPECT_TRUE(gotAnyLandmark);
+    EXPECT_LE(map.landmarks.size(), 1u);
+  }
+};
+
+TEST_P(EkfSlamBackendHeadingTest, RepeatedStaticObservationAcrossHeadingsDoesNotCreateManyLandmarks)
+{
+  runRepeatedStaticObservationScenario(GetParam());
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    MultipleYawAngles,
+    EkfSlamBackendHeadingTest,
+    ::testing::Values(
+        -M_PI,
+        -M_PI_2,
+        -M_PI_4,
+        M_PI_4,
+        M_PI_2,
+        M_PI));
+
+class EkfSlamBackendHeadingWithDriftTest
+  : public ::testing::TestWithParam<std::tuple<double, double, double>>
+{
+protected:
+  static void runRepeatedObservationWithDriftScenario(double yaw_rad, double drift_dx, double drift_dy)
+  {
+    auto motion = std::make_shared<PositionOnlyMotionModel>();
+    auto ekf = std::make_shared<ExtendedKalmanFilter>(motion);
+    auto assoc = std::make_shared<NearestNeighborAssociation>();
+    auto factory = std::make_shared<MeasurementFactory>();
+
+    EkfSlamBackend backend(ekf, assoc, factory);
+    backend.setLogger(std::make_shared<MockSlamLogger>());
+    backend.initialize();
+
+    Eigen::Quaterniond yaw(Eigen::AngleAxisd(yaw_rad, Eigen::Vector3d::UnitZ()));
+    Eigen::Vector3d robot_pos = Eigen::Vector3d::Zero();
+    const Eigen::Vector3d landmark_world(3.0, 1.0, 1.0);
+    const Eigen::Vector3d drift_step(drift_dx, drift_dy, 0.0);
+
+    for (int i = 0; i < 12; ++i)
+    {
+      MotionConstraint motionConstraint;
+      motionConstraint.delta_position = drift_step;
+      motionConstraint.orientation = yaw;
+      backend.processMotion(motionConstraint);
+
+      robot_pos += drift_step;
+      const Eigen::Vector3d measured_in_robot =
+        yaw.toRotationMatrix().transpose() * (landmark_world - robot_pos);
+
+      Observation obs(0.0, Point3D{measured_in_robot});
+      backend.processObservation(Observations{obs});
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+
+    bool gotAnyLandmark = false;
+    MapSummary map;
+    for (int i = 0; i < 30; ++i)
+    {
+      map = backend.getMap();
+      if (!map.landmarks.empty())
+      {
+        gotAnyLandmark = true;
+        break;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+
+    EXPECT_TRUE(gotAnyLandmark);
+    EXPECT_LE(map.landmarks.size(), 1u);
+  }
+};
+
+TEST_P(EkfSlamBackendHeadingWithDriftTest, RepeatedObservationWithSmallDriftAndRotationDoesNotCreateManyLandmarks)
+{
+  const auto [yaw_rad, drift_dx, drift_dy] = GetParam();
+  runRepeatedObservationWithDriftScenario(yaw_rad, drift_dx, drift_dy);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    MultipleYawAndDriftCases,
+    EkfSlamBackendHeadingWithDriftTest,
+    ::testing::Values(
+        std::make_tuple(-M_PI_2, 0.005, 0.0),
+        std::make_tuple(-M_PI_2, 0.0, 0.005),
+        std::make_tuple(M_PI_4, 0.004, -0.003),
+        std::make_tuple(M_PI_2, 0.005, 0.0),
+        std::make_tuple(M_PI_2, 0.0, -0.005),
+        std::make_tuple(M_PI, 0.003, 0.003)));
 
 }  // namespace slam
