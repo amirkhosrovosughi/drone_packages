@@ -11,6 +11,7 @@ static const double QUATERNION_RATE_LIMIT = 0.2;
 static const int MIN_CONFIRMATION_OBSERVATIONS = 5;
 static const int MAX_TENTATIVE_MISSED_FRAMES = 6;
 static const double MAX_TENTATIVE_COVARIANCE_TRACE = 0.10;
+static const double UNDER_CONSTRAINED_GATING_DISTANCE = 1.5;
 
 static const LogLevel HIGH_LEVEL = LogLevel::INFO;
 static const LogLevel LOW_LEVEL = LogLevel::DEBUG;
@@ -18,6 +19,7 @@ static const std::string LOG_SUBSECTION = "[association] - ";
 
 NearestNeighborAssociation::NearestNeighborAssociation()
 {
+    _underConstrainedInitializationStrategy = std::make_shared<NoOpUnderConstrainedInitializationStrategy>();
 }
 
 void NearestNeighborAssociation::onReceiveMeasurement(const Measurements& meas) 
@@ -119,26 +121,12 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
             data_logging_utils::DataLogger::log(plotTagMeas + "z", measurement.payload[2]);
             #endif
 
-            auto capturedLandmarkPosition = measurement.model->inverse(_robotPose, measurement);
-            if (!capturedLandmarkPosition)
+            Landmark landmark;
+            bool isUnderConstrainedInitialization = false;
+            if (!tryInitializeLandmarkFromMeasurement(measurement, landmark, isUnderConstrainedInitialization))
             {
-                
-                // TODO:  The landmark should still be initialized, but as a high-uncertainty hypothesis 
-                //along the bearing ray, and refined over multiple observations.
-
-                // TODO (bearing-only / under-constrained measurement):
-                // This measurement does not admit a unique inverse observation.
-                // Landmark should still be initialized as a high-uncertainty hypothesis
-                // (e.g., along the bearing ray with large covariance), or delayed until
-                // sufficient parallax is available. This requires:
-                //   - Landmark lifecycle states (uninitialized / tentative / confirmed)
-                //   - EKF / SLAM support for large anisotropic covariance
-                //   - Association logic that refines hypotheses over multiple observations
-                // Graph-SLAM can naturally handle this via ray constraint factors.
                 continue;
             }
-            Landmark landmark;
-            landmark.position = capturedLandmarkPosition.value();
             
             _logger->log(LOW_LEVEL, LOG_SUBSECTION, "landmark position is: \n (", landmark.position.x,
                         ", ", landmark.position.y, ", ", landmark.position.z, ") \n");
@@ -162,42 +150,14 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
             else
             {
                 _logger->log(LOW_LEVEL, LOG_SUBSECTION, "!-------------------------------------!");
+                if (!isUnderConstrainedInitialization)
+                {
+                    addDirectLandmark(measurement, landmark, assignedMeasurements);
+                    continue;
+                }
+
                 _logger->log(LOW_LEVEL, LOG_SUBSECTION, "No unassigned confirmed landmark, track tentative candidate.\n");
-
-                int tentativeCandidateId = findNearestTentativeCandidate(landmark);
-                if (tentativeCandidateId >= 0)
-                {
-                    TentativeLandmark& candidate = _tentativeLandmarks[tentativeCandidateId];
-                    updateTentativeLandmark(candidate, landmark.position);
-                    candidate.seenInCurrentFrame = true;
-
-                    if (shouldConfirmTentativeLandmark(candidate))
-                    {
-                        _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Confirming tentative landmark candidate ", candidate.candidateId,
-                                     " after ", candidate.consistentObservations, " observations.");
-
-                        Landmark confirmedLandmark;
-                        confirmedLandmark.id = _numberLandmarks++;
-                        confirmedLandmark.position = candidate.position;
-                        confirmedLandmark.variance = candidate.variance;
-                        confirmedLandmark.observeRepeat = candidate.consistentObservations;
-
-                        AssignedMeasurement meas(measurement, confirmedLandmark.id);
-                        meas.isNew = true;
-                        assignedMeasurements.push_back(meas);
-
-                        _landmarks.push_back(confirmedLandmark);
-                        _tentativeLandmarks.erase(candidate.candidateId);
-                    }
-                }
-                else
-                {
-                    TentativeLandmark candidate;
-                    candidate.candidateId = _nextTentativeId++;
-                    updateTentativeLandmark(candidate, landmark.position);
-                    candidate.seenInCurrentFrame = true;
-                    _tentativeLandmarks[candidate.candidateId] = candidate;
-                }
+                trackOrConfirmTentativeLandmark(measurement, landmark, assignedMeasurements);
                 continue;
             }
 
@@ -242,44 +202,12 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
             else
             {
                 _logger->log(LOW_LEVEL, LOG_SUBSECTION, "!-------------------------------------!");
-                int tentativeCandidateId = findNearestTentativeCandidate(landmark);
-
-                if (tentativeCandidateId >= 0)
+                if (!isUnderConstrainedInitialization)
                 {
-                    TentativeLandmark& candidate = _tentativeLandmarks[tentativeCandidateId];
-                    updateTentativeLandmark(candidate, landmark.position);
-                    candidate.seenInCurrentFrame = true;
-                    landmarkId = candidate.candidateId;
-
-                    if (shouldConfirmTentativeLandmark(candidate))
-                    {
-                        _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Confirming tentative landmark candidate ", candidate.candidateId,
-                                     " after ", candidate.consistentObservations, " observations.");
-
-                        Landmark confirmedLandmark;
-                        confirmedLandmark.id = _numberLandmarks++;
-                        confirmedLandmark.position = candidate.position;
-                        confirmedLandmark.variance = candidate.variance;
-                        confirmedLandmark.observeRepeat = candidate.consistentObservations;
-
-                        AssignedMeasurement meas(measurement, confirmedLandmark.id);
-                        meas.isNew = true;
-                        assignedMeasurements.push_back(meas);
-
-                        _landmarks.push_back(confirmedLandmark);
-                        _tentativeLandmarks.erase(candidate.candidateId);
-                    }
+                    addDirectLandmark(measurement, landmark, assignedMeasurements, &landmarkId);
+                    continue;
                 }
-                else
-                {
-                    _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Creating tentative landmark candidate ...");
-                    TentativeLandmark candidate;
-                    candidate.candidateId = _nextTentativeId++;
-                    updateTentativeLandmark(candidate, landmark.position);
-                    candidate.seenInCurrentFrame = true;
-                    landmarkId = candidate.candidateId;
-                    _tentativeLandmarks[candidate.candidateId] = candidate;
-                }
+                trackOrConfirmTentativeLandmark(measurement, landmark, assignedMeasurements, &landmarkId);
             }
 
             #ifdef STORE_DEBUG_DATA
@@ -297,6 +225,116 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
     }
 
     _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "callback measurement is called.");
+}
+
+bool NearestNeighborAssociation::tryInitializeLandmarkFromMeasurement(
+    const Measurement& measurement,
+    Landmark& landmark,
+    bool& isUnderConstrainedInitialization) const
+{
+    isUnderConstrainedInitialization = false;
+
+    auto capturedLandmarkPosition = measurement.model->inverse(_robotPose, measurement);
+    if (!capturedLandmarkPosition)
+    {
+        if (_underConstrainedInitializationStrategy)
+        {
+            capturedLandmarkPosition = _underConstrainedInitializationStrategy->initialize(measurement, _robotPose);
+        }
+
+        if (!capturedLandmarkPosition)
+        {
+            return false;
+        }
+
+        isUnderConstrainedInitialization = true;
+    }
+
+    landmark.position = capturedLandmarkPosition.value();
+    return true;
+}
+
+void NearestNeighborAssociation::appendNewLandmarkAssignment(
+    const Measurement& measurement,
+    const Landmark& landmark,
+    AssignedMeasurements& assignedMeasurements) const
+{
+    AssignedMeasurement meas(measurement, landmark.id);
+    meas.isNew = true;
+    meas.position = landmark.position;
+    meas.hasInitializedPosition = true;
+    assignedMeasurements.push_back(meas);
+}
+
+void NearestNeighborAssociation::addDirectLandmark(
+    const Measurement& measurement,
+    Landmark& landmark,
+    AssignedMeasurements& assignedMeasurements,
+    int* landmarkId)
+{
+    _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Adding a new landmark ...");
+    landmark.id = _numberLandmarks++;
+    landmark.observeRepeat = 1;
+
+    if (landmarkId)
+    {
+        *landmarkId = landmark.id;
+    }
+
+    _landmarks.push_back(landmark);
+    appendNewLandmarkAssignment(measurement, landmark, assignedMeasurements);
+}
+
+void NearestNeighborAssociation::trackOrConfirmTentativeLandmark(
+    const Measurement& measurement,
+    const Landmark& landmark,
+    AssignedMeasurements& assignedMeasurements,
+    int* landmarkId)
+{
+    const int tentativeCandidateId = findNearestTentativeCandidate(landmark, true);
+    if (tentativeCandidateId >= 0)
+    {
+        TentativeLandmark& candidate = _tentativeLandmarks[tentativeCandidateId];
+        updateTentativeLandmark(candidate, landmark.position);
+        candidate.seenInCurrentFrame = true;
+
+        if (landmarkId)
+        {
+            *landmarkId = candidate.candidateId;
+        }
+
+        if (shouldConfirmTentativeLandmark(candidate))
+        {
+            _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Confirming tentative landmark candidate ", candidate.candidateId,
+                         " after ", candidate.consistentObservations, " observations.");
+
+            Landmark confirmedLandmark;
+            confirmedLandmark.id = _numberLandmarks++;
+            confirmedLandmark.position = candidate.position;
+            confirmedLandmark.variance = candidate.variance;
+            confirmedLandmark.observeRepeat = candidate.consistentObservations;
+
+            _landmarks.push_back(confirmedLandmark);
+            appendNewLandmarkAssignment(measurement, confirmedLandmark, assignedMeasurements);
+            _tentativeLandmarks.erase(candidate.candidateId);
+        }
+    }
+    else
+    {
+        _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Creating tentative landmark candidate ...");
+        TentativeLandmark candidate;
+        candidate.candidateId = _nextTentativeId++;
+        candidate.isUnderConstrained = true;
+        updateTentativeLandmark(candidate, landmark.position);
+        candidate.seenInCurrentFrame = true;
+
+        if (landmarkId)
+        {
+            *landmarkId = candidate.candidateId;
+        }
+
+        _tentativeLandmarks[candidate.candidateId] = candidate;
+    }
 }
 
 double NearestNeighborAssociation::euclideanDistance(const Landmark& meas, Landmark feature)
@@ -336,7 +374,7 @@ void NearestNeighborAssociation::updateTentativeLandmark(TentativeLandmark& cand
     {
         candidate.consistentObservations = 1;
     }
-    else if (consistencyDistance < GATING_DISTANCE)
+    else if (consistencyDistance < (candidate.isUnderConstrained ? UNDER_CONSTRAINED_GATING_DISTANCE : GATING_DISTANCE))
     {
         candidate.consistentObservations++;
     }
@@ -379,6 +417,11 @@ bool NearestNeighborAssociation::shouldConfirmTentativeLandmark(const TentativeL
         return false;
     }
 
+    if (candidate.isUnderConstrained)
+    {
+        return true;
+    }
+
     const double covarianceTrace = candidate.variance.xx + candidate.variance.yy;
     return covarianceTrace <= MAX_TENTATIVE_COVARIANCE_TRACE;
 }
@@ -411,7 +454,9 @@ void NearestNeighborAssociation::pruneTentativeLandmarks()
     }
 }
 
-int NearestNeighborAssociation::findNearestTentativeCandidate(const Landmark& measurementLandmark) const
+int NearestNeighborAssociation::findNearestTentativeCandidate(
+    const Landmark& measurementLandmark,
+    bool isUnderConstrainedInitialization) const
 {
     int nearestCandidateId = -1;
     double shortestDistance = std::numeric_limits<double>::max();
@@ -420,6 +465,10 @@ int NearestNeighborAssociation::findNearestTentativeCandidate(const Landmark& me
     for (const auto& entry : _tentativeLandmarks)
     {
         const TentativeLandmark& candidate = entry.second;
+        if (candidate.isUnderConstrained != isUnderConstrainedInitialization)
+        {
+            continue;
+        }
         const double distance = (measurementVector - candidate.position.getPositionVector()).norm();
         if (distance < shortestDistance)
         {

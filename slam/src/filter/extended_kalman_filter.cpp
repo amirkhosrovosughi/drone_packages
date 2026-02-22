@@ -251,18 +251,26 @@ void ExtendedKalmanFilter::addLandmark(const AssignedMeasurement& meas)
     robotPose.quaternion = _robotQuaternion;
 
     _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Adding landmark with measurement payload. (payload not shown)");
-    if (!meas.measurement.model) {
-        _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Assigned measurement has no model; cannot initialize landmark");
-        return;
+    Position newLandmarkPosition;
+    if (meas.hasInitializedPosition)
+    {
+        newLandmarkPosition = meas.position;
     }
+    else
+    {
+        if (!meas.measurement.model) {
+            _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Assigned measurement has no model; cannot initialize landmark");
+            return;
+        }
 
-    auto model = meas.measurement.model;
-    auto optLandmarkPosition = model->inverse(robotPose, meas.measurement);
-    if (!optLandmarkPosition) {
-        _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Failed to initialize landmark position (inverse failed)");
-        return;
+        auto model = meas.measurement.model;
+        auto optLandmarkPosition = model->inverse(robotPose, meas.measurement);
+        if (!optLandmarkPosition) {
+            _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Failed to initialize landmark position (inverse failed)");
+            return;
+        }
+        newLandmarkPosition = *optLandmarkPosition;
     }
-    Position newLandmarkPosition = *optLandmarkPosition;
     // TODO: // Landmark aging & pruning (for dynamic environments, spurious detections)
 
     _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Landmark added with coordinate:\n", newLandmarkPosition.getPositionVector());

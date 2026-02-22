@@ -18,12 +18,14 @@ struct AssignedMeasurement {
     int id;
     Position position;
     bool isNew;
+  bool hasInitializedPosition;
 
     AssignedMeasurement() = default;
     AssignedMeasurement(const Measurement measurement, int id) {
         this->measurement = measurement;
         this->id = id;
         this->isNew = false;
+        this->hasInitializedPosition = false;
     }
 };
 

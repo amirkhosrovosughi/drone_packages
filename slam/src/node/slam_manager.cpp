@@ -4,6 +4,7 @@
 
 #include "backend/ekf_slam_backend.hpp"
 
+#include "association/ekf_bearing_initialization_strategy.hpp"
 #include "association/nearest_neighbor_association.hpp"
 #include "filter/extended_kalman_filter.hpp"
 #include "motion/position_only_motion_model.hpp"
@@ -33,6 +34,7 @@ SlamManager::SlamManager()
   _measurementFactory = std::make_shared<MeasurementFactory>();
 
   association->setLogger(_logger);
+  association->setUnderConstrainedInitializationStrategy(std::make_shared<EkfBearingInitializationStrategy>());
   ekf->setLogger(_logger);
 
   // Construct backend with injected dependencies
@@ -176,8 +178,13 @@ void SlamManager::featureBboxCallback(
 
   // Build Observations via builder
   slam::Observations obs = slam::ObservationBuilder::fromBboxArray(*msg, timeTag);
-  // _backend->processObservation(obs); // TODO: uncomment after implementing   Nearest Neighbor
-                                        // Association – Under-Constrained Measurements
+  if (!msg->detections.empty() && obs.empty())
+  {
+    RCLCPP_WARN(this->get_logger(),
+                "Received %zu bbox detections but produced 0 SLAM observations. Camera info may not be initialized yet.",
+                msg->detections.size());
+  }
+  _backend->processObservation(obs);
 }
 
 void SlamManager::publishMap(const MapSummary& map)

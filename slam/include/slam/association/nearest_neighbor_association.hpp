@@ -5,6 +5,7 @@
 #include "motion/motion_model.hpp"
 #include "measurement/measurement_model.hpp"
 #include "measurement/measurement.hpp"
+#include "association/under_constrained_initialization_strategy.hpp"
 #include <cmath>
 #include <mutex>
 #include <unordered_map>
@@ -24,6 +25,7 @@ struct TentativeLandmark {
         int candidateId;
         Position position;
         Variance2D variance;
+        bool isUnderConstrained;
         int consistentObservations;
         int missedFrames;
         bool seenInCurrentFrame;
@@ -35,10 +37,13 @@ struct TentativeLandmark {
         double m2Y;
 
         TentativeLandmark()
-                : candidateId(0), position(Position()), variance(Variance2D()), consistentObservations(0),
+            : candidateId(0), position(Position()), variance(Variance2D()), isUnderConstrained(false), consistentObservations(0),
                     missedFrames(0), seenInCurrentFrame(false), sampleCount(0), meanX(0.0), meanY(0.0),
                     meanZ(0.0), m2X(0.0), m2Y(0.0) {}
 };
+
+using UnderConstrainedInitializationStrategyPtr =
+    std::shared_ptr<UnderConstrainedInitializationStrategy>;
 
 /**
  * @brief Nearest Neighbor Association implementation.
@@ -92,6 +97,24 @@ public:
         _logger = logger;
     }
 
+    /**
+     * @brief Set strategy used when a measurement model inverse is under-constrained.
+     *
+     * @param strategy Strategy instance. If nullptr, a no-op strategy is restored.
+     */
+    void setUnderConstrainedInitializationStrategy(
+        UnderConstrainedInitializationStrategyPtr strategy)
+    {
+        if (strategy)
+        {
+            _underConstrainedInitializationStrategy = std::move(strategy);
+        }
+        else
+        {
+            _underConstrainedInitializationStrategy = std::make_shared<NoOpUnderConstrainedInitializationStrategy>();
+        }
+    }
+
 private:
     /**
      * @brief Core measurement-processing routine (does the actual association).
@@ -130,6 +153,48 @@ protected:
 
 private:
     /**
+     * @brief Initialize a landmark position from measurement.
+     *
+     * Uses model inverse when possible, otherwise falls back to the configured
+     * under-constrained initialization strategy.
+     *
+     * @param measurement Input measurement.
+     * @param landmark Output initialized landmark (position only).
+     * @param isUnderConstrainedInitialization True when strategy fallback is used.
+     * @return True if initialization succeeded.
+     */
+    bool tryInitializeLandmarkFromMeasurement(
+        const Measurement& measurement,
+        Landmark& landmark,
+        bool& isUnderConstrainedInitialization) const;
+
+    /**
+     * @brief Append a newly initialized/confirmed landmark assignment.
+     */
+    void appendNewLandmarkAssignment(
+        const Measurement& measurement,
+        const Landmark& landmark,
+        AssignedMeasurements& assignedMeasurements) const;
+
+    /**
+     * @brief Add fully constrained landmark directly.
+     */
+    void addDirectLandmark(
+        const Measurement& measurement,
+        Landmark& landmark,
+        AssignedMeasurements& assignedMeasurements,
+        int* landmarkId = nullptr);
+
+    /**
+     * @brief Track tentative under-constrained landmark and confirm when ready.
+     */
+    void trackOrConfirmTentativeLandmark(
+        const Measurement& measurement,
+        const Landmark& landmark,
+        AssignedMeasurements& assignedMeasurements,
+        int* landmarkId = nullptr);
+
+    /**
         * @brief Mark all tentative candidates as not observed for the current frame.
         *
         * This prepares lifecycle bookkeeping before processing incoming measurements.
@@ -161,9 +226,12 @@ private:
      * @brief Find nearest tentative candidate for a measurement-derived landmark.
      *
      * @param measurementLandmark Landmark estimated from current measurement.
+     * @param isUnderConstrainedInitialization Match candidates of same measurement type.
      * @return Candidate id if within gating distance, otherwise -1.
      */
-    int findNearestTentativeCandidate(const Landmark& measurementLandmark) const;
+    int findNearestTentativeCandidate(
+        const Landmark& measurementLandmark,
+        bool isUnderConstrainedInitialization) const;
 
     std::function<void(AssignedMeasurements)> _callback;            ///< Callback invoked with associated measurements
     std::mutex _mutex;                                              ///< Mutex to protect internal state
@@ -175,6 +243,7 @@ private:
     Pose _robotPose;                                                ///< Latest robot pose
     LoggerPtr _logger;                                              ///< Logger instance
     double _quaternionRate = 0.0;                                   ///< Rate of quaternion change (used for skipping)
+    UnderConstrainedInitializationStrategyPtr _underConstrainedInitializationStrategy; ///< Under-constrained initialization strategy instance
 };
 
 #endif  // SLAM__NEAREST_NEIGHBOR_ASSOCIATION_HPP_

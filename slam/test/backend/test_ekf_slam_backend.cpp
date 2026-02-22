@@ -2,6 +2,7 @@
 
 #include "backend/ekf_slam_backend.hpp"
 #include "association/base_association.hpp"
+#include "association/ekf_bearing_initialization_strategy.hpp"
 #include "common/mock_slam_logger.hpp"
 #include "motion/position_only_motion_model.hpp"
 #include "association/nearest_neighbor_association.hpp"
@@ -240,6 +241,102 @@ TEST(EkfSlamBackendTest, EndToEndObservationCreatesLandmarkAndResetClearsIt)
   backend.reset();
   auto mapAfterReset = backend.getMap();
   EXPECT_TRUE(mapAfterReset.landmarks.empty());
+}
+
+TEST(EkfSlamBackendTest, EndToEndBearingObservationCreatesLandmarkWithStrategy)
+{
+  auto motion = std::make_shared<PositionOnlyMotionModel>();
+  auto ekf = std::make_shared<ExtendedKalmanFilter>(motion);
+  auto assoc = std::make_shared<NearestNeighborAssociation>();
+  assoc->setUnderConstrainedInitializationStrategy(std::make_shared<EkfBearingInitializationStrategy>());
+  auto factory = std::make_shared<MeasurementFactory>();
+
+  EkfSlamBackend backend(ekf, assoc, factory);
+  backend.setLogger(std::make_shared<MockSlamLogger>());
+  backend.initialize();
+
+  MotionConstraint motionConstraint;
+  motionConstraint.delta_position = Eigen::Vector3d::Zero();
+  motionConstraint.orientation = Eigen::Quaterniond::Identity();
+  backend.processMotion(motionConstraint);
+
+  Bearing bearing;
+  bearing.yaw = 0.1;
+  bearing.pitch = -0.05;
+  Observation obs(0.0, bearing);
+
+  for (int i = 0; i < 5; ++i)
+  {
+    backend.processObservation(Observations{obs});
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+
+  bool gotLandmark = false;
+  for (int i = 0; i < 30; ++i)
+  {
+    auto map = backend.getMap();
+    if (!map.landmarks.empty())
+    {
+      gotLandmark = true;
+      break;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  }
+
+  EXPECT_TRUE(gotLandmark);
+}
+
+TEST(EkfSlamBackendTest, NoisyBearingObservationsStillConfirmTentativeLandmark)
+{
+  auto motion = std::make_shared<PositionOnlyMotionModel>();
+  auto ekf = std::make_shared<ExtendedKalmanFilter>(motion);
+  auto assoc = std::make_shared<NearestNeighborAssociation>();
+  assoc->setUnderConstrainedInitializationStrategy(std::make_shared<EkfBearingInitializationStrategy>());
+  auto factory = std::make_shared<MeasurementFactory>();
+
+  EkfSlamBackend backend(ekf, assoc, factory);
+  backend.setLogger(std::make_shared<MockSlamLogger>());
+  backend.initialize();
+
+  MotionConstraint motionConstraint;
+  motionConstraint.delta_position = Eigen::Vector3d::Zero();
+  motionConstraint.orientation = Eigen::Quaterniond::Identity();
+  backend.processMotion(motionConstraint);
+
+  const std::vector<std::pair<double, double>> jitteredBearings = {
+    {0.10, -0.05},
+    {0.12, -0.04},
+    {0.09, -0.06},
+    {0.11, -0.05},
+    {0.13, -0.03},
+    {0.10, -0.04},
+    {0.08, -0.05},
+    {0.12, -0.06}
+  };
+
+  for (const auto& sample : jitteredBearings)
+  {
+    Bearing bearing;
+    bearing.yaw = sample.first;
+    bearing.pitch = sample.second;
+    Observation obs(0.0, bearing);
+    backend.processObservation(Observations{obs});
+    std::this_thread::sleep_for(std::chrono::milliseconds(12));
+  }
+
+  bool gotLandmark = false;
+  for (int i = 0; i < 30; ++i)
+  {
+    auto map = backend.getMap();
+    if (!map.landmarks.empty())
+    {
+      gotLandmark = true;
+      break;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  }
+
+  EXPECT_TRUE(gotLandmark);
 }
 
 class EkfSlamBackendHeadingTest : public ::testing::TestWithParam<double>
