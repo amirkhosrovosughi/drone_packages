@@ -1,0 +1,17 @@
+<sdf version="1.9">
+  <model name="connector_road">
+    <static>true</static>
+
+    <include>
+      <uri>model://connector_road_background</uri>
+      <name>connector_road_background_main</name>
+      <pose>0 0 0 0 0 0</pose>
+    </include>
+
+    <include>
+      <uri>model://connector_road_pole_layout</uri>
+      <name>connector_road_pole_layout_main</name>
+      <pose>0 0 0 0 0 0</pose>
+    </include>
+  </model>
+</sdf>

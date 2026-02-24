@@ -1,0 +1,117 @@
+<sdf version="1.9">
+  <model name="residental_block_background">
+    <static>true</static>
+
+    <!-- Houses: perimeter ring (4 per side), flipped 180 degrees from original -->
+    <include><uri>model://house</uri><name>house_n1</name><pose>-2.5 3.5 0 0 0 1.5708</pose></include>
+    <include><uri>model://house</uri><name>house_n2</name><pose>-0.75 3.5 0 0 0 1.5708</pose></include>
+    <include><uri>model://house</uri><name>house_n3</name><pose>0.75 3.5 0 0 0 1.5708</pose></include>
+    <include><uri>model://house</uri><name>house_n4</name><pose>2.5 3.5 0 0 0 1.5708</pose></include>
+
+    <include><uri>model://house</uri><name>house_s1</name><pose>-2.5 -3.5 0 0 0 -1.5708</pose></include>
+    <include><uri>model://house</uri><name>house_s2</name><pose>-0.75 -3.5 0 0 0 -1.5708</pose></include>
+    <include><uri>model://house</uri><name>house_s3</name><pose>0.75 -3.5 0 0 0 -1.5708</pose></include>
+    <include><uri>model://house</uri><name>house_s4</name><pose>2.5 -3.5 0 0 0 -1.5708</pose></include>
+
+    <include><uri>model://house</uri><name>house_e1</name><pose>3.5 -2.5 0 0 0 0</pose></include>
+    <include><uri>model://house</uri><name>house_e2</name><pose>3.5 -0.75 0 0 0 0</pose></include>
+    <include><uri>model://house</uri><name>house_e3</name><pose>3.5 0.75 0 0 0 0</pose></include>
+    <include><uri>model://house</uri><name>house_e4</name><pose>3.5 2.5 0 0 0 0</pose></include>
+
+    <include><uri>model://house</uri><name>house_w1</name><pose>-3.5 -2.5 0 0 0 3.14159</pose></include>
+    <include><uri>model://house</uri><name>house_w2</name><pose>-3.5 -0.75 0 0 0 3.14159</pose></include>
+    <include><uri>model://house</uri><name>house_w3</name><pose>-3.5 0.75 0 0 0 3.14159</pose></include>
+    <include><uri>model://house</uri><name>house_w4</name><pose>-3.5 2.5 0 0 0 3.14159</pose></include>
+
+    <!-- Sidewalk loop -->
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_n1</name><pose>-2.25 4.175 0 0 0 0</pose></include>
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_n2</name><pose>-0.75 4.175 0 0 0 0</pose></include>
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_n3</name><pose>0.75 4.175 0 0 0 0</pose></include>
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_n4</name><pose>2.25 4.175 0 0 0 0</pose></include>
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_n0</name><pose>-3.75 4.175 0 0 0 0</pose></include>
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_n5</name><pose>3.75 4.175 0 0 0 0</pose></include>
+
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_s1</name><pose>-2.25 -4.175 0 0 0 0</pose></include>
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_s2</name><pose>-0.75 -4.175 0 0 0 0</pose></include>
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_s3</name><pose>0.75 -4.175 0 0 0 0</pose></include>
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_s4</name><pose>2.25 -4.175 0 0 0 0</pose></include>
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_s0</name><pose>-3.75 -4.175 0 0 0 0</pose></include>
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_s5</name><pose>3.75 -4.175 0 0 0 0</pose></include>
+
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_e1</name><pose>4.175 -2.25 0 0 0 1.5708</pose></include>
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_e2</name><pose>4.175 -0.75 0 0 0 1.5708</pose></include>
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_e3</name><pose>4.175 0.75 0 0 0 1.5708</pose></include>
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_e4</name><pose>4.175 2.25 0 0 0 1.5708</pose></include>
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_e0</name><pose>4.175 -3.75 0 0 0 1.5708</pose></include>
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_e5</name><pose>4.175 3.75 0 0 0 1.5708</pose></include>
+
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_w1</name><pose>-4.175 -2.25 0 0 0 1.5708</pose></include>
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_w2</name><pose>-4.175 -0.75 0 0 0 1.5708</pose></include>
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_w3</name><pose>-4.175 0.75 0 0 0 1.5708</pose></include>
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_w4</name><pose>-4.175 2.25 0 0 0 1.5708</pose></include>
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_w0</name><pose>-4.175 -3.75 0 0 0 1.5708</pose></include>
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_w5</name><pose>-4.175 3.75 0 0 0 1.5708</pose></include>
+
+    <!-- Road loop -->
+    <include><uri>model://road_segment</uri><name>road_n1</name><pose>-2.25 4.5 0 0 0 0</pose></include>
+    <include><uri>model://road_segment</uri><name>road_n2</name><pose>-0.75 4.5 0 0 0 0</pose></include>
+    <include><uri>model://road_segment</uri><name>road_n3</name><pose>0.75 4.5 0 0 0 0</pose></include>
+    <include><uri>model://road_segment</uri><name>road_n4</name><pose>2.25 4.5 0 0 0 0</pose></include>
+    <include><uri>model://road_segment</uri><name>road_n0</name><pose>-3.75 4.5 0 0 0 0</pose></include>
+    <include><uri>model://road_segment</uri><name>road_n5</name><pose>3.75 4.5 0 0 0 0</pose></include>
+
+    <include><uri>model://road_segment</uri><name>road_s1</name><pose>-2.25 -4.5 0 0 0 0</pose></include>
+    <include><uri>model://road_segment</uri><name>road_s2</name><pose>-0.75 -4.5 0 0 0 0</pose></include>
+    <include><uri>model://road_segment</uri><name>road_s3</name><pose>0.75 -4.5 0 0 0 0</pose></include>
+    <include><uri>model://road_segment</uri><name>road_s4</name><pose>2.25 -4.5 0 0 0 0</pose></include>
+    <include><uri>model://road_segment</uri><name>road_s0</name><pose>-3.75 -4.5 0 0 0 0</pose></include>
+    <include><uri>model://road_segment</uri><name>road_s5</name><pose>3.75 -4.5 0 0 0 0</pose></include>
+
+    <include><uri>model://road_segment</uri><name>road_e1</name><pose>4.5 -2.25 0 0 0 1.5708</pose></include>
+    <include><uri>model://road_segment</uri><name>road_e2</name><pose>4.5 -0.75 0 0 0 1.5708</pose></include>
+    <include><uri>model://road_segment</uri><name>road_e3</name><pose>4.5 0.75 0 0 0 1.5708</pose></include>
+    <include><uri>model://road_segment</uri><name>road_e4</name><pose>4.5 2.25 0 0 0 1.5708</pose></include>
+    <include><uri>model://road_segment</uri><name>road_e0</name><pose>4.5 -3.75 0 0 0 1.5708</pose></include>
+    <include><uri>model://road_segment</uri><name>road_e5</name><pose>4.5 3.75 0 0 0 1.5708</pose></include>
+
+    <include><uri>model://road_segment</uri><name>road_w1</name><pose>-4.5 -2.25 0 0 0 1.5708</pose></include>
+    <include><uri>model://road_segment</uri><name>road_w2</name><pose>-4.5 -0.75 0 0 0 1.5708</pose></include>
+    <include><uri>model://road_segment</uri><name>road_w3</name><pose>-4.5 0.75 0 0 0 1.5708</pose></include>
+    <include><uri>model://road_segment</uri><name>road_w4</name><pose>-4.5 2.25 0 0 0 1.5708</pose></include>
+    <include><uri>model://road_segment</uri><name>road_w0</name><pose>-4.5 -3.75 0 0 0 1.5708</pose></include>
+    <include><uri>model://road_segment</uri><name>road_w5</name><pose>-4.5 3.75 0 0 0 1.5708</pose></include>
+
+    <!-- Decorative elements on/near roads -->
+    <include><uri>model://base_car</uri><name>car_north</name><pose>0.3 4.5 0 0 0 0</pose></include>
+    <include><uri>model://base_car</uri><name>car_south</name><pose>-0.6 -4.5 0 0 0 3.14159</pose></include>
+    <include><uri>model://red_car</uri><name>car_east</name><pose>4.5 0.3 0 0 0 1.5708</pose></include>
+    <include><uri>model://red_car</uri><name>car_west</name><pose>-4.5 -0.4 0 0 0 -1.5708</pose></include>
+
+    <!-- Trees / bushes closer to sidewalk-crosswalk areas -->
+    <include><uri>model://tree</uri><name>tree_ne</name><pose>3.2 3.25 0 0 0 0</pose></include>
+    <include><uri>model://tree</uri><name>tree_sw</name><pose>-3.2 -3.25 0 0 0 0</pose></include>
+    <include><uri>model://tree</uri><name>tree_nw_close</name><pose>-3.15 3.2 0 0 0 0</pose></include>
+    <include><uri>model://tree</uri><name>tree_se_close</name><pose>3.1 -3.2 0 0 0 0</pose></include>
+
+    <!-- Pine trees between houses near sidewalk -->
+    <include><uri>model://pine_tree</uri><name>pine_nw</name><pose>-2.55 2.95 0 0 0 0</pose></include>
+    <include><uri>model://pine_tree</uri><name>pine_se</name><pose>2.55 -2.95 0 0 0 0</pose></include>
+    <include><uri>model://pine_tree</uri><name>pine_n_mid</name><pose>0.05 3.18 0 0 0 0</pose></include>
+    <include><uri>model://pine_tree</uri><name>pine_s_mid</name><pose>-0.15 -3.18 0 0 0 0</pose></include>
+    <include><uri>model://pine_tree</uri><name>pine_w_mid</name><pose>-3.18 0.2 0 0 0 0</pose></include>
+
+    <!-- Scattered center greenery in open space -->
+    <include><uri>model://tree</uri><name>tree_center_1</name><pose>-1.2 0.95 0 0 0 0</pose></include>
+    <include><uri>model://tree</uri><name>tree_center_2</name><pose>1.15 -0.85 0 0 0 0</pose></include>
+    <include><uri>model://tree</uri><name>tree_center_3</name><pose>0.25 1.35 0 0 0 0</pose></include>
+    <include><uri>model://tree</uri><name>tree_center_4</name><pose>-0.35 -1.25 0 0 0 0</pose></include>
+
+    <include><uri>model://bush</uri><name>bush_nw</name><pose>-3.25 3.0 0 0 0 0</pose></include>
+    <include><uri>model://bush</uri><name>bush_ne</name><pose>3.1 2.95 0 0 0 0</pose></include>
+    <include><uri>model://bush</uri><name>bush_sw</name><pose>-3.05 -2.95 0 0 0 0</pose></include>
+    <include><uri>model://bush</uri><name>bush_se</name><pose>3.2 -3.0 0 0 0 0</pose></include>
+    <include><uri>model://bush</uri><name>bush_center_1</name><pose>0.8 0.45 0 0 0 0</pose></include>
+    <include><uri>model://bush</uri><name>bush_center_2</name><pose>-0.9 -0.35 0 0 0 0</pose></include>
+    <include><uri>model://bush</uri><name>bush_center_3</name><pose>0.2 -0.95 0 0 0 0</pose></include>
+  </model>
+</sdf>

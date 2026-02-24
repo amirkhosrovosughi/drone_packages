@@ -1,0 +1,84 @@
+<sdf version="1.9">
+  <model name="house">
+    <static>true</static>
+    <link name="house_link">
+      <collision name="walls_collision">
+        <pose>0 0 0.3125 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>1.0 0.75 0.625</size>
+          </box>
+        </geometry>
+      </collision>
+      <visual name="walls_visual">
+        <pose>0 0 0.3125 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>1.0 0.75 0.625</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.82 0.78 0.70 1</ambient>
+          <diffuse>0.82 0.78 0.70 1</diffuse>
+          <specular>0.05 0.05 0.05 1</specular>
+        </material>
+      </visual>
+
+      <visual name="roof_visual">
+        <pose>0 0 0.675 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>1.075 0.825 0.10</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.45 0.15 0.15 1</ambient>
+          <diffuse>0.45 0.15 0.15 1</diffuse>
+          <specular>0.05 0.05 0.05 1</specular>
+        </material>
+      </visual>
+
+      <visual name="door_visual">
+        <pose>0.505 0 0.1375 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.01 0.225 0.275</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.22 0.14 0.10 1</ambient>
+          <diffuse>0.22 0.14 0.10 1</diffuse>
+          <specular>0.02 0.02 0.02 1</specular>
+        </material>
+      </visual>
+
+      <visual name="window_left_visual">
+        <pose>0.5075 -0.225 0.3625 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.0075 0.1375 0.1125</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.55 0.72 0.85 1</ambient>
+          <diffuse>0.55 0.72 0.85 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+
+      <visual name="window_right_visual">
+        <pose>0.5075 0.225 0.3625 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.0075 0.1375 0.1125</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.55 0.72 0.85 1</ambient>
+          <diffuse>0.55 0.72 0.85 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>

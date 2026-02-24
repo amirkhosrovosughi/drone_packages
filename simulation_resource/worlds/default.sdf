@@ -150,39 +150,20 @@
     <!-- Abstracted models using model:// URIs -->
     <!-- ================================================ -->
 
-    <!-- Poles (abstraction around cylinder_model or other base) -->
+    <!-- High-level modular block instance: comment/uncomment for layout testing -->
+    <!--
+    <include>
+      <uri>model://single_residental_block</uri>
+      <name>single_residental_block_main</name>
+      <pose>5 5 0 0 0 0</pose>
+    </include>
+    -->
 
     <include>
-      <uri>model://pole</uri>
-      <name>pole_1</name>
-      <pose>2.7 -0.8 0 0 0 1.8</pose>
+      <uri>model://two_residental_blocks_with_connector_road</uri>
+      <name>two_residental_blocks_with_connector_road_main</name>
+      <pose>0 0 0 0 0 0</pose>
     </include>
-
-    <include>
-      <uri>model://pole</uri>
-      <name>pole_2</name>
-      <pose>1 -1.9 0 0 0 1.9</pose>
-    </include>
-
-
-    <include>
-      <uri>model://pole</uri>
-      <name>pole_3</name>
-      <pose>-1.3 -3 0 0 0 1.7</pose>
-    </include>
-
-    <include>
-      <uri>model://pole</uri>
-      <name>pole_4</name>
-      <pose>3.1 -4 0 0 0 -1.6</pose>
-    </include>
-
-    <include>
-      <uri>model://pole</uri>
-      <name>pole_5</name>
-      <pose>5.9 -5 0 0 0 -1.45</pose>
-    </include>
-
 
   </world>
 </sdf>

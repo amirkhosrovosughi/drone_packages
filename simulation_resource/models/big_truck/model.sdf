@@ -1,0 +1,52 @@
+<sdf version="1.9">
+  <model name="big_truck">
+    <static>true</static>
+    <link name="truck_link">
+      <collision name="cargo_collision">
+        <pose>0.2 0 0.16 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>1.2 0.42 0.32</size>
+          </box>
+        </geometry>
+      </collision>
+
+      <collision name="cab_collision">
+        <pose>-0.55 0 0.145 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.45 0.4 0.29</size>
+          </box>
+        </geometry>
+      </collision>
+
+      <visual name="cargo_visual">
+        <pose>0.2 0 0.16 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>1.2 0.42 0.32</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.78 0.78 0.8 1</ambient>
+          <diffuse>0.78 0.78 0.8 1</diffuse>
+          <specular>0.05 0.05 0.05 1</specular>
+        </material>
+      </visual>
+
+      <visual name="cab_visual">
+        <pose>-0.55 0 0.145 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.45 0.4 0.29</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.85 0.32 0.14 1</ambient>
+          <diffuse>0.85 0.32 0.14 1</diffuse>
+          <specular>0.05 0.05 0.05 1</specular>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>

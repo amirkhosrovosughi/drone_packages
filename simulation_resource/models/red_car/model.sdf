@@ -1,0 +1,41 @@
+<sdf version="1.9">
+  <model name="red_car">
+    <static>true</static>
+
+    <include>
+      <uri>model://base_car</uri>
+      <name>base_car_core</name>
+      <pose>0 0 0 0 0 0</pose>
+    </include>
+
+    <link name="red_tint_link">
+      <visual name="body_tint_visual">
+        <pose>0 0 0.075 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.551 0.251 0.151</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.62 0.16 0.16 1</ambient>
+          <diffuse>0.62 0.16 0.16 1</diffuse>
+          <specular>0.08 0.08 0.08 1</specular>
+        </material>
+      </visual>
+
+      <visual name="top_tint_visual">
+        <pose>-0.0375 0 0.175 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.301 0.226 0.101</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.72 0.2 0.2 1</ambient>
+          <diffuse>0.72 0.2 0.2 1</diffuse>
+          <specular>0.08 0.08 0.08 1</specular>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>
