@@ -159,11 +159,17 @@
     </include>
     -->
 
+    <!-- Visual mode switch is centralized in selector models: -->
+    <!--   model://house_variant -->
+    <!--   model://base_car_variant -->
+    <!--   model://big_truck_variant -->
+    <!-- To change FULL/LITE, toggle includes in those model.sdf files only. -->
+
     <include>
       <uri>model://two_residental_blocks_with_connector_road</uri>
       <name>two_residental_blocks_with_connector_road_main</name>
       <pose>0 0 0 0 0 0</pose>
-    </include>
+    </include>   
 
   </world>
 </sdf>

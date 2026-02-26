@@ -3,25 +3,25 @@
     <static>true</static>
 
     <!-- Houses: perimeter ring (4 per side), flipped 180 degrees from original -->
-    <include><uri>model://house</uri><name>house_n1</name><pose>-2.5 3.5 0 0 0 1.5708</pose></include>
-    <include><uri>model://house</uri><name>house_n2</name><pose>-0.75 3.5 0 0 0 1.5708</pose></include>
-    <include><uri>model://house</uri><name>house_n3</name><pose>0.75 3.5 0 0 0 1.5708</pose></include>
-    <include><uri>model://house</uri><name>house_n4</name><pose>2.5 3.5 0 0 0 1.5708</pose></include>
+    <include><uri>model://house_palette_3</uri><name>house_n1</name><pose>-2.5 3.5 0 0 0 1.5708</pose></include>
+    <include><uri>model://house_palette_1</uri><name>house_n2</name><pose>-0.75 3.5 0 0 0 1.5708</pose></include>
+    <include><uri>model://house_palette_4</uri><name>house_n3</name><pose>0.75 3.5 0 0 0 1.5708</pose></include>
+    <include><uri>model://house_palette_2</uri><name>house_n4</name><pose>2.5 3.5 0 0 0 1.5708</pose></include>
 
-    <include><uri>model://house</uri><name>house_s1</name><pose>-2.5 -3.5 0 0 0 -1.5708</pose></include>
-    <include><uri>model://house</uri><name>house_s2</name><pose>-0.75 -3.5 0 0 0 -1.5708</pose></include>
-    <include><uri>model://house</uri><name>house_s3</name><pose>0.75 -3.5 0 0 0 -1.5708</pose></include>
-    <include><uri>model://house</uri><name>house_s4</name><pose>2.5 -3.5 0 0 0 -1.5708</pose></include>
+    <include><uri>model://house_palette_2</uri><name>house_s1</name><pose>-2.5 -3.5 0 0 0 -1.5708</pose></include>
+    <include><uri>model://house_palette_4</uri><name>house_s2</name><pose>-0.75 -3.5 0 0 0 -1.5708</pose></include>
+    <include><uri>model://house_palette_1</uri><name>house_s3</name><pose>0.75 -3.5 0 0 0 -1.5708</pose></include>
+    <include><uri>model://house_palette_3</uri><name>house_s4</name><pose>2.5 -3.5 0 0 0 -1.5708</pose></include>
 
-    <include><uri>model://house</uri><name>house_e1</name><pose>3.5 -2.5 0 0 0 0</pose></include>
-    <include><uri>model://house</uri><name>house_e2</name><pose>3.5 -0.75 0 0 0 0</pose></include>
-    <include><uri>model://house</uri><name>house_e3</name><pose>3.5 0.75 0 0 0 0</pose></include>
-    <include><uri>model://house</uri><name>house_e4</name><pose>3.5 2.5 0 0 0 0</pose></include>
+    <include><uri>model://house_palette_1</uri><name>house_e1</name><pose>3.5 -2.5 0 0 0 0</pose></include>
+    <include><uri>model://house_palette_3</uri><name>house_e2</name><pose>3.5 -0.75 0 0 0 0</pose></include>
+    <include><uri>model://house_palette_2</uri><name>house_e3</name><pose>3.5 0.75 0 0 0 0</pose></include>
+    <include><uri>model://house_palette_4</uri><name>house_e4</name><pose>3.5 2.5 0 0 0 0</pose></include>
 
-    <include><uri>model://house</uri><name>house_w1</name><pose>-3.5 -2.5 0 0 0 3.14159</pose></include>
-    <include><uri>model://house</uri><name>house_w2</name><pose>-3.5 -0.75 0 0 0 3.14159</pose></include>
-    <include><uri>model://house</uri><name>house_w3</name><pose>-3.5 0.75 0 0 0 3.14159</pose></include>
-    <include><uri>model://house</uri><name>house_w4</name><pose>-3.5 2.5 0 0 0 3.14159</pose></include>
+    <include><uri>model://house_palette_4</uri><name>house_w1</name><pose>-3.5 -2.5 0 0 0 3.14159</pose></include>
+    <include><uri>model://house_palette_2</uri><name>house_w2</name><pose>-3.5 -0.75 0 0 0 3.14159</pose></include>
+    <include><uri>model://house_palette_3</uri><name>house_w3</name><pose>-3.5 0.75 0 0 0 3.14159</pose></include>
+    <include><uri>model://house_palette_1</uri><name>house_w4</name><pose>-3.5 2.5 0 0 0 3.14159</pose></include>
 
     <!-- Sidewalk loop -->
     <include><uri>model://sidewalk_segment</uri><name>sidewalk_n1</name><pose>-2.25 4.175 0 0 0 0</pose></include>
@@ -82,8 +82,8 @@
     <include><uri>model://road_segment</uri><name>road_w5</name><pose>-4.5 3.75 0 0 0 1.5708</pose></include>
 
     <!-- Decorative elements on/near roads -->
-    <include><uri>model://base_car</uri><name>car_north</name><pose>0.3 4.5 0 0 0 0</pose></include>
-    <include><uri>model://base_car</uri><name>car_south</name><pose>-0.6 -4.5 0 0 0 3.14159</pose></include>
+    <include><uri>model://base_car_variant</uri><name>car_north</name><pose>0.3 4.5 0 0 0 0</pose></include>
+    <include><uri>model://base_car_variant</uri><name>car_south</name><pose>-0.6 -4.5 0 0 0 3.14159</pose></include>
     <include><uri>model://red_car</uri><name>car_east</name><pose>4.5 0.3 0 0 0 1.5708</pose></include>
     <include><uri>model://red_car</uri><name>car_west</name><pose>-4.5 -0.4 0 0 0 -1.5708</pose></include>
 

@@ -1,0 +1,10 @@
+<sdf version="1.9">
+  <model name="full_base_car">
+    <static>true</static>
+    <include>
+      <uri>model://base_car</uri>
+      <name>base_car_full_core</name>
+      <pose>0 0 0 0 0 0</pose>
+    </include>
+  </model>
+</sdf>

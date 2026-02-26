@@ -3,7 +3,7 @@
     <static>true</static>
 
     <include>
-      <uri>model://base_car</uri>
+      <uri>model://base_car_variant</uri>
       <name>base_car_core</name>
       <pose>0 0 0 0 0 0</pose>
     </include>

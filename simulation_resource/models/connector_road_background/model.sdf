@@ -19,8 +19,8 @@
     <include><uri>model://road_segment</uri><name>road_lane_b_5</name><pose>3.75 0.4 0 0 0 3.14159</pose></include>
 
     <!-- Vehicles on connector road -->
-    <include><uri>model://base_car</uri><name>connector_car_1</name><pose>-1.9 -0.4 0 0 0 0</pose></include>
-    <include><uri>model://big_truck</uri><name>connector_truck_1</name><pose>1.9 0.4 0 0 0 3.14159</pose></include>
+    <include><uri>model://base_car_variant</uri><name>connector_car_1</name><pose>-1.9 -0.4 0 0 0 0</pose></include>
+    <include><uri>model://big_truck_variant</uri><name>connector_truck_1</name><pose>1.9 0.4 0 0 0 3.14159</pose></include>
 
     <!-- Lightweight roadside vegetation -->
     <include><uri>model://tree</uri><name>connector_tree_n1</name><pose>-2.8 1.7 0 0 0 0</pose></include>
