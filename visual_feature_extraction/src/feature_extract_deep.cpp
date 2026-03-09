@@ -4,6 +4,8 @@
 #include "ament_index_cpp/get_package_share_directory.hpp"
 
 static const std::string MODEL_PATH = "/model/best.onnx";
+static const float DEFAULT_CONF_THRESHOLD = 0.45f;
+static const float DEFAULT_NMS_THRESHOLD = 0.35f;
 
 FeatureExtractDeep::FeatureExtractDeep()
     : _env(ORT_LOGGING_LEVEL_WARNING, "yolo_inference")
@@ -19,14 +21,17 @@ FeatureExtractDeep::FeatureExtractDeep()
 
     RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "Deep detection path is: %S", model_path.c_str());
 
-    try {
+    try
+    {
         _session = std::make_unique<Ort::Session>(
-            _env,                       // Ort::Env&
-            model_path.c_str(),          // const char* model path
-            _sessionOptions              // Ort::SessionOptions&
+            _env,               // Ort::Env&
+            model_path.c_str(), // const char* model path
+            _sessionOptions     // Ort::SessionOptions&
         );
         RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "Session created successfully");
-    } catch (const Ort::Exception& e) {
+    }
+    catch (const Ort::Exception &e)
+    {
         RCLCPP_ERROR(rclcpp::get_logger("visual_feature_extraction"), "FAILED to create ONNX session: %s", e.what());
         return;
     }
@@ -41,9 +46,10 @@ FeatureExtractDeep::FeatureExtractDeep()
 
     std::vector<int64_t> inputShape = inputInfo.GetShape();
 
-    #ifdef DEBUG_FEATURE
+#ifdef DEBUG_FEATURE
     // Inspecting inputInfo
-    try {
+    try
+    {
         // Print element type
         ONNXTensorElementDataType elemType = inputInfo.GetElementType();
         RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "Element type %d", (int)elemType);
@@ -57,26 +63,29 @@ FeatureExtractDeep::FeatureExtractDeep()
         inputInfo.GetDimensions(dims.data(), dims.size());
 
         std::cout << "Dims: ";
-        for (auto d : dims) std::cout << d << " ";
+        for (auto d : dims)
+            std::cout << d << " ";
         std::cout << std::endl;
-
-    } catch (const std::exception& e) {
+    }
+    catch (const std::exception &e)
+    {
         RCLCPP_ERROR(rclcpp::get_logger("visual_feature_extraction"), "inputInfo inspection error: : %s", e.what());
     }
 
     // Debug print the raw dims
     std::cout << "Model input shape: [";
-    for (size_t i = 0; i < inputShape.size(); ++i) {
-      std::cout << inputShape[i] << (i + 1 < inputShape.size() ? ", " : "");
+    for (size_t i = 0; i < inputShape.size(); ++i)
+    {
+        std::cout << inputShape[i] << (i + 1 < inputShape.size() ? ", " : "");
     }
     std::cout << "]\n";
-    #endif
+#endif
 
     _inputHeight    = inputShape[2];
     _inputWidth     = inputShape[3];
 
-    _confThreshold = 0.20;
-    _nmsThreshold  = 0.35;
+    _confThreshold = DEFAULT_CONF_THRESHOLD;
+    _nmsThreshold  = DEFAULT_NMS_THRESHOLD;
 
     RCLCPP_INFO(rclcpp::get_logger("visual_feature_extraction"), "[INFO] ONNX Runtime YOLO model loaded");
 
@@ -108,7 +117,8 @@ void FeatureExtractDeep::preprocess(const cv::Mat& frame, cv::Mat& blob)
     cv::split(floatImg, channels);
 
     blob = cv::Mat(3, _inputHeight * _inputWidth, CV_32F);
-    for (int c = 0; c < 3; c++) {
+    for (int c = 0; c < 3; c++)
+    {
         memcpy(blob.ptr<float>(c),
                channels[c].reshape(1, 1).data,
                _inputHeight * _inputWidth * sizeof(float));
@@ -131,8 +141,6 @@ std::vector<Detection> FeatureExtractDeep::postprocess(
     for (int i = 0; i < num_positions; ++i)
     {
         float conf = preds[4 * num_positions + i];
-
-        // if (conf > 0.05f) std::cout << "conf: " << conf << "\n";
 
         if (conf < _confThreshold)
         {

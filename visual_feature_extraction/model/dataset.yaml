@@ -1,9 +1,9 @@
 # dataset.yaml
 # YOLO dataset generated from:
-#   - train_1_2025_11_27-11_09_41
-#   - train_2_2025_11_30-14_17_05
-#   - train_3_2025_12_30-07_52_55
 #   - train_4_2025_12_31-08_58_46
+#   - train_5_2026_02_26-08_07_23
+#   - train_6_2026_02_28-10_37_01
+#   - train_7_2026_03_07-09_18_41
 # Using scripts/import_dataset.py imported to the path
 
 path: ~/pole_perception/data/yolo_pole_dataset
