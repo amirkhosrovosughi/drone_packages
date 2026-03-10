@@ -1,39 +1,39 @@
 cmake_minimum_required(VERSION 3.8)
 project(slam)
 
-# Flag to select the type of FILTER
-add_definitions(-DEKF)
-# add_definitions(-DGRAPH)
-# add_definitions(-DFAST_SLAM)
+# Flag to select SLAM backend (exactly one must be enabled)
+option(SLAM_BACKEND_EKF "Build with EKF backend" ON)
+option(SLAM_BACKEND_GRAPH "Build with Graph backend" OFF)
+option(SLAM_BACKEND_FAST_SLAM "Build with FastSLAM backend (future)" OFF)
 
-# Flag to select the type of ASSOSSIATION
-add_definitions(-DNEAREST_NEIGHBOR)
-# add_definitions(-DJOINT_COMPATIBILITY)
+set(_slam_backend_count 0)
+if(SLAM_BACKEND_EKF)
+  math(EXPR _slam_backend_count "${_slam_backend_count} + 1")
+endif()
+if(SLAM_BACKEND_GRAPH)
+  math(EXPR _slam_backend_count "${_slam_backend_count} + 1")
+endif()
+if(SLAM_BACKEND_FAST_SLAM)
+  math(EXPR _slam_backend_count "${_slam_backend_count} + 1")
+endif()
+
+if(NOT _slam_backend_count EQUAL 1)
+  message(FATAL_ERROR
+    "Exactly one backend must be enabled: "
+    "SLAM_BACKEND_EKF, SLAM_BACKEND_GRAPH, SLAM_BACKEND_FAST_SLAM")
+endif()
+
+if(SLAM_BACKEND_EKF)
+  add_compile_definitions(EKF)
+elseif(SLAM_BACKEND_GRAPH)
+  add_compile_definitions(GRAPH)
+elseif(SLAM_BACKEND_FAST_SLAM)
+  add_compile_definitions(FAST_SLAM)
+  message(STATUS "FAST_SLAM backend selected. Current runtime path is not implemented yet; this selection is reserved for future work.")
+endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
-endif()
-
-option(POSITION_MOTION_POSITION_MEASUREMENT "position motion model for odometry" ON)
-option(POSE_MOTION_POSITION_MEASUREMENT "pose motion model for odometry" OFF)
-
-option(POSITION_MOTION_2D_MEASUREMENT "position measrement model" OFF)
-option(POSE_MOTION_2D_MEASUREMENT "2D measrement model" OFF)
-
-if(POSITION_MOTION_POSITION_MEASUREMENT)
-    add_definitions(-DPOSITION_MOTION_POSITION_MEASUREMENT)
-endif()
-
-if(POSE_MOTION_POSITION_MEASUREMENT)
-    add_definitions(-DPOSE_MOTION_POSITION_MEASUREMENT)
-endif()
-
-if(POSITION_MOTION_2D_MEASUREMENT)
-    add_definitions(-DPOSITION_MOTION_2D_MEASUREMENT)
-endif()
-
-if(POSE_MOTION_2D_MEASUREMENT)
-    add_definitions(-DPOSE_MOTION_2D_MEASUREMENT)
 endif()
 
 option(STORE_DEBUG_DATA "Enable store debug data" OFF)
@@ -62,6 +62,7 @@ include_directories(include/${PROJECT_NAME})
 set(SOURCES
   src/node/slam_node.cpp
   src/node/slam_manager.cpp
+  src/backend/backend_factory.cpp
   src/backend/ekf_slam_backend.cpp
   src/filter/extended_kalman_filter.cpp
   src/map/slam_map.cpp

@@ -2,12 +2,7 @@
 
 #include <chrono>
 
-#include "backend/ekf_slam_backend.hpp"
-
-#include "association/ekf_bearing_initialization_strategy.hpp"
-#include "association/nearest_neighbor_association.hpp"
-#include "filter/extended_kalman_filter.hpp"
-#include "motion/position_only_motion_model.hpp"
+#include "backend/backend_factory.hpp"
 #include "observation/observation_builder.hpp"
 
 #include "common_utilities/transform_util.hpp"
@@ -22,23 +17,8 @@ SlamManager::SlamManager()
 {
   _logger = std::make_shared<RosSlamLogger>(this->get_logger());
 
-
-  // --------------------------------------------------------------------------
-  // Backend construction (temporary: EKF hard-coded)
-  // Later this becomes a factory
-  // --------------------------------------------------------------------------
-  // Create models and factory
-  auto motionModel = std::make_shared<PositionOnlyMotionModel>();
-  auto ekf = std::make_shared<ExtendedKalmanFilter>(motionModel);
-  auto association = std::make_shared<NearestNeighborAssociation>();
   _measurementFactory = std::make_shared<MeasurementFactory>();
-
-  association->setLogger(_logger);
-  association->setUnderConstrainedInitializationStrategy(std::make_shared<EkfBearingInitializationStrategy>());
-  ekf->setLogger(_logger);
-
-  // Construct backend with injected dependencies
-  _backend = std::make_shared<slam::EkfSlamBackend>(ekf, association, _measurementFactory);
+  _backend = slam::createBackend(_logger, _measurementFactory);
   _backend->setLogger(_logger);
   _backend->initialize();
 
