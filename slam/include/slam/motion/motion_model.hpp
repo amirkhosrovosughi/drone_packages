@@ -8,7 +8,7 @@
  * @brief Abstract base class for robot motion models.
  *
  * A motion model defines how the robot state evolves given control or odometry.
- * It is owned and used exclusively by the SLAM backend (EKF, Graph, etc.).
+ * It is owned and used exclusively by the SLAM pipeline (EKF, Graph, etc.).
  */
  
 class MotionModel {

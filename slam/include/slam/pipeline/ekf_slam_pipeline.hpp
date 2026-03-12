@@ -4,7 +4,7 @@
 #include <memory>
 #include <mutex>
 
-#include "backend/slam_backend.hpp"
+#include "pipeline/slam_pipeline.hpp"
 #include "common/slam_logger.hpp"
 
 #include "filter/extended_kalman_filter.hpp"
@@ -15,8 +15,8 @@ namespace slam
 {
 
 /**
- * @class EkfSlamBackend
- * @brief EKF-based SLAM backend implementation.
+ * @class EkfSlamPipeline
+ * @brief EKF-based SLAM pipeline implementation.
  *
  * Owns and coordinates:
  *  - Extended Kalman Filter
@@ -25,22 +25,22 @@ namespace slam
  *
  * Exposes only algorithm-agnostic interfaces to SlamManager.
  */
-class EkfSlamBackend : public SlamBackend
+class EkfSlamPipeline : public SlamPipeline
 {
 public:
   /**
-   * @brief Construct EKF SLAM backend.
+   * @brief Construct EKF SLAM pipeline.
    * @param filter EKF filter instance
    * @param association Data association strategy
    * @param measurementFactory Measurement factory instance
    */
-  EkfSlamBackend(
+  EkfSlamPipeline(
     std::shared_ptr<ExtendedKalmanFilter> filter,
     std::shared_ptr<BaseAssociation> association,
     std::shared_ptr<MeasurementFactory> measurementFactory);
 
   /**
-   * @brief Initialize backend internal state.
+   * @brief Initialize pipeline internal state.
    */
   void initialize() override;
 

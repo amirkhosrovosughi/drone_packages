@@ -12,6 +12,7 @@
   <depend>rclcpp</depend>
   <depend>drone_msgs</depend>
   <depend>common_utilities</depend>
+  <depend>data_logging_utils</depend>
   <depend>px4_msgs</depend>
   <depend>eigen3_cmake_module</depend>
 

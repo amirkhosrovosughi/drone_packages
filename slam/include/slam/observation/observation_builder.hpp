@@ -56,7 +56,7 @@ public:
    * @brief Provide camera intrinsic/extrinsic info to the builder.
    *
    * ObservationBuilder stores camera geometry and converts image-space
-   * detections into purely mathematical observations for the backend.
+   * detections into purely mathematical observations for the pipeline.
    */
   static void setCameraInfo(const CameraInfo& info);
 private:

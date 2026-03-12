@@ -1,5 +1,5 @@
-#ifndef SLAM__BACKEND__SLAM_BACKEND_HPP_
-#define SLAM__BACKEND__SLAM_BACKEND_HPP_
+#ifndef _SLAM_PIPELINE_HPP_
+#define _SLAM_PIPELINE_HPP_
 
 #include <functional>
 #include <memory>
@@ -7,13 +7,13 @@
 #include "observation/observation.hpp"
 #include "map/slam_map.hpp"
 #include "motion/motion_model.hpp"
-#include "common/slam_logger.hpp" // TODO: should be removed later ...
+#include "common/slam_logger.hpp"
 
 namespace slam
 {
 
 /**
- * @class SlamBackend
+ * @class SlamPipeline
  * @brief Abstract interface for all SLAM backends (EKF, Graph-SLAM, FastSLAM, etc.).
  *
  * This class defines the algorithm-level contract between the ROS-facing
@@ -25,10 +25,10 @@ namespace slam
  * - No timing assumptions
  * - Operates only on abstract data structures
  */
-class SlamBackend
+class SlamPipeline
 {
 public:
-  virtual ~SlamBackend() = default;
+  virtual ~SlamPipeline() = default;
 
   virtual void initialize() = 0;
   virtual void reset() = 0;
@@ -60,7 +60,7 @@ protected:
   /**
    * @brief Notify listeners that the map has been updated.
    *
-   * Backends should call this method whenever a meaningful map update
+   * Pipelines should call this method whenever a meaningful map update
    * occurs (e.g., after an EKF update or graph optimization).
    *
    * @param map Current SLAM map.
@@ -79,4 +79,4 @@ protected:
 
 }  // namespace slam
 
-#endif  // SLAM__BACKEND__SLAM_BACKEND_HPP_
+#endif  // _SLAM_PIPELINE_HPP_

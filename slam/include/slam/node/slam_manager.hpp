@@ -9,7 +9,7 @@
 #include <vision_msgs/msg/object_hypothesis_with_pose.hpp>
 #include <vision_msgs/msg/detection3_d_array.hpp>
 
-#include "backend/slam_backend.hpp"
+#include "pipeline/slam_pipeline.hpp"
 #include "common/slam_logger.hpp"
 #include "measurement/measurement_factory.hpp"
 
@@ -25,7 +25,7 @@
  * Responsibilities:
  *  - ROS subscriptions / publications
  *  - Coordinate frames & transforms
- *  - Forward motion & observation data to backend
+ *  - Forward motion & observation data to pipeline
  */
 class SlamManager : public rclcpp::Node
 {
@@ -47,7 +47,7 @@ private:
   void createPublishers();
 
   /**
-   * @brief Initialize backend and internal state.
+   * @brief Initialize pipeline and internal state.
    */
   void initialize();
 
@@ -101,8 +101,8 @@ private:
   void initializeCameraInfo();
 
 private:
-  std::shared_ptr<slam::SlamBackend> _backend; ///< Active SLAM backend
-  std::shared_ptr<MeasurementFactory> _measurementFactory; ///< Measurement factory for backend
+  std::shared_ptr<slam::SlamPipeline> _slam; ///< Active SLAM pipeline
+  std::shared_ptr<MeasurementFactory> _measurementFactory; ///< Measurement factory for pipeline
   rclcpp::Subscription<px4_msgs::msg::VehicleOdometry>::SharedPtr _odomSub; ///< Odometry subscriber
   rclcpp::Subscription<drone_msgs::msg::PointList>::SharedPtr _obs3dPointSub; ///< Observation 3D coordinate subscriber
   rclcpp::Subscription<vision_msgs::msg::Detection3DArray>::SharedPtr _obsBboxSub; ///< Observation bbox subscriber

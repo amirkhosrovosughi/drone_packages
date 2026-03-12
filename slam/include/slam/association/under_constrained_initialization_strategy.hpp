@@ -9,7 +9,7 @@
 /**
  * @brief Strategy interface for initializing landmarks from under-constrained measurements.
  *
- * This seam allows association to remain backend-agnostic while supporting
+ * This seam allows association to remain pipeline-agnostic while supporting
  * different initialization behaviors (e.g., EKF triangulation now, graph factors later).
  */
 class UnderConstrainedInitializationStrategy {

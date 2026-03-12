@@ -2,7 +2,7 @@
 
 #include <chrono>
 
-#include "backend/backend_factory.hpp"
+#include "pipeline/pipeline_factory.hpp"
 #include "observation/observation_builder.hpp"
 
 #include "common_utilities/transform_util.hpp"
@@ -18,9 +18,9 @@ SlamManager::SlamManager()
   _logger = std::make_shared<RosSlamLogger>(this->get_logger());
 
   _measurementFactory = std::make_shared<MeasurementFactory>();
-  _backend = slam::createBackend(_logger, _measurementFactory);
-  _backend->setLogger(_logger);
-  _backend->initialize();
+  _slam = slam::createPipeline(_logger, _measurementFactory);
+  _slam->setLogger(_logger);
+  _slam->initialize();
 
   createSubscribers();
   createPublishers();
@@ -37,7 +37,7 @@ SlamManager::SlamManager()
     std::chrono::milliseconds(500),
     [this]()
     {
-      auto snapshot = _backend->getMap();
+      auto snapshot = _slam->getMap();
       if (!snapshot.is_valid())
       {
         return;
@@ -116,7 +116,7 @@ void SlamManager::odometryCallback(
   motion.delta_position = Eigen::Vector3d(pos_diff.x(), pos_diff.y(), pos_diff.z());
   motion.orientation = Eigen::Quaterniond(q_enu.w, q_enu.x, q_enu.y, q_enu.z);
 
-  _backend->processMotion(motion);
+  _slam->processMotion(motion);
 
   _last_position_enu = pos_enu;
 }
@@ -138,7 +138,7 @@ void SlamManager::feature3dPointCallback(
 
     // Build Observations via builder
     slam::Observations obs = slam::ObservationBuilder::fromPointList(*msg, timeTag);
-    _backend->processObservation(obs);
+    _slam->processObservation(obs);
 }
 
 void SlamManager::featureBboxCallback(
@@ -164,7 +164,7 @@ void SlamManager::featureBboxCallback(
                 "Received %zu bbox detections but produced 0 SLAM observations. Camera info may not be initialized yet.",
                 msg->detections.size());
   }
-  _backend->processObservation(obs);
+  _slam->processObservation(obs);
 }
 
 void SlamManager::publishMap(const MapSummary& map)
@@ -230,7 +230,6 @@ void SlamManager::updateCameraExtrinsic()
     T.block<3,3>(0,0) = q.toRotationMatrix();
     T.block<3,1>(0,3) = t;
 
-    // _backend->setSensorTransform(T); // TODO: this is wrong, it should go to ObservationBuilder
     _cameraInfo.extrinsics = CameraExtrinsics(T);
     _cameraExtrinsicLoaded = true;
 

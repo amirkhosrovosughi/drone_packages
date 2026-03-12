@@ -1,4 +1,4 @@
-#include "backend/ekf_slam_backend.hpp"
+#include "pipeline/ekf_slam_pipeline.hpp"
 
 #include <mutex>
 
@@ -6,9 +6,9 @@ namespace slam
 {
 
 /**
- * @brief Construct EKF SLAM backend.
+ * @brief Construct EKF SLAM pipeline.
  */
-EkfSlamBackend::EkfSlamBackend(
+EkfSlamPipeline::EkfSlamPipeline(
   std::shared_ptr<ExtendedKalmanFilter> ekf,
   std::shared_ptr<BaseAssociation> association,
   std::shared_ptr<MeasurementFactory> measurementFactory)
@@ -19,21 +19,21 @@ EkfSlamBackend::EkfSlamBackend(
 }
 
 /**
- * @brief Initialize EKF backend and wire internal callbacks.
+ * @brief Initialize EKF pipeline and wire internal callbacks.
  */
-void EkfSlamBackend::initialize()
+void EkfSlamPipeline::initialize()
 {
   if (!_ekf || !_association || !_measurementFactory)
-    throw std::runtime_error("EKF backend not properly constructed");
+    throw std::runtime_error("EKF pipeline not properly constructed");
 
-  // EKF → backend → SlamManager
+  // EKF → pipeline → SlamManager
   _ekf->registerCallback(
     [this](const MapSummary& map)
     {
       this->onBackendUpdate(map);
     });
 
-  // Association → backend → EKF
+  // Association → pipeline → EKF
   _association->registerCallback(
     [this](const AssignedMeasurements& meas)
     {
@@ -44,13 +44,13 @@ void EkfSlamBackend::initialize()
 /**
  * @brief Handle incoming motion update.
  */
-void EkfSlamBackend::processMotion(const MotionConstraint& m)
+void EkfSlamPipeline::processMotion(const MotionConstraint& m)
 {
   std::lock_guard<std::mutex> lock(_mutex);
   updateFilter(m);
 }
 
-void EkfSlamBackend::processObservation(const Observations& o)
+void EkfSlamPipeline::processObservation(const Observations& o)
 {
   std::lock_guard<std::mutex> lock(_mutex);
   Measurements measurements = _measurementFactory->build(o);
@@ -61,7 +61,7 @@ void EkfSlamBackend::processObservation(const Observations& o)
 /**
  * @brief Set logger instance.
  */
-void EkfSlamBackend::setLogger(LoggerPtr logger)
+void EkfSlamPipeline::setLogger(LoggerPtr logger)
 {
   _logger = logger;
   _ekf->setLogger(logger);
@@ -71,13 +71,13 @@ void EkfSlamBackend::setLogger(LoggerPtr logger)
 /**
  * @brief Internal EKF prediction step.
  */
-void EkfSlamBackend::updateFilter(const MotionConstraint& m)
+void EkfSlamPipeline::updateFilter(const MotionConstraint& m)
 {
   PredictionInput odom = PredictionInput(m);
   _ekf->prediction(odom);
 }
 
-void EkfSlamBackend::correctFilter(const AssignedMeasurements& meas)
+void EkfSlamPipeline::correctFilter(const AssignedMeasurements& meas)
 {
   _ekf->correction(meas);
 }
@@ -85,18 +85,18 @@ void EkfSlamBackend::correctFilter(const AssignedMeasurements& meas)
 /**
  * @brief return map .
  */
-MapSummary EkfSlamBackend::getMap() const
+MapSummary EkfSlamPipeline::getMap() const
 {
   return _ekf->getMap();
 }
 
-void EkfSlamBackend::onBackendUpdate(const MapSummary& map)
+void EkfSlamPipeline::onBackendUpdate(const MapSummary& map)
 {
     _association->handleUpdate(map);
 }
 
 // Implement required interface methods
-void EkfSlamBackend::reset()
+void EkfSlamPipeline::reset()
 {
   std::lock_guard<std::mutex> lock(_mutex);
   _ekf->reset();

@@ -47,7 +47,7 @@ struct Bearing
 };
 
 /**
- * @brief Unified Observation abstraction for SLAM backend.
+ * @brief Unified Observation abstraction for SLAM pipeline.
  *
  * Represents WHAT constraint was observed, not HOW it is used.
  */

@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "backend/ekf_slam_backend.hpp"
+#include "pipeline/ekf_slam_pipeline.hpp"
 #include "association/base_association.hpp"
 #include "association/ekf_bearing_initialization_strategy.hpp"
 #include "common/mock_slam_logger.hpp"
@@ -110,50 +110,50 @@ private:
   std::function<void(AssignedMeasurements)> storedCallback;
 };
 
-TEST(EkfSlamBackendTest, InitializeThrowsWhenDependenciesMissing)
+TEST(EkfSlamPipelineTest, InitializeThrowsWhenDependenciesMissing)
 {
   auto motion = std::make_shared<PositionOnlyMotionModel>();
   auto ekf = std::make_shared<SpyExtendedKalmanFilter>(motion);
   auto assoc = std::make_shared<FakeAssociation>();
   auto factory = std::make_shared<MeasurementFactory>();
 
-  EXPECT_THROW(EkfSlamBackend(nullptr, assoc, factory).initialize(), std::runtime_error);
-  EXPECT_THROW(EkfSlamBackend(ekf, nullptr, factory).initialize(), std::runtime_error);
-  EXPECT_THROW(EkfSlamBackend(ekf, assoc, nullptr).initialize(), std::runtime_error);
+  EXPECT_THROW(EkfSlamPipeline(nullptr, assoc, factory).initialize(), std::runtime_error);
+  EXPECT_THROW(EkfSlamPipeline(ekf, nullptr, factory).initialize(), std::runtime_error);
+  EXPECT_THROW(EkfSlamPipeline(ekf, assoc, nullptr).initialize(), std::runtime_error);
 }
 
-TEST(EkfSlamBackendTest, ProcessMotionForwardsToFilterPrediction)
+TEST(EkfSlamPipelineTest, ProcessMotionForwardsToFilterPrediction)
 {
   auto motion = std::make_shared<PositionOnlyMotionModel>();
   auto ekf = std::make_shared<SpyExtendedKalmanFilter>(motion);
   auto assoc = std::make_shared<FakeAssociation>();
   auto factory = std::make_shared<MeasurementFactory>();
 
-  EkfSlamBackend backend(ekf, assoc, factory);
+  EkfSlamPipeline pipeline(ekf, assoc, factory);
 
   MotionConstraint m;
   m.delta_position = Eigen::Vector3d(1.0, -2.0, 0.5);
   m.orientation = Eigen::Quaterniond::Identity();
 
-  backend.processMotion(m);
+  pipeline.processMotion(m);
 
   EXPECT_TRUE(ekf->predictionCalled);
   EXPECT_TRUE(ekf->lastPrediction.delta_position.isApprox(m.delta_position));
 }
 
-TEST(EkfSlamBackendTest, ProcessObservationBuildsAndForwardsMeasurements)
+TEST(EkfSlamPipelineTest, ProcessObservationBuildsAndForwardsMeasurements)
 {
   auto motion = std::make_shared<PositionOnlyMotionModel>();
   auto ekf = std::make_shared<SpyExtendedKalmanFilter>(motion);
   auto assoc = std::make_shared<FakeAssociation>();
   auto factory = std::make_shared<MeasurementFactory>();
 
-  EkfSlamBackend backend(ekf, assoc, factory);
+  EkfSlamPipeline pipeline(ekf, assoc, factory);
 
   Observation obs(0.0, Point3D{Eigen::Vector3d(2.0, 3.0, 4.0)});
   Observations observations{obs};
 
-  backend.processObservation(observations);
+  pipeline.processObservation(observations);
 
   EXPECT_TRUE(assoc->onReceiveCalled);
   ASSERT_EQ(assoc->receivedMeasurements.size(), 1u);
@@ -163,15 +163,15 @@ TEST(EkfSlamBackendTest, ProcessObservationBuildsAndForwardsMeasurements)
   EXPECT_DOUBLE_EQ(assoc->receivedMeasurements[0].payload(2), 4.0);
 }
 
-TEST(EkfSlamBackendTest, InitializeWiresCallbacksAssociationToFilterAndFilterToAssociation)
+TEST(EkfSlamPipelineTest, InitializeWiresCallbacksAssociationToFilterAndFilterToAssociation)
 {
   auto motion = std::make_shared<PositionOnlyMotionModel>();
   auto ekf = std::make_shared<SpyExtendedKalmanFilter>(motion);
   auto assoc = std::make_shared<FakeAssociation>();
   auto factory = std::make_shared<MeasurementFactory>();
 
-  EkfSlamBackend backend(ekf, assoc, factory);
-  backend.initialize();
+  EkfSlamPipeline pipeline(ekf, assoc, factory);
+  pipeline.initialize();
 
   AssignedMeasurement am;
   am.id = 0;
@@ -186,49 +186,49 @@ TEST(EkfSlamBackendTest, InitializeWiresCallbacksAssociationToFilterAndFilterToA
   EXPECT_TRUE(assoc->handleUpdateCalled);
 }
 
-TEST(EkfSlamBackendTest, SetLoggerPropagatesToSubcomponents)
+TEST(EkfSlamPipelineTest, SetLoggerPropagatesToSubcomponents)
 {
   auto motion = std::make_shared<PositionOnlyMotionModel>();
   auto ekf = std::make_shared<SpyExtendedKalmanFilter>(motion);
   auto assoc = std::make_shared<FakeAssociation>();
   auto factory = std::make_shared<MeasurementFactory>();
 
-  EkfSlamBackend backend(ekf, assoc, factory);
+  EkfSlamPipeline pipeline(ekf, assoc, factory);
 
   auto logger = std::make_shared<MockSlamLogger>();
-  backend.setLogger(logger);
+  pipeline.setLogger(logger);
 
   EXPECT_EQ(ekf->loggerSet, logger);
   EXPECT_EQ(assoc->loggerSet, logger);
 }
 
-TEST(EkfSlamBackendTest, EndToEndObservationCreatesLandmarkAndResetClearsIt)
+TEST(EkfSlamPipelineTest, EndToEndObservationCreatesLandmarkAndResetClearsIt)
 {
   auto motion = std::make_shared<PositionOnlyMotionModel>();
   auto ekf = std::make_shared<ExtendedKalmanFilter>(motion);
   auto assoc = std::make_shared<NearestNeighborAssociation>();
   auto factory = std::make_shared<MeasurementFactory>();
 
-  EkfSlamBackend backend(ekf, assoc, factory);
-  backend.setLogger(std::make_shared<MockSlamLogger>());
-  backend.initialize();
+  EkfSlamPipeline pipeline(ekf, assoc, factory);
+  pipeline.setLogger(std::make_shared<MockSlamLogger>());
+  pipeline.initialize();
 
   MotionConstraint motionConstraint;
   motionConstraint.delta_position = Eigen::Vector3d::Zero();
   motionConstraint.orientation = Eigen::Quaterniond::Identity();
-  backend.processMotion(motionConstraint);
+  pipeline.processMotion(motionConstraint);
 
   Observation obs(0.0, Point3D{Eigen::Vector3d(1.0, 0.0, 1.0)});
   for (int i = 0; i < 5; ++i)
   {
-    backend.processObservation(Observations{obs});
+    pipeline.processObservation(Observations{obs});
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 
   bool gotLandmark = false;
   for (int i = 0; i < 20; ++i)
   {
-    auto map = backend.getMap();
+    auto map = pipeline.getMap();
     if (!map.landmarks.empty())
     {
       gotLandmark = true;
@@ -238,12 +238,12 @@ TEST(EkfSlamBackendTest, EndToEndObservationCreatesLandmarkAndResetClearsIt)
   }
   EXPECT_TRUE(gotLandmark);
 
-  backend.reset();
-  auto mapAfterReset = backend.getMap();
+  pipeline.reset();
+  auto mapAfterReset = pipeline.getMap();
   EXPECT_TRUE(mapAfterReset.landmarks.empty());
 }
 
-TEST(EkfSlamBackendTest, EndToEndBearingObservationCreatesLandmarkWithStrategy)
+TEST(EkfSlamPipelineTest, EndToEndBearingObservationCreatesLandmarkWithStrategy)
 {
   auto motion = std::make_shared<PositionOnlyMotionModel>();
   auto ekf = std::make_shared<ExtendedKalmanFilter>(motion);
@@ -251,14 +251,14 @@ TEST(EkfSlamBackendTest, EndToEndBearingObservationCreatesLandmarkWithStrategy)
   assoc->setUnderConstrainedInitializationStrategy(std::make_shared<EkfBearingInitializationStrategy>());
   auto factory = std::make_shared<MeasurementFactory>();
 
-  EkfSlamBackend backend(ekf, assoc, factory);
-  backend.setLogger(std::make_shared<MockSlamLogger>());
-  backend.initialize();
+  EkfSlamPipeline pipeline(ekf, assoc, factory);
+  pipeline.setLogger(std::make_shared<MockSlamLogger>());
+  pipeline.initialize();
 
   MotionConstraint motionConstraint;
   motionConstraint.delta_position = Eigen::Vector3d::Zero();
   motionConstraint.orientation = Eigen::Quaterniond::Identity();
-  backend.processMotion(motionConstraint);
+  pipeline.processMotion(motionConstraint);
 
   Bearing bearing;
   bearing.yaw = 0.1;
@@ -267,14 +267,14 @@ TEST(EkfSlamBackendTest, EndToEndBearingObservationCreatesLandmarkWithStrategy)
 
   for (int i = 0; i < 5; ++i)
   {
-    backend.processObservation(Observations{obs});
+    pipeline.processObservation(Observations{obs});
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 
   bool gotLandmark = false;
   for (int i = 0; i < 30; ++i)
   {
-    auto map = backend.getMap();
+    auto map = pipeline.getMap();
     if (!map.landmarks.empty())
     {
       gotLandmark = true;
@@ -286,7 +286,7 @@ TEST(EkfSlamBackendTest, EndToEndBearingObservationCreatesLandmarkWithStrategy)
   EXPECT_TRUE(gotLandmark);
 }
 
-TEST(EkfSlamBackendTest, NoisyBearingObservationsStillConfirmTentativeLandmark)
+TEST(EkfSlamPipelineTest, NoisyBearingObservationsStillConfirmTentativeLandmark)
 {
   auto motion = std::make_shared<PositionOnlyMotionModel>();
   auto ekf = std::make_shared<ExtendedKalmanFilter>(motion);
@@ -294,14 +294,14 @@ TEST(EkfSlamBackendTest, NoisyBearingObservationsStillConfirmTentativeLandmark)
   assoc->setUnderConstrainedInitializationStrategy(std::make_shared<EkfBearingInitializationStrategy>());
   auto factory = std::make_shared<MeasurementFactory>();
 
-  EkfSlamBackend backend(ekf, assoc, factory);
-  backend.setLogger(std::make_shared<MockSlamLogger>());
-  backend.initialize();
+  EkfSlamPipeline pipeline(ekf, assoc, factory);
+  pipeline.setLogger(std::make_shared<MockSlamLogger>());
+  pipeline.initialize();
 
   MotionConstraint motionConstraint;
   motionConstraint.delta_position = Eigen::Vector3d::Zero();
   motionConstraint.orientation = Eigen::Quaterniond::Identity();
-  backend.processMotion(motionConstraint);
+  pipeline.processMotion(motionConstraint);
 
   const std::vector<std::pair<double, double>> jitteredBearings = {
     {0.10, -0.05},
@@ -320,14 +320,14 @@ TEST(EkfSlamBackendTest, NoisyBearingObservationsStillConfirmTentativeLandmark)
     bearing.yaw = sample.first;
     bearing.pitch = sample.second;
     Observation obs(0.0, bearing);
-    backend.processObservation(Observations{obs});
+    pipeline.processObservation(Observations{obs});
     std::this_thread::sleep_for(std::chrono::milliseconds(12));
   }
 
   bool gotLandmark = false;
   for (int i = 0; i < 30; ++i)
   {
-    auto map = backend.getMap();
+    auto map = pipeline.getMap();
     if (!map.landmarks.empty())
     {
       gotLandmark = true;
@@ -339,7 +339,7 @@ TEST(EkfSlamBackendTest, NoisyBearingObservationsStillConfirmTentativeLandmark)
   EXPECT_TRUE(gotLandmark);
 }
 
-class EkfSlamBackendHeadingTest : public ::testing::TestWithParam<double>
+class EkfSlamPipelineHeadingTest : public ::testing::TestWithParam<double>
 {
 protected:
   static void runRepeatedStaticObservationScenario(double yaw_rad)
@@ -349,9 +349,9 @@ protected:
     auto assoc = std::make_shared<NearestNeighborAssociation>();
     auto factory = std::make_shared<MeasurementFactory>();
 
-    EkfSlamBackend backend(ekf, assoc, factory);
-    backend.setLogger(std::make_shared<MockSlamLogger>());
-    backend.initialize();
+    EkfSlamPipeline pipeline(ekf, assoc, factory);
+    pipeline.setLogger(std::make_shared<MockSlamLogger>());
+    pipeline.initialize();
 
     MotionConstraint motionConstraint;
     motionConstraint.delta_position = Eigen::Vector3d::Zero();
@@ -361,8 +361,8 @@ protected:
     Observation obs(0.0, Point3D{Eigen::Vector3d(1.0, 0.0, 1.0)});
     for (int i = 0; i < 12; ++i)
     {
-      backend.processMotion(motionConstraint);
-      backend.processObservation(Observations{obs});
+      pipeline.processMotion(motionConstraint);
+      pipeline.processObservation(Observations{obs});
       std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
 
@@ -370,7 +370,7 @@ protected:
     MapSummary map;
     for (int i = 0; i < 30; ++i)
     {
-      map = backend.getMap();
+      map = pipeline.getMap();
       if (!map.landmarks.empty())
       {
         gotAnyLandmark = true;
@@ -384,14 +384,14 @@ protected:
   }
 };
 
-TEST_P(EkfSlamBackendHeadingTest, RepeatedStaticObservationAcrossHeadingsDoesNotCreateManyLandmarks)
+TEST_P(EkfSlamPipelineHeadingTest, RepeatedStaticObservationAcrossHeadingsDoesNotCreateManyLandmarks)
 {
   runRepeatedStaticObservationScenario(GetParam());
 }
 
 INSTANTIATE_TEST_SUITE_P(
     MultipleYawAngles,
-    EkfSlamBackendHeadingTest,
+    EkfSlamPipelineHeadingTest,
     ::testing::Values(
         -M_PI,
         -M_PI_2,
@@ -400,7 +400,7 @@ INSTANTIATE_TEST_SUITE_P(
         M_PI_2,
         M_PI));
 
-class EkfSlamBackendHeadingWithDriftTest
+class EkfSlamPipelineHeadingWithDriftTest
   : public ::testing::TestWithParam<std::tuple<double, double, double>>
 {
 protected:
@@ -411,9 +411,9 @@ protected:
     auto assoc = std::make_shared<NearestNeighborAssociation>();
     auto factory = std::make_shared<MeasurementFactory>();
 
-    EkfSlamBackend backend(ekf, assoc, factory);
-    backend.setLogger(std::make_shared<MockSlamLogger>());
-    backend.initialize();
+    EkfSlamPipeline pipeline(ekf, assoc, factory);
+    pipeline.setLogger(std::make_shared<MockSlamLogger>());
+    pipeline.initialize();
 
     Eigen::Quaterniond yaw(Eigen::AngleAxisd(yaw_rad, Eigen::Vector3d::UnitZ()));
     Eigen::Vector3d robot_pos = Eigen::Vector3d::Zero();
@@ -425,14 +425,14 @@ protected:
       MotionConstraint motionConstraint;
       motionConstraint.delta_position = drift_step;
       motionConstraint.orientation = yaw;
-      backend.processMotion(motionConstraint);
+      pipeline.processMotion(motionConstraint);
 
       robot_pos += drift_step;
       const Eigen::Vector3d measured_in_robot =
         yaw.toRotationMatrix().transpose() * (landmark_world - robot_pos);
 
       Observation obs(0.0, Point3D{measured_in_robot});
-      backend.processObservation(Observations{obs});
+      pipeline.processObservation(Observations{obs});
       std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
 
@@ -440,7 +440,7 @@ protected:
     MapSummary map;
     for (int i = 0; i < 30; ++i)
     {
-      map = backend.getMap();
+      map = pipeline.getMap();
       if (!map.landmarks.empty())
       {
         gotAnyLandmark = true;
@@ -454,7 +454,7 @@ protected:
   }
 };
 
-TEST_P(EkfSlamBackendHeadingWithDriftTest, RepeatedObservationWithSmallDriftAndRotationDoesNotCreateManyLandmarks)
+TEST_P(EkfSlamPipelineHeadingWithDriftTest, RepeatedObservationWithSmallDriftAndRotationDoesNotCreateManyLandmarks)
 {
   const auto [yaw_rad, drift_dx, drift_dy] = GetParam();
   runRepeatedObservationWithDriftScenario(yaw_rad, drift_dx, drift_dy);
@@ -462,7 +462,7 @@ TEST_P(EkfSlamBackendHeadingWithDriftTest, RepeatedObservationWithSmallDriftAndR
 
 INSTANTIATE_TEST_SUITE_P(
     MultipleYawAndDriftCases,
-    EkfSlamBackendHeadingWithDriftTest,
+    EkfSlamPipelineHeadingWithDriftTest,
     ::testing::Values(
         std::make_tuple(-M_PI_2, 0.005, 0.0),
         std::make_tuple(-M_PI_2, 0.0, 0.005),

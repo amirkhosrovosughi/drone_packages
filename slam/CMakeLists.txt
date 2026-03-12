@@ -1,35 +1,35 @@
 cmake_minimum_required(VERSION 3.8)
 project(slam)
 
-# Flag to select SLAM backend (exactly one must be enabled)
-option(SLAM_BACKEND_EKF "Build with EKF backend" ON)
-option(SLAM_BACKEND_GRAPH "Build with Graph backend" OFF)
-option(SLAM_BACKEND_FAST_SLAM "Build with FastSLAM backend (future)" OFF)
+# Flag to select SLAM pipeline (exactly one must be enabled)
+option(SLAM_EKF "Build with EKF pipeline" ON)
+option(SLAM_GRAPH "Build with Graph pipeline" OFF)
+option(SLAM_FAST_SLAM "Build with FastSLAM pipeline (future)" OFF)
 
-set(_slam_backend_count 0)
-if(SLAM_BACKEND_EKF)
-  math(EXPR _slam_backend_count "${_slam_backend_count} + 1")
+set(_slam_pipeline_count 0)
+if(SLAM_EKF)
+  math(EXPR _slam_pipeline_count "${_slam_pipeline_count} + 1")
 endif()
-if(SLAM_BACKEND_GRAPH)
-  math(EXPR _slam_backend_count "${_slam_backend_count} + 1")
+if(SLAM_GRAPH)
+  math(EXPR _slam_pipeline_count "${_slam_pipeline_count} + 1")
 endif()
-if(SLAM_BACKEND_FAST_SLAM)
-  math(EXPR _slam_backend_count "${_slam_backend_count} + 1")
+if(SLAM_FAST_SLAM)
+  math(EXPR _slam_pipeline_count "${_slam_pipeline_count} + 1")
 endif()
 
-if(NOT _slam_backend_count EQUAL 1)
+if(NOT _slam_pipeline_count EQUAL 1)
   message(FATAL_ERROR
-    "Exactly one backend must be enabled: "
-    "SLAM_BACKEND_EKF, SLAM_BACKEND_GRAPH, SLAM_BACKEND_FAST_SLAM")
+    "Exactly one pipeline must be enabled: "
+    "SLAM_EKF, SLAM_GRAPH, SLAM_FAST_SLAM")
 endif()
 
-if(SLAM_BACKEND_EKF)
+if(SLAM_EKF)
   add_compile_definitions(EKF)
-elseif(SLAM_BACKEND_GRAPH)
+elseif(SLAM_GRAPH)
   add_compile_definitions(GRAPH)
-elseif(SLAM_BACKEND_FAST_SLAM)
+elseif(SLAM_FAST_SLAM)
   add_compile_definitions(FAST_SLAM)
-  message(STATUS "FAST_SLAM backend selected. Current runtime path is not implemented yet; this selection is reserved for future work.")
+  message(STATUS "FAST_SLAM pipeline selected. Current runtime path is not implemented yet; this selection is reserved for future work.")
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -62,9 +62,13 @@ include_directories(include/${PROJECT_NAME})
 set(SOURCES
   src/node/slam_node.cpp
   src/node/slam_manager.cpp
-  src/backend/backend_factory.cpp
-  src/backend/ekf_slam_backend.cpp
+  src/pipeline/pipeline_factory.cpp
+  src/pipeline/ekf_slam_pipeline.cpp
+  src/pipeline/graph_slam_backend.cpp
+  src/pipeline/graph_slam_frontend.cpp
+  src/pipeline/graph_slam_pipeline.cpp
   src/filter/extended_kalman_filter.cpp
+  src/graph/internal_graph_optimizer.cpp
   src/map/slam_map.cpp
   src/motion/position_only_motion_model.cpp
   src/observation/observation_builder.cpp
@@ -182,10 +186,10 @@ if(BUILD_TESTING)
       src/measurement/point3d_measurement_model.cpp
   )
 
-  add_slam_gtest(test_ekf_slam_backend
+  add_slam_gtest(test_ekf_slam_pipeline
     SOURCES
-      test/backend/test_ekf_slam_backend.cpp
-      src/backend/ekf_slam_backend.cpp
+      test/pipeline/test_ekf_slam_pipeline.cpp
+      src/pipeline/ekf_slam_pipeline.cpp
       src/filter/extended_kalman_filter.cpp
       src/association/nearest_neighbor_association.cpp
       src/measurement/measurement_factory.cpp
