@@ -42,15 +42,16 @@ namespace slam
 #elif defined(GRAPH)
         auto association = std::make_shared<NearestNeighborAssociation>();
         auto optimizer = std::make_shared<InternalGraphOptimizer>();
-    auto frontend = std::make_shared<GraphSlamFrontend>(association, measurementFactory);
-    auto backend = std::make_shared<GraphSlamBackend>(optimizer);
 
         association->setLogger(logger);
         association->setUnderConstrainedInitializationStrategy(
             std::make_shared<GraphBearingInitializationStrategy>());
         optimizer->setLogger(logger);
 
-    return std::make_shared<GraphSlamPipeline>(frontend, backend);
+        auto frontend = std::make_shared<GraphSlamFrontend>(association, measurementFactory);
+        auto backend = std::make_shared<GraphSlamBackend>(optimizer);
+
+        return std::make_shared<GraphSlamPipeline>(frontend, backend);
 #elif defined(FAST_SLAM)
         throw std::runtime_error(
             "FAST_SLAM pipeline selected at compile time, but pipeline factory path is not implemented yet.");

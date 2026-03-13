@@ -2,9 +2,12 @@ cmake_minimum_required(VERSION 3.8)
 project(slam)
 
 # Flag to select SLAM pipeline (exactly one must be enabled)
-option(SLAM_EKF "Build with EKF pipeline" ON)
-option(SLAM_GRAPH "Build with Graph pipeline" OFF)
-option(SLAM_FAST_SLAM "Build with FastSLAM pipeline (future)" OFF)
+option(SLAM_EKF "Build with EKF SLAM" OFF)
+option(SLAM_GRAPH "Build with Graph SLAM" OFF)
+option(SLAM_FAST_SLAM "Build with FastSLAM SLAM (future)" OFF)
+
+# Default pipeline used when no explicit SLAM_* option is enabled.
+set(SLAM_DEFAULT_PIPELINE "GRAPH")
 
 set(_slam_pipeline_count 0)
 if(SLAM_EKF)
@@ -17,9 +20,27 @@ if(SLAM_FAST_SLAM)
   math(EXPR _slam_pipeline_count "${_slam_pipeline_count} + 1")
 endif()
 
+if(_slam_pipeline_count EQUAL 0)
+  if(SLAM_DEFAULT_PIPELINE STREQUAL "EKF")
+    set(SLAM_EKF ON)
+  elseif(SLAM_DEFAULT_PIPELINE STREQUAL "GRAPH")
+    set(SLAM_GRAPH ON)
+  elseif(SLAM+_DEFAULT_PIPELINE STREQUAL "FAST_SLAM")
+    set(SLAM_FAST_SLAM ON)
+  else()
+    message(FATAL_ERROR
+      "Invalid SLAM_DEFAULT_PIPELINE='${SLAM_DEFAULT_PIPELINE}'. "
+      "Expected one of: EKF, GRAPH, FAST_SLAM")
+  endif()
+  set(_slam_pipeline_count 1)
+  message(STATUS
+    "No SLAM_* option explicitly enabled. Falling back to "
+    "SLAM_DEFAULT_PIPELINE='${SLAM_DEFAULT_PIPELINE}'.")
+endif()
+
 if(NOT _slam_pipeline_count EQUAL 1)
   message(FATAL_ERROR
-    "Exactly one pipeline must be enabled: "
+    "At most one pipeline can be enabled explicitly: "
     "SLAM_EKF, SLAM_GRAPH, SLAM_FAST_SLAM")
 endif()
 
@@ -198,5 +219,27 @@ if(BUILD_TESTING)
       src/measurement/bearing_measurement_model.cpp
       src/motion/position_only_motion_model.cpp
       src/map/slam_map.cpp
+  )
+
+  add_slam_gtest(test_graph_slam_frontend
+    SOURCES
+      test/pipeline/test_graph_slam_frontend.cpp
+      src/pipeline/graph_slam_frontend.cpp
+      src/measurement/measurement_factory.cpp
+      src/measurement/point3d_measurement_model.cpp
+      src/measurement/bbox_measurement_model.cpp
+      src/measurement/bearing_measurement_model.cpp
+  )
+
+  add_slam_gtest(test_graph_slam_backend
+    SOURCES
+      test/pipeline/test_graph_slam_backend.cpp
+      src/pipeline/graph_slam_backend.cpp
+  )
+
+  add_slam_gtest(test_internal_graph_optimizer
+    SOURCES
+      test/graph/test_internal_graph_optimizer.cpp
+      src/graph/internal_graph_optimizer.cpp
   )
 endif()

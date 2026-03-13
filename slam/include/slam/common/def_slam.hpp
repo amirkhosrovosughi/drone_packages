@@ -150,6 +150,79 @@ struct MotionConstraint
   MotionConstraint() = default;
 };
 
+struct GraphKeyframeNode {
+    int id;
+    double timeTag;
+    RobotState robot;
+
+    GraphKeyframeNode(int id = 0, double timeTag = 0.0, const RobotState& robot = RobotState())
+        : id(id), timeTag(timeTag), robot(robot) {}
+};
+
+struct GraphLandmarkNode {
+    int id;
+    Position position;
+    Variance2D variance;
+    int observeRepeat;
+
+    GraphLandmarkNode(int id = 0,
+                      const Position& position = Position(),
+                      const Variance2D& variance = Variance2D(),
+                      int observeRepeat = 0)
+        : id(id), position(position), variance(variance), observeRepeat(observeRepeat) {}
+};
+
+struct GraphOdometryEdge {
+    int fromKeyframeId;
+    int toKeyframeId;
+    MotionConstraint motion;
+
+    GraphOdometryEdge(int fromKeyframeId = 0,
+                      int toKeyframeId = 0,
+                      const MotionConstraint& motion = MotionConstraint())
+        : fromKeyframeId(fromKeyframeId), toKeyframeId(toKeyframeId), motion(motion) {}
+};
+
+struct GraphObservationEdge {
+    int keyframeId;
+    int landmarkId;
+
+    GraphObservationEdge(int keyframeId = 0, int landmarkId = 0)
+        : keyframeId(keyframeId), landmarkId(landmarkId) {}
+};
+
+struct GraphState {
+    RobotState robot;
+    std::vector<GraphKeyframeNode> keyframes;
+    std::vector<GraphLandmarkNode> landmarks;
+    std::vector<GraphOdometryEdge> odometryEdges;
+    std::vector<GraphObservationEdge> observationEdges;
+    int activeKeyframeId = 0;
+
+    GraphState() {}
+
+    bool is_valid() const { return true; }
+};
+
+inline MapSummary graphStateToMapSummary(const GraphState& graph)
+{
+    MapSummary summary;
+    summary.robot = graph.robot;
+
+    summary.landmarks.reserve(graph.landmarks.size());
+    for (const auto& lm : graph.landmarks)
+    {
+        Landmark summaryLandmark;
+        summaryLandmark.id = lm.id;
+        summaryLandmark.position = lm.position;
+        summaryLandmark.variance = lm.variance;
+        summaryLandmark.observeRepeat = lm.observeRepeat;
+        summary.landmarks.push_back(summaryLandmark);
+    }
+
+    return summary;
+}
+
 struct PredictionInput
 {
 

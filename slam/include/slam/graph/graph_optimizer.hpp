@@ -1,0 +1,38 @@
+#ifndef SLAM__GRAPH__GRAPH_OPTIMIZER_HPP_
+#define SLAM__GRAPH__GRAPH_OPTIMIZER_HPP_
+
+#include "common/def_slam.hpp"
+#include "common/slam_logger.hpp"
+#include "measurement/measurement.hpp"
+
+namespace slam
+{
+
+/**
+ * @brief Optimizer abstraction used by GraphSlamPipeline.
+ *
+ * This interface allows swapping internal and external graph optimizers
+ * without changing pipeline orchestration logic.
+ */
+class GraphOptimizer
+{
+public:
+  virtual ~GraphOptimizer() = default;
+
+  virtual void initialize() = 0;
+  virtual void reset() = 0;
+  virtual void applyMotion(const MotionConstraint& motion) = 0;
+  virtual void applyObservation(const AssignedMeasurements& measurements) = 0;
+  virtual GraphState getGraphState() const = 0;
+
+  MapSummary getMap() const
+  {
+    return graphStateToMapSummary(getGraphState());
+  }
+
+  virtual void setLogger(LoggerPtr logger) = 0;
+};
+
+}  // namespace slam
+
+#endif  // SLAM__GRAPH__GRAPH_OPTIMIZER_HPP_
