@@ -11,13 +11,13 @@
 #include <termios.h>
 #include <unistd.h>
 
-static constexpr float DEFAULT_STEP_DISPLACE = 0.2f;
-static constexpr float MAX_STEP_DISPLACE     = 2.0f;
-static constexpr float MIN_STEP_DISPLACE     = 0.05f;
-static constexpr float CHANGE_STEP_DISPLACE  = 0.05f;
+static constexpr float DEFAULT_STEP_DISPLACE = 0.1f;
+static constexpr float MAX_STEP_DISPLACE     = 1.0f;
+static constexpr float MIN_STEP_DISPLACE     = 0.02f;
+static constexpr float CHANGE_STEP_DISPLACE  = 0.02f;
 
-static constexpr float DEFAULT_STEP_ROTATE = 0.05f;
-static constexpr float MAX_STEP_ROTATE     = 0.5f;
+static constexpr float DEFAULT_STEP_ROTATE = 0.02f;
+static constexpr float MAX_STEP_ROTATE     = 0.2f;
 static constexpr float MIN_STEP_ROTATE     = 0.01f;
 static constexpr float CHANGE_STEP_ROTATE  = 0.01f;
 
@@ -107,14 +107,14 @@ void KeyboardControl::processKeyboardInput(char key)
 {
     switch (key) {
         case 'C': getCommand(); break;
-        case 'W': processMovementCommand(MovementCommand::GO_UP);        RCLCPP_INFO(get_logger(), "pressed W"); break;
-        case 'S': processMovementCommand(MovementCommand::GO_DOWN);      RCLCPP_INFO(get_logger(), "pressed S"); break;
-        case 'A': processMovementCommand(MovementCommand::ROTATE_ACW);   RCLCPP_INFO(get_logger(), "pressed A"); break;
-        case 'D': processMovementCommand(MovementCommand::ROTATE_CW);    RCLCPP_INFO(get_logger(), "pressed D"); break;
-        case 'U': processMovementCommand(MovementCommand::GO_FORWARD);   RCLCPP_INFO(get_logger(), "pressed U"); break;
-        case 'J': processMovementCommand(MovementCommand::GO_BACKWARD);  RCLCPP_INFO(get_logger(), "pressed J"); break;
-        case 'H': processMovementCommand(MovementCommand::GO_LEFT);      RCLCPP_INFO(get_logger(), "pressed H"); break;
-        case 'K': processMovementCommand(MovementCommand::GO_RIGHT);     RCLCPP_INFO(get_logger(), "pressed K"); break;
+        case 'W': processMovementCommand(MovementCommand::GO_UP);        RCLCPP_INFO(get_logger(), "pressed W, move up"); break;
+        case 'S': processMovementCommand(MovementCommand::GO_DOWN);      RCLCPP_INFO(get_logger(), "pressed S, move down"); break;
+        case 'A': processMovementCommand(MovementCommand::ROTATE_ACW);   RCLCPP_INFO(get_logger(), "pressed A, rotate anticlockwise"); break;
+        case 'D': processMovementCommand(MovementCommand::ROTATE_CW);    RCLCPP_INFO(get_logger(), "pressed D, rotate clockwise"); break;
+        case 'U': processMovementCommand(MovementCommand::GO_FORWARD);   RCLCPP_INFO(get_logger(), "pressed U, move forward"); break;
+        case 'J': processMovementCommand(MovementCommand::GO_BACKWARD);  RCLCPP_INFO(get_logger(), "pressed J, move backward"); break;
+        case 'H': processMovementCommand(MovementCommand::GO_LEFT);      RCLCPP_INFO(get_logger(), "pressed H, move left"); break;
+        case 'K': processMovementCommand(MovementCommand::GO_RIGHT);     RCLCPP_INFO(get_logger(), "pressed K, move right"); break;
         case '0': processGeneralCommand(GeneralCommand::SLEEP_MODE);     break;
         case '1': processGeneralCommand(GeneralCommand::MANUAL_MODE);    break;
         case '2': processGeneralCommand(GeneralCommand::AUTOMATIC_MODE); break;
