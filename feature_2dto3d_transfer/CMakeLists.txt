@@ -6,9 +6,23 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 option(STORE_DEBUG_DATA "Enable store debug data" OFF)
+option(ONLY_BBOX "Publish only bounding boxes" OFF)
+option(ONLY_3D_POINT "Publish only 3D points" OFF)
+
+if(ONLY_BBOX AND ONLY_3D_POINT)
+  message(FATAL_ERROR "ONLY_BBOX and ONLY_3D_POINT cannot be enabled at the same time")
+endif()
 
 if(STORE_DEBUG_DATA)
     add_compile_definitions(STORE_DEBUG_DATA)
+endif()
+
+if(ONLY_BBOX)
+  add_compile_definitions(ONLY_BBOX=1)
+endif()
+
+if(ONLY_3D_POINT)
+  add_compile_definitions(ONLY_3D_POINT=1)
 endif()
 
 # find dependencies

@@ -92,6 +92,12 @@ void Feature2DTo3DTransfer::detectionCallback(const vision_msgs::msg::Detection3
       RCLCPP_DEBUG(this->get_logger(), " unitVector (%f,%f,%f)", unitVector[0], unitVector[1], unitVector[2]);
 
       RCLCPP_DEBUG(this->get_logger(), "stereo camera depth is %f", depth);
+
+      #if ONLY_BBOX
+      bboxWithoutValidDepth.detections.push_back(detection);
+      continue;
+      #endif
+
       if (depth <= 0.0 || depth > 100.0)
       {
         RCLCPP_DEBUG(this->get_logger(), "Send as bbox without valid depth");
@@ -149,13 +155,18 @@ void Feature2DTo3DTransfer::detectionCallback(const vision_msgs::msg::Detection3
       #endif
     }
 
+#if !ONLY_BBOX
     _feature3DCoordinateCameraPublisher->publish(pointListCamera);
 
     if (_cameraTransformLoaded)
     {
       _feature3DCoordinateBasePublisher->publish(pointListBase);
     }
+#endif
+
+#if !ONLY_3D_POINT
     _featureBoundingBoxPublisher->publish(bboxWithoutValidDepth);
+#endif
   }
 }
 
