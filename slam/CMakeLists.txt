@@ -59,10 +59,6 @@ endif()
 
 option(STORE_DEBUG_DATA "Enable store debug data" OFF)
 
-if(STORE_DEBUG_DATA)
-    add_compile_definitions(STORE_DEBUG_DATA)
-endif()
-
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -102,6 +98,10 @@ set(SOURCES
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES})
+
+if(STORE_DEBUG_DATA)
+  target_compile_definitions(${PROJECT_NAME} PRIVATE STORE_DEBUG_DATA)
+endif()
 
 ament_target_dependencies(${PROJECT_NAME}
   rclcpp
