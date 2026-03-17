@@ -51,6 +51,10 @@ void Feature2DTo3DTransfer::detectionCallback(const vision_msgs::msg::Detection3
 
     drone_msgs::msg::PointList pointListCamera;
     drone_msgs::msg::PointList pointListBase;
+    pointListCamera.header = bboxArray.header;
+    pointListCamera.header.frame_id = TO_FRAME;
+    pointListBase.header = bboxArray.header;
+    pointListBase.header.frame_id = FROM_FRAME;
     for (vision_msgs::msg::Detection3D detection : bboxArray.detections)
     {
       // if class != 0

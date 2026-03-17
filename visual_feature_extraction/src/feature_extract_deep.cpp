@@ -147,7 +147,7 @@ std::vector<Detection> FeatureExtractDeep::postprocess(
             continue;
         }
 
-        RCLCPP_INFO(rclcpp::get_logger("visual_feature_extraction"), "conf confidence: %f ", conf);
+        RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "conf confidence: %f ", conf);
 
         float cx = preds[0 * num_positions + i];
         float cy = preds[1 * num_positions + i];

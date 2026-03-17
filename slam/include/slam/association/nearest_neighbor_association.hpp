@@ -177,20 +177,12 @@ private:
         AssignedMeasurements& assignedMeasurements) const;
 
     /**
-     * @brief Add fully constrained landmark directly.
-     */
-    void addDirectLandmark(
-        const Measurement& measurement,
-        Landmark& landmark,
-        AssignedMeasurements& assignedMeasurements,
-        int* landmarkId = nullptr);
-
-    /**
-     * @brief Track tentative under-constrained landmark and confirm when ready.
+     * @brief Track tentative landmark and confirm when ready.
      */
     void trackOrConfirmTentativeLandmark(
         const Measurement& measurement,
         const Landmark& landmark,
+        bool isUnderConstrainedInitialization,
         AssignedMeasurements& assignedMeasurements,
         int* landmarkId = nullptr);
 

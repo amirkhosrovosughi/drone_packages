@@ -102,8 +102,39 @@ Eigen::MatrixXd BearingMeasurementModel::measurementNoise() const
 }
 
 std::optional<Position> BearingMeasurementModel::inverse(
-    const Pose& robot_pose, const Measurement&) const
+    const Pose& robot_pose, const Measurement& m) const
 {
-    // Bearing-only -> cannot determine depth
-    return std::nullopt;
+    assertCameraInfoAvailable();
+
+    if (m.payload.size() < 2)
+    {
+        return std::nullopt;
+    }
+
+    // Use the same default depth prior as EKF bearing initialization.
+    constexpr double kDefaultDepthMeters = 6.0;
+
+    const double yaw = m.payload(0);
+    const double pitch = m.payload(1);
+
+    Eigen::Vector3d dir_camera(std::tan(yaw), std::tan(pitch), 1.0);
+    const double norm = dir_camera.norm();
+    if (norm <= 1e-9)
+    {
+        return std::nullopt;
+    }
+    dir_camera /= norm;
+
+    Eigen::Vector4d p_c;
+    p_c << kDefaultDepthMeters * dir_camera.x(),
+           kDefaultDepthMeters * dir_camera.y(),
+           kDefaultDepthMeters * dir_camera.z(),
+           1.0;
+
+    const auto& cam = _cameraInfo.value();
+    const Eigen::Matrix4d T_wr = robot_pose.getTransformationMatrix();
+    const Eigen::Matrix4d& T_rc = cam.extrinsics;
+
+    const Eigen::Vector4d p_w = T_wr * T_rc * p_c;
+    return Position(p_w.head<3>());
 }

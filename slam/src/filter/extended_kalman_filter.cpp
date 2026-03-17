@@ -22,12 +22,12 @@ ExtendedKalmanFilter::ExtendedKalmanFilter(
 
 void ExtendedKalmanFilter::prediction(const PredictionInput& predictionInput)
 {
-    std::future<void> result = std::async(std::launch::async, &ExtendedKalmanFilter::processPrediction, this, predictionInput); 
+    processPrediction(predictionInput);
 }
 
 void ExtendedKalmanFilter::correction(const AssignedMeasurements& meas)
 {
-    std::future<void> result = std::async(std::launch::async, &ExtendedKalmanFilter::processCorrection, this, meas);
+    processCorrection(meas);
 }
 
 void ExtendedKalmanFilter::registerCallback(std::function<void(const MapSummary& map)> callback)
@@ -96,7 +96,7 @@ void ExtendedKalmanFilter::processPrediction(const PredictionInput& predictionIn
     MapSummary map = summarizeMap();
     if (_callback)
     {
-        std::async(std::launch::async, _callback, map);
+        _callback(map);
     }
 }
 
@@ -120,7 +120,7 @@ void ExtendedKalmanFilter::processCorrection(const AssignedMeasurements& assigne
     MapSummary map = summarizeMap();
     if (_callback)
     {
-        std::async(std::launch::async, _callback, map);
+        _callback(map);
     }
 }
 

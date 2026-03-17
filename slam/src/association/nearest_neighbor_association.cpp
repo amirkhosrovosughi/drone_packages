@@ -2,12 +2,18 @@
 #include <iostream>
 #include <thread>
 #include <future>
+#include <chrono>
 #include <algorithm>
 #include <limits>
 
+#ifdef STORE_DEBUG_DATA
+#include <atomic>
+#include <map>
+#endif
+
 
 static const double GATING_DISTANCE = 0.5;
-static const double QUATERNION_RATE_LIMIT = 0.2;
+static const double QUATERNION_RATE_LIMIT = 0.1; // maybe try to reduce this see if that helps -> tested, not really helpfull even with reduig to 0.01
 static const int MIN_CONFIRMATION_OBSERVATIONS = 5;
 static const int MAX_TENTATIVE_MISSED_FRAMES = 6;
 static const double MAX_TENTATIVE_COVARIANCE_TRACE = 0.10;
@@ -24,7 +30,17 @@ NearestNeighborAssociation::NearestNeighborAssociation()
 
 void NearestNeighborAssociation::onReceiveMeasurement(const Measurements& meas) 
 {
-    std::future<void> result = std::async(std::launch::async, &NearestNeighborAssociation::processMeasurement, this, meas);
+    #ifdef STORE_DEBUG_DATA
+    static std::atomic<uint64_t> receive_seq{0};
+    std::map<std::string, double> mapLog;
+    mapLog["timeline.association.receive.seq"] = static_cast<double>(++receive_seq);
+    mapLog["timeline.association.receive.wall_time"] =
+        std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
+    mapLog["timeline.association.receive.measurement_count"] = static_cast<double>(meas.size());
+    data_logging_utils::DataLogger::log(mapLog);
+    #endif
+
+    processMeasurement(meas);
     _logger->log(HIGH_LEVEL, LOG_SUBSECTION, LOG_SUBSECTION, "onReceiveMeasurement.");
 }
 
@@ -94,14 +110,19 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
         }
 
         #ifdef STORE_DEBUG_DATA
-        data_logging_utils::DataLogger::log("robotPose.position.x", _robotPose.position.x);
-        data_logging_utils::DataLogger::log("robotPose.position.y", _robotPose.position.y);
-        data_logging_utils::DataLogger::log("robotPose.position.z", _robotPose.position.z);
-     
-        data_logging_utils::DataLogger::log("robotPose.quaternion.w", _robotPose.quaternion.w);
-        data_logging_utils::DataLogger::log("robotPose.quaternion.x", _robotPose.quaternion.x);
-        data_logging_utils::DataLogger::log("robotPose.quaternion.y", _robotPose.quaternion.y);
-        data_logging_utils::DataLogger::log("robotPose.quaternion.z", _robotPose.quaternion.z);
+        std::map<std::string, double> timelineLog;
+        timelineLog["timeline.association.process.wall_time"] =
+            std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
+        timelineLog["timeline.association.process.measurement_count"] = static_cast<double>(measurements.size());
+        timelineLog["timeline.association.process.quaternion_rate"] = _quaternionRate;
+        timelineLog["timeline.association.process.robot_pose.x"] = _robotPose.position.x;
+        timelineLog["timeline.association.process.robot_pose.y"] = _robotPose.position.y;
+        timelineLog["timeline.association.process.robot_pose.z"] = _robotPose.position.z;
+        timelineLog["timeline.association.process.robot_q.w"] = _robotPose.quaternion.w;
+        timelineLog["timeline.association.process.robot_q.x"] = _robotPose.quaternion.x;
+        timelineLog["timeline.association.process.robot_q.y"] = _robotPose.quaternion.y;
+        timelineLog["timeline.association.process.robot_q.z"] = _robotPose.quaternion.z;
+        data_logging_utils::DataLogger::log(timelineLog);
         #endif
 
         std::vector<int> assignedFeature(_landmarks.size(), 0);
@@ -116,9 +137,19 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
         {
             #ifdef STORE_DEBUG_DATA
             std::string plotTagMeas =  "MeasurementPosition_" +  std::to_string(measurementCounter++) + "_";
-            data_logging_utils::DataLogger::log(plotTagMeas + "x", measurement.payload[0]);
-            data_logging_utils::DataLogger::log(plotTagMeas + "y", measurement.payload[1]);
-            data_logging_utils::DataLogger::log(plotTagMeas + "z", measurement.payload[2]);
+            data_logging_utils::DataLogger::log(plotTagMeas + "dim", static_cast<double>(measurement.payload.size()));
+            if (measurement.payload.size() > 0)
+            {
+                data_logging_utils::DataLogger::log(plotTagMeas + "x", measurement.payload[0]);
+            }
+            if (measurement.payload.size() > 1)
+            {
+                data_logging_utils::DataLogger::log(plotTagMeas + "y", measurement.payload[1]);
+            }
+            if (measurement.payload.size() > 2)
+            {
+                data_logging_utils::DataLogger::log(plotTagMeas + "z", measurement.payload[2]);
+            }
             #endif
 
             Landmark landmark;
@@ -139,33 +170,31 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
             #endif
 
             // Find the first unassigend feature
-            int startingLandmarkIndex = 0;
+            std::size_t startingLandmarkIndex = 0;
             auto it = std::find_if(assignedFeature.begin(), assignedFeature.end(), [](int value) { return value == 0; });
             if (it != assignedFeature.end())
             {
-                startingLandmarkIndex = std::distance(assignedFeature.begin(), it);
+                startingLandmarkIndex = static_cast<std::size_t>(std::distance(assignedFeature.begin(), it));
                 _logger->log(LOW_LEVEL, LOG_SUBSECTION, "First unassigned landmark is: ", startingLandmarkIndex, "\n");
 
             }
             else
             {
                 _logger->log(LOW_LEVEL, LOG_SUBSECTION, "!-------------------------------------!");
-                if (!isUnderConstrainedInitialization)
-                {
-                    addDirectLandmark(measurement, landmark, assignedMeasurements);
-                    continue;
-                }
-
                 _logger->log(LOW_LEVEL, LOG_SUBSECTION, "No unassigned confirmed landmark, track tentative candidate.\n");
-                trackOrConfirmTentativeLandmark(measurement, landmark, assignedMeasurements);
+                trackOrConfirmTentativeLandmark(
+                    measurement,
+                    landmark,
+                    isUnderConstrainedInitialization,
+                    assignedMeasurements);
                 continue;
             }
 
             double shortestDistance = euclideanDistance(landmark, _landmarks[startingLandmarkIndex]);
             double distance = 0;
-            int nearestIndex = startingLandmarkIndex;
+            std::size_t nearestIndex = startingLandmarkIndex;
 
-            for (int i = startingLandmarkIndex + 1; i < _landmarks.size(); i++)
+            for (std::size_t i = startingLandmarkIndex + 1; i < _landmarks.size(); i++)
             {
                 _logger->log(LOW_LEVEL, LOG_SUBSECTION, "landmark ", i, " position is: (", _landmarks[i].position.x,
                             ", ", _landmarks[i].position.y, ", ", _landmarks[i].position.z, ") \n");
@@ -191,7 +220,7 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
                             ", ", _landmarks[nearestIndex].position.z, ") \n");
 
                 _landmarks[nearestIndex].observeRepeat ++;
-                landmarkId = nearestIndex;
+                landmarkId = static_cast<int>(nearestIndex);
 
                 AssignedMeasurement meas(measurement, _landmarks[nearestIndex].id);
                 meas.isNew = false;
@@ -202,12 +231,12 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
             else
             {
                 _logger->log(LOW_LEVEL, LOG_SUBSECTION, "!-------------------------------------!");
-                if (!isUnderConstrainedInitialization)
-                {
-                    addDirectLandmark(measurement, landmark, assignedMeasurements, &landmarkId);
-                    continue;
-                }
-                trackOrConfirmTentativeLandmark(measurement, landmark, assignedMeasurements, &landmarkId);
+                trackOrConfirmTentativeLandmark(
+                    measurement,
+                    landmark,
+                    isUnderConstrainedInitialization,
+                    assignedMeasurements,
+                    &landmarkId);
             }
 
             #ifdef STORE_DEBUG_DATA
@@ -221,7 +250,7 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
 
     if (_callback)
     {
-        std::async(std::launch::async, _callback, assignedMeasurements);
+        _callback(assignedMeasurements);
     }
 
     _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "callback measurement is called.");
@@ -266,32 +295,15 @@ void NearestNeighborAssociation::appendNewLandmarkAssignment(
     assignedMeasurements.push_back(meas);
 }
 
-void NearestNeighborAssociation::addDirectLandmark(
-    const Measurement& measurement,
-    Landmark& landmark,
-    AssignedMeasurements& assignedMeasurements,
-    int* landmarkId)
-{
-    _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Adding a new landmark ...");
-    landmark.id = _numberLandmarks++;
-    landmark.observeRepeat = 1;
-
-    if (landmarkId)
-    {
-        *landmarkId = landmark.id;
-    }
-
-    _landmarks.push_back(landmark);
-    appendNewLandmarkAssignment(measurement, landmark, assignedMeasurements);
-}
-
 void NearestNeighborAssociation::trackOrConfirmTentativeLandmark(
     const Measurement& measurement,
     const Landmark& landmark,
+    bool isUnderConstrainedInitialization,
     AssignedMeasurements& assignedMeasurements,
     int* landmarkId)
 {
-    const int tentativeCandidateId = findNearestTentativeCandidate(landmark, true);
+    const int tentativeCandidateId =
+        findNearestTentativeCandidate(landmark, isUnderConstrainedInitialization);
     if (tentativeCandidateId >= 0)
     {
         TentativeLandmark& candidate = _tentativeLandmarks[tentativeCandidateId];
@@ -324,7 +336,7 @@ void NearestNeighborAssociation::trackOrConfirmTentativeLandmark(
         _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Creating tentative landmark candidate ...");
         TentativeLandmark candidate;
         candidate.candidateId = _nextTentativeId++;
-        candidate.isUnderConstrained = true;
+        candidate.isUnderConstrained = isUnderConstrainedInitialization;
         updateTentativeLandmark(candidate, landmark.position);
         candidate.seenInCurrentFrame = true;
 
@@ -344,7 +356,9 @@ double NearestNeighborAssociation::euclideanDistance(const Landmark& meas, Landm
     return (vec1 - vec2).norm();
 }
 
-double NearestNeighborAssociation::mahalanobisDistance(const Landmark& meas, Landmark feature)
+double NearestNeighborAssociation::mahalanobisDistance(
+    [[maybe_unused]] const Landmark& meas,
+    [[maybe_unused]] Landmark feature)
 {
     return 0.0;
 }
@@ -460,6 +474,8 @@ int NearestNeighborAssociation::findNearestTentativeCandidate(
 {
     int nearestCandidateId = -1;
     double shortestDistance = std::numeric_limits<double>::max();
+    const double gatingDistance =
+        isUnderConstrainedInitialization ? UNDER_CONSTRAINED_GATING_DISTANCE : GATING_DISTANCE;
     const Eigen::Vector3d measurementVector = measurementLandmark.position.getPositionVector();
 
     for (const auto& entry : _tentativeLandmarks)
@@ -477,7 +493,7 @@ int NearestNeighborAssociation::findNearestTentativeCandidate(
         }
     }
 
-    if (shortestDistance < GATING_DISTANCE)
+    if (shortestDistance < gatingDistance)
     {
         return nearestCandidateId;
     }

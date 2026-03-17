@@ -112,7 +112,6 @@ void SlamManager::odometryCallback(
 
   Quaternion q_enu(q_enu_vec);
 
-
   motion.delta_position = Eigen::Vector3d(pos_diff.x(), pos_diff.y(), pos_diff.z());
   motion.orientation = Eigen::Quaterniond(q_enu.w, q_enu.x, q_enu.y, q_enu.z);
 
@@ -124,17 +123,14 @@ void SlamManager::odometryCallback(
 void SlamManager::feature3dPointCallback(
     const drone_msgs::msg::PointList::SharedPtr msg)
 {
-    // Get timestamp (prefer message time if available)
-    double timeTag;
-    if (msg->header.stamp.sec != 0 || msg->header.stamp.nanosec != 0)
+    if (msg->header.stamp.sec == 0 && msg->header.stamp.nanosec == 0)
     {
-      timeTag = msg->header.stamp.sec +
-            msg->header.stamp.nanosec * 1e-9;
+      RCLCPP_WARN(this->get_logger(),
+                  "Dropping /feature/coordinate/baseLink message without header timestamp.");
+      return;
     }
-    else
-    {
-      timeTag = getCurrentTimeInSeconds();
-    }
+    const double timeTag = msg->header.stamp.sec +
+                           msg->header.stamp.nanosec * 1e-9;
 
     // Build Observations via builder
     slam::Observations obs = slam::ObservationBuilder::fromPointList(*msg, timeTag);
@@ -144,17 +140,14 @@ void SlamManager::feature3dPointCallback(
 void SlamManager::featureBboxCallback(
     const vision_msgs::msg::Detection3DArray::SharedPtr msg)
 {
-  // Get timestamp (prefer message time if available)
-  double timeTag;
-  if (msg->header.stamp.sec != 0 || msg->header.stamp.nanosec != 0)
-  {
-    timeTag = msg->header.stamp.sec +
-          msg->header.stamp.nanosec * 1e-9;
-  }
-  else
-  {
-    timeTag = getCurrentTimeInSeconds();
-  }
+  if (msg->header.stamp.sec == 0 && msg->header.stamp.nanosec == 0)
+    {
+      RCLCPP_WARN(this->get_logger(),
+                  "Dropping /feature/bbox/cameraFrame message without header timestamp.");
+      return;
+    }
+    const double timeTag = msg->header.stamp.sec +
+                           msg->header.stamp.nanosec * 1e-9;
 
   // Build Observations via builder
   slam::Observations obs = slam::ObservationBuilder::fromBboxArray(*msg, timeTag);
@@ -231,6 +224,13 @@ void SlamManager::updateCameraExtrinsic()
     T.block<3,1>(0,3) = t;
 
     _cameraInfo.extrinsics = CameraExtrinsics(T);
+
+    // Convert camera body frame to optical frame (x right, y down, z forward)
+    Eigen::Matrix4d body_to_optical_transform = Eigen::Matrix4d::Identity();
+    body_to_optical_transform.block<3, 3>(0, 0) << 0, 0, 1,
+                            -1, 0, 0,
+                            0, -1, 0;
+    T = T * body_to_optical_transform;
     _cameraExtrinsicLoaded = true;
 
     _cameraExtrinsicTimer->cancel();
