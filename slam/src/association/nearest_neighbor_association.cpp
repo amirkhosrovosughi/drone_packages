@@ -30,6 +30,8 @@ static const double MIN_TRIANGULATION_BASELINE_METERS = 0.20;
 static const double MIN_TRIANGULATION_FORWARD_DEPTH_METERS = 1.00;
 static const double MAX_TRIANGULATION_MEAN_RAY_RESIDUAL = 0.75;
 static const double MIN_NEW_LANDMARK_SEPARATION_METERS = 1.00;
+static const double BEARING_TENTATIVE_DIRECTION_GATING_RADIANS = 0.12;
+static const double BEARING_TRIANGULATED_RAY_DISTANCE_GATING_METERS = 0.35;
 
 static const LogLevel HIGH_LEVEL = LogLevel::INFO;
 static const LogLevel LOW_LEVEL = LogLevel::DEBUG;
@@ -193,150 +195,14 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
             }
             #endif
 
-            Landmark landmark;
-            bool isUnderConstrainedInitialization = false;
-            if (!tryInitializeLandmarkFromMeasurement(measurement, landmark, isUnderConstrainedInitialization))
+            if (isBearingMeasurement(measurement))
             {
-                continue;
-            }
-            
-            _logger->log(LOW_LEVEL, LOG_SUBSECTION, "landmark position is: \n (", landmark.position.x,
-                        ", ", landmark.position.y, ", ", landmark.position.z, ") \n");
-
-            #ifdef STORE_DEBUG_DATA
-            std::string plotTag =  "landmarkPosition_" +  std::to_string(measurementCounter) + "_";
-            data_logging_utils::DataLogger::log(plotTag + "x", landmark.position.x);
-            data_logging_utils::DataLogger::log(plotTag + "y", landmark.position.y);
-            data_logging_utils::DataLogger::log(plotTag + "z", landmark.position.z);
-            #endif
-
-            // Find the first unassigend feature
-            std::size_t startingLandmarkIndex = 0;
-            auto it = std::find_if(assignedFeature.begin(), assignedFeature.end(), [](int value) { return value == 0; });
-            if (it != assignedFeature.end())
-            {
-                startingLandmarkIndex = static_cast<std::size_t>(std::distance(assignedFeature.begin(), it));
-                _logger->log(LOW_LEVEL, LOG_SUBSECTION, "First unassigned landmark is: ", startingLandmarkIndex, "\n");
-
+                processBearingMeasurement(measurement, assignedFeature, assignedMeasurements);
             }
             else
             {
-                _logger->log(LOW_LEVEL, LOG_SUBSECTION, "!-------------------------------------!");
-                _logger->log(LOW_LEVEL, LOG_SUBSECTION, "No unassigned confirmed landmark, track tentative candidate.\n");
-                trackOrConfirmTentativeLandmark(
-                    measurement,
-                    landmark,
-                    isUnderConstrainedInitialization,
-                    assignedMeasurements,
-                    _robotPose);
-                continue;
+                processPointMeasurement(measurement, assignedFeature, assignedMeasurements);
             }
-
-            const bool bearingMode = isBearingMeasurement(measurement);
-            const double associationGate = bearingMode ? BEARING_GATING_DISTANCE : GATING_DISTANCE;
-
-            double shortestDistance = std::numeric_limits<double>::infinity();
-            bool foundComparableLandmark = false;
-            std::size_t nearestIndex = startingLandmarkIndex;
-            Measurement nearestPredictedMeasurement;
-            bool hasNearestPredictedMeasurement = false;
-
-            for (std::size_t i = startingLandmarkIndex; i < _landmarks.size(); i++)
-            {
-                if (assignedFeature[i] != 0)
-                {
-                    continue;
-                }
-
-                double distance = std::numeric_limits<double>::infinity();
-                if (bearingMode)
-                {
-                    try
-                    {
-                        Measurement predicted = measurement.model->predict(_robotPose, _landmarks[i].position);
-                        if (measurement.payload.size() < 2 || predicted.payload.size() < 2)
-                        {
-                            continue;
-                        }
-
-                        const double dyaw = wrapAngle(measurement.payload(0) - predicted.payload(0));
-                        const double dpitch = wrapAngle(measurement.payload(1) - predicted.payload(1));
-                        distance = std::sqrt(dyaw * dyaw + dpitch * dpitch);
-
-                        if (distance < shortestDistance)
-                        {
-                            nearestPredictedMeasurement = predicted;
-                            hasNearestPredictedMeasurement = true;
-                        }
-                    }
-                    catch (const std::runtime_error&)
-                    {
-                        continue;
-                    }
-                }
-                else
-                {
-                    distance = euclideanDistance(landmark, _landmarks[i]);
-                }
-
-                foundComparableLandmark = true;
-                if (distance < shortestDistance)
-                {
-                    shortestDistance = distance;
-                    nearestIndex = i;
-                    _logger->log(LOW_LEVEL, LOG_SUBSECTION, "--- nearestIndex so far: ", nearestIndex,
-                                ", _landmarks[i].id: ", _landmarks[i].id, "Distance:", shortestDistance);
-                }
-            }
-
-            _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "========= index nearest: [[[ ", nearestIndex,
-                        " ]]], shortestDistance: ", shortestDistance, " \n");
-
-            int landmarkId = 0;
-            const bool strictAssociationMatch = foundComparableLandmark && shortestDistance < associationGate;
-            const bool relaxedBearingFallbackMatch =
-                bearingMode && foundComparableLandmark &&
-                shortestDistance >= associationGate &&
-                shortestDistance < BEARING_RELAXED_FALLBACK_DISTANCE;
-
-            if (strictAssociationMatch || relaxedBearingFallbackMatch)
-            {
-                _logger->log(LOW_LEVEL, LOG_SUBSECTION, "Find a matching landmark\n.");
-                if (relaxedBearingFallbackMatch)
-                {
-                    _logger->log(LOW_LEVEL, LOG_SUBSECTION,
-                                 "Bearing fallback update used. residual=", shortestDistance,
-                                 " strict_gate=", associationGate,
-                                 " fallback_gate=", BEARING_RELAXED_FALLBACK_DISTANCE);
-                }
-                _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Nearest machitng id is", _landmarks[nearestIndex].id, ", and it landmark ",
-                            "position is: (", _landmarks[nearestIndex].position.x, ", ", _landmarks[nearestIndex].position.y,
-                            ", ", _landmarks[nearestIndex].position.z, ") \n");
-
-                _landmarks[nearestIndex].observeRepeat ++;
-                landmarkId = static_cast<int>(nearestIndex);
-
-                AssignedMeasurement meas(measurement, _landmarks[nearestIndex].id);
-                meas.isNew = false;
-
-                assignedMeasurements.push_back(meas);
-                assignedFeature[nearestIndex] = 1;
-            }
-            else
-            {
-                _logger->log(LOW_LEVEL, LOG_SUBSECTION, "!-------------------------------------!");
-                trackOrConfirmTentativeLandmark(
-                    measurement,
-                    landmark,
-                    isUnderConstrainedInitialization,
-                    assignedMeasurements,
-                    _robotPose,
-                    &landmarkId);
-            }
-
-            #ifdef STORE_DEBUG_DATA
-            data_logging_utils::DataLogger::log("landmarkId", landmarkId);
-            #endif
         }
         pruneTentativeLandmarks();
         _logger->log(LOW_LEVEL, LOG_SUBSECTION, "Measurement are processed.\n");
@@ -351,12 +217,197 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
     _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "callback measurement is called.");
 }
 
+void NearestNeighborAssociation::processPointMeasurement(
+    const Measurement& measurement,
+    std::vector<int>& assignedFeature,
+    AssignedMeasurements& assignedMeasurements)
+{
+    Landmark landmark;
+    bool isUnderConstrainedInitialization = false;
+    if (!tryInitializeLandmarkFromMeasurement(measurement, landmark, isUnderConstrainedInitialization))
+    {
+        _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Skip point measurement as landmark cannot be constructed from it.");
+        return;
+    }
+
+    std::size_t startingLandmarkIndex = 0;
+    auto it = std::find_if(assignedFeature.begin(), assignedFeature.end(), [](int value) { return value == 0; });
+    if (it != assignedFeature.end())
+    {
+        startingLandmarkIndex = static_cast<std::size_t>(std::distance(assignedFeature.begin(), it));
+    }
+    else
+    {
+        trackOrConfirmTentativeLandmark(
+            measurement,
+            landmark,
+            isUnderConstrainedInitialization,
+            assignedMeasurements,
+            _robotPose);
+        return;
+    }
+
+    double shortestDistance = std::numeric_limits<double>::infinity();
+    bool foundComparableLandmark = false;
+    std::size_t nearestIndex = startingLandmarkIndex;
+    for (std::size_t i = startingLandmarkIndex; i < _landmarks.size(); ++i)
+    {
+        if (assignedFeature[i] != 0)
+        {
+            continue;
+        }
+
+        const double distance = euclideanDistance(landmark, _landmarks[i]);
+        foundComparableLandmark = true;
+        if (distance < shortestDistance)
+        {
+            shortestDistance = distance;
+            nearestIndex = i;
+        }
+    }
+
+    int landmarkId = 0;
+    if (foundComparableLandmark && shortestDistance < GATING_DISTANCE)
+    {
+        _landmarks[nearestIndex].observeRepeat++;
+        landmarkId = static_cast<int>(nearestIndex);
+
+        AssignedMeasurement meas(measurement, _landmarks[nearestIndex].id);
+        meas.isNew = false;
+
+        assignedMeasurements.push_back(meas);
+        assignedFeature[nearestIndex] = 1;
+    }
+    else
+    {
+        trackOrConfirmTentativeLandmark(
+            measurement,
+            landmark,
+            isUnderConstrainedInitialization,
+            assignedMeasurements,
+            _robotPose,
+            &landmarkId);
+    }
+
+    #ifdef STORE_DEBUG_DATA
+    data_logging_utils::DataLogger::log("landmarkId", landmarkId);
+    #endif
+}
+
+void NearestNeighborAssociation::processBearingMeasurement(
+    const Measurement& measurement,
+    std::vector<int>& assignedFeature,
+    AssignedMeasurements& assignedMeasurements)
+{
+    auto bearingModel = std::dynamic_pointer_cast<BearingMeasurementModel>(measurement.model);
+    if (!bearingModel)
+    {
+        return;
+    }
+
+    Eigen::Vector3d rayOriginWorld;
+    Eigen::Vector3d rayDirectionWorld;
+    if (!bearingModel->worldRayFromMeasurement(_robotPose, measurement, rayOriginWorld, rayDirectionWorld))
+    {
+        _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Skip bearing measurement as ray cannot be constructed from it.");
+        return;
+    }
+
+    std::size_t startingLandmarkIndex = 0;
+    auto it = std::find_if(assignedFeature.begin(), assignedFeature.end(), [](int value) { return value == 0; });
+    if (it != assignedFeature.end())
+    {
+        startingLandmarkIndex = static_cast<std::size_t>(std::distance(assignedFeature.begin(), it));
+    }
+    else
+    {
+        trackOrConfirmTentativeBearingLandmark(
+            measurement,
+            rayOriginWorld,
+            rayDirectionWorld,
+            assignedMeasurements,
+            _robotPose);
+        return;
+    }
+
+    double shortestDistance = std::numeric_limits<double>::infinity();
+    bool foundComparableLandmark = false;
+    std::size_t nearestIndex = startingLandmarkIndex;
+    Measurement nearestPredictedMeasurement;
+    bool hasNearestPredictedMeasurement = false;
+
+    for (std::size_t i = startingLandmarkIndex; i < _landmarks.size(); ++i)
+    {
+        if (assignedFeature[i] != 0)
+        {
+            continue;
+        }
+
+        try
+        {
+            Measurement predicted = measurement.model->predict(_robotPose, _landmarks[i].position);
+            if (measurement.payload.size() < 2 || predicted.payload.size() < 2)
+            {
+                continue;
+            }
+
+            const double dyaw = wrapAngle(measurement.payload(0) - predicted.payload(0));
+            const double dpitch = wrapAngle(measurement.payload(1) - predicted.payload(1));
+            const double distance = std::sqrt(dyaw * dyaw + dpitch * dpitch);
+
+            foundComparableLandmark = true;
+            if (distance < shortestDistance)
+            {
+                shortestDistance = distance;
+                nearestIndex = i;
+                nearestPredictedMeasurement = predicted;
+                hasNearestPredictedMeasurement = true;
+            }
+        }
+        catch (const std::runtime_error&)
+        {
+            continue;
+        }
+    }
+
+    int landmarkId = 0;
+    const bool strictAssociationMatch = foundComparableLandmark && shortestDistance < BEARING_GATING_DISTANCE;
+    const bool relaxedBearingFallbackMatch =
+        foundComparableLandmark &&
+        shortestDistance >= BEARING_GATING_DISTANCE &&
+        shortestDistance < BEARING_RELAXED_FALLBACK_DISTANCE;
+
+    if (strictAssociationMatch || relaxedBearingFallbackMatch)
+    {
+        _landmarks[nearestIndex].observeRepeat++;
+        landmarkId = static_cast<int>(nearestIndex);
+
+        AssignedMeasurement meas(measurement, _landmarks[nearestIndex].id);
+        meas.isNew = false;
+        assignedMeasurements.push_back(meas);
+        assignedFeature[nearestIndex] = 1;
+    }
+    else
+    {
+        trackOrConfirmTentativeBearingLandmark(
+            measurement,
+            rayOriginWorld,
+            rayDirectionWorld,
+            assignedMeasurements,
+            _robotPose,
+            &landmarkId);
+    }
+
+    #ifdef STORE_DEBUG_DATA
+    data_logging_utils::DataLogger::log("landmarkId", landmarkId);
+    #endif
+}
+
 bool NearestNeighborAssociation::tryInitializeLandmarkFromMeasurement(
     const Measurement& measurement,
     Landmark& landmark,
     bool& isUnderConstrainedInitialization) const
 {
-    const bool bearingMeasurement = isBearingMeasurement(measurement);
     isUnderConstrainedInitialization = false;
 
     auto capturedLandmarkPosition = measurement.model->inverse(_robotPose, measurement);
@@ -441,6 +492,7 @@ void NearestNeighborAssociation::trackOrConfirmTentativeLandmark(
                 assignedMeasurements.push_back(meas);
 
                 _logger->log(LOW_LEVEL, LOG_SUBSECTION,
+
                              "Tentative candidate ", candidate.candidateId,
                              " merged with existing landmark id ", mergedLandmark.id,
                              " at distance ", nearestExistingDistance,
@@ -478,6 +530,89 @@ void NearestNeighborAssociation::trackOrConfirmTentativeLandmark(
 
         _tentativeLandmarks[candidate.candidateId] = candidate;
     }
+}
+
+void NearestNeighborAssociation::trackOrConfirmTentativeBearingLandmark(
+    const Measurement& measurement,
+    const Eigen::Vector3d& rayOriginWorld,
+    const Eigen::Vector3d& rayDirectionWorld,
+    AssignedMeasurements& assignedMeasurements,
+    const Pose& robotPose,
+    int* landmarkId)
+{
+    const int tentativeCandidateId =
+        findNearestTentativeBearingCandidate(rayOriginWorld, rayDirectionWorld);
+
+    if (tentativeCandidateId >= 0)
+    {
+        TentativeLandmark& candidate = _tentativeLandmarks[tentativeCandidateId];
+        candidate.consistentObservations++;
+        candidate.missedFrames = 0;
+        candidate.seenInCurrentFrame = true;
+        updateBearingTriangulationFromRay(candidate, rayOriginWorld, rayDirectionWorld, robotPose);
+
+        if (landmarkId)
+        {
+            *landmarkId = candidate.candidateId;
+        }
+
+        if (shouldConfirmTentativeLandmark(candidate))
+        {
+            int nearestExistingLandmarkIndex = -1;
+            double nearestExistingDistance = std::numeric_limits<double>::infinity();
+            for (std::size_t i = 0; i < _landmarks.size(); ++i)
+            {
+                const double distance =
+                    (candidate.position.getPositionVector() - _landmarks[i].position.getPositionVector()).norm();
+                if (distance < nearestExistingDistance)
+                {
+                    nearestExistingDistance = distance;
+                    nearestExistingLandmarkIndex = static_cast<int>(i);
+                }
+            }
+
+            if (nearestExistingLandmarkIndex >= 0 &&
+                nearestExistingDistance < MIN_NEW_LANDMARK_SEPARATION_METERS)
+            {
+                Landmark& mergedLandmark = _landmarks[static_cast<std::size_t>(nearestExistingLandmarkIndex)];
+                mergedLandmark.observeRepeat++;
+
+                AssignedMeasurement meas(measurement, mergedLandmark.id);
+                meas.isNew = false;
+                assignedMeasurements.push_back(meas);
+                _tentativeLandmarks.erase(candidate.candidateId);
+                return;
+            }
+
+            Landmark confirmedLandmark;
+            confirmedLandmark.id = _numberLandmarks++;
+            confirmedLandmark.position = candidate.position;
+            confirmedLandmark.variance = candidate.variance;
+            confirmedLandmark.observeRepeat = candidate.consistentObservations;
+
+            _landmarks.push_back(confirmedLandmark);
+            appendNewLandmarkAssignment(measurement, confirmedLandmark, assignedMeasurements);
+            _tentativeLandmarks.erase(candidate.candidateId);
+        }
+        return;
+    }
+
+    TentativeLandmark candidate;
+    candidate.candidateId = _nextTentativeId++;
+    candidate.isUnderConstrained = true;
+    candidate.consistentObservations = 1;
+    candidate.missedFrames = 0;
+    candidate.seenInCurrentFrame = true;
+    const double initialVariance = UNDER_CONSTRAINED_GATING_DISTANCE * UNDER_CONSTRAINED_GATING_DISTANCE;
+    candidate.variance = Variance2D(initialVariance, 0.0, initialVariance);
+    updateBearingTriangulationFromRay(candidate, rayOriginWorld, rayDirectionWorld, robotPose);
+
+    if (landmarkId)
+    {
+        *landmarkId = candidate.candidateId;
+    }
+
+    _tentativeLandmarks[candidate.candidateId] = candidate;
 }
 
 double NearestNeighborAssociation::euclideanDistance(const Landmark& meas, Landmark feature)
@@ -574,6 +709,20 @@ void NearestNeighborAssociation::updateBearingTriangulation(
     Eigen::Vector3d rayOriginWorld;
     Eigen::Vector3d rayDirectionWorld;
     if (!bearingModel->worldRayFromMeasurement(robotPose, measurement, rayOriginWorld, rayDirectionWorld))
+    {
+        return;
+    }
+
+    updateBearingTriangulationFromRay(candidate, rayOriginWorld, rayDirectionWorld, robotPose);
+}
+
+void NearestNeighborAssociation::updateBearingTriangulationFromRay(
+    TentativeLandmark& candidate,
+    const Eigen::Vector3d& rayOriginWorld,
+    const Eigen::Vector3d& rayDirectionWorld,
+    const Pose& robotPose)
+{
+    if (!candidate.isUnderConstrained)
     {
         return;
     }
@@ -838,4 +987,51 @@ int NearestNeighborAssociation::findNearestTentativeCandidate(
     }
 
     return -1;
+}
+
+int NearestNeighborAssociation::findNearestTentativeBearingCandidate(
+    const Eigen::Vector3d& rayOriginWorld,
+    const Eigen::Vector3d& rayDirectionWorld) const
+{
+    const Eigen::Vector3d normalizedDirection = rayDirectionWorld.normalized();
+    int nearestCandidateId = -1;
+    double shortestAngle = std::numeric_limits<double>::infinity();
+
+    for (const auto& entry : _tentativeLandmarks)
+    {
+        const TentativeLandmark& candidate = entry.second;
+        if (!candidate.isUnderConstrained || candidate.bearingObservations.empty())
+        {
+            continue;
+        }
+
+        const Eigen::Vector3d referenceDirection =
+            candidate.bearingObservations.back().directionWorld.normalized();
+        const double dot = std::max(-1.0, std::min(1.0, referenceDirection.dot(normalizedDirection)));
+        const double angle = std::acos(dot);
+        if (angle > BEARING_TENTATIVE_DIRECTION_GATING_RADIANS)
+        {
+            continue;
+        }
+
+        if (candidate.hasTriangulatedPosition)
+        {
+            const double rayDistance = pointToRayDistance(
+                candidate.position.getPositionVector(),
+                rayOriginWorld,
+                normalizedDirection);
+            if (rayDistance > BEARING_TRIANGULATED_RAY_DISTANCE_GATING_METERS)
+            {
+                continue;
+            }
+        }
+
+        if (angle < shortestAngle)
+        {
+            shortestAngle = angle;
+            nearestCandidateId = entry.first;
+        }
+    }
+
+    return nearestCandidateId;
 }

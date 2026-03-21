@@ -10,6 +10,7 @@
 #include <deque>
 #include <mutex>
 #include <unordered_map>
+#include <vector>
 #include "common/slam_logger.hpp"
 
 #ifdef STORE_DEBUG_DATA
@@ -129,6 +130,16 @@ private:
      */
     void processMeasurement(const Measurements& meas) override;
 
+    void processPointMeasurement(
+        const Measurement& measurement,
+        std::vector<int>& assignedFeature,
+        AssignedMeasurements& assignedMeasurements);
+
+    void processBearingMeasurement(
+        const Measurement& measurement,
+        std::vector<int>& assignedFeature,
+        AssignedMeasurements& assignedMeasurements);
+
     /**
      * @brief Compute Euclidean distance between two landmarks (positions).
      *
@@ -189,6 +200,14 @@ private:
         const Measurement& measurement,
         const Landmark& landmark,
         bool isUnderConstrainedInitialization,
+        AssignedMeasurements& assignedMeasurements,
+        const Pose& robotPose,
+        int* landmarkId = nullptr);
+
+    void trackOrConfirmTentativeBearingLandmark(
+        const Measurement& measurement,
+        const Eigen::Vector3d& rayOriginWorld,
+        const Eigen::Vector3d& rayDirectionWorld,
         AssignedMeasurements& assignedMeasurements,
         const Pose& robotPose,
         int* landmarkId = nullptr);
@@ -259,6 +278,16 @@ private:
     int findNearestTentativeCandidate(
         const Landmark& measurementLandmark,
         bool isUnderConstrainedInitialization) const;
+
+    int findNearestTentativeBearingCandidate(
+        const Eigen::Vector3d& rayOriginWorld,
+        const Eigen::Vector3d& rayDirectionWorld) const;
+
+    void updateBearingTriangulationFromRay(
+        TentativeLandmark& candidate,
+        const Eigen::Vector3d& rayOriginWorld,
+        const Eigen::Vector3d& rayDirectionWorld,
+        const Pose& robotPose);
 
     std::function<void(AssignedMeasurements)> _callback;            ///< Callback invoked with associated measurements
     std::mutex _mutex;                                              ///< Mutex to protect internal state
