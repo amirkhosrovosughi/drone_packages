@@ -223,14 +223,14 @@ void SlamManager::updateCameraExtrinsic()
     T.block<3,3>(0,0) = q.toRotationMatrix();
     T.block<3,1>(0,3) = t;
 
-    _cameraInfo.extrinsics = CameraExtrinsics(T);
-
     // Convert camera body frame to optical frame (x right, y down, z forward)
     Eigen::Matrix4d body_to_optical_transform = Eigen::Matrix4d::Identity();
     body_to_optical_transform.block<3, 3>(0, 0) << 0, 0, 1,
                             -1, 0, 0,
                             0, -1, 0;
     T = T * body_to_optical_transform;
+
+    _cameraInfo.extrinsics = CameraExtrinsics(T);
     _cameraExtrinsicLoaded = true;
 
     _cameraExtrinsicTimer->cancel();

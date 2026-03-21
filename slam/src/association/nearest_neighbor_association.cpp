@@ -1,10 +1,12 @@
 #include "association/nearest_neighbor_association.hpp"
+#include "measurement/bearing_measurement_model.hpp"
 #include <iostream>
 #include <thread>
 #include <future>
 #include <chrono>
 #include <algorithm>
 #include <limits>
+#include <stdexcept>
 
 #ifdef STORE_DEBUG_DATA
 #include <atomic>
@@ -13,19 +15,58 @@
 
 
 static const double GATING_DISTANCE = 0.5;
-static const double QUATERNION_RATE_LIMIT = 0.1; // maybe try to reduce this see if that helps -> tested, not really helpfull even with reduig to 0.01
-static const int MIN_CONFIRMATION_OBSERVATIONS = 5;
+static const double BEARING_GATING_DISTANCE = 0.22; // ~12.6 deg in yaw/pitch residual norm
+static const double BEARING_RELAXED_FALLBACK_DISTANCE = 0.40; // ~22.9 deg fallback to avoid duplicate landmark creation
+static const double QUATERNION_RATE_LIMIT = 0.1;
+static const int MIN_CONFIRMATION_OBSERVATIONS = 8;
 static const int MAX_TENTATIVE_MISSED_FRAMES = 6;
 static const double MAX_TENTATIVE_COVARIANCE_TRACE = 0.10;
-static const double UNDER_CONSTRAINED_GATING_DISTANCE = 1.5;
+static const double UNDER_CONSTRAINED_GATING_DISTANCE = 2.0;
+static const double UNDER_CONSTRAINED_MAX_COVARIANCE_TRACE = 0.35;
+static const std::size_t MAX_BEARING_OBSERVATION_BUFFER = 20;
+static const std::size_t MIN_TRIANGULATION_OBSERVATIONS = 4;
+static const double MIN_TRIANGULATION_PARALLAX_RADIANS = 0.08;
+static const double MIN_TRIANGULATION_BASELINE_METERS = 0.20;
+static const double MIN_TRIANGULATION_FORWARD_DEPTH_METERS = 1.00;
+static const double MAX_TRIANGULATION_MEAN_RAY_RESIDUAL = 0.75;
+static const double MIN_NEW_LANDMARK_SEPARATION_METERS = 1.00;
 
 static const LogLevel HIGH_LEVEL = LogLevel::INFO;
 static const LogLevel LOW_LEVEL = LogLevel::DEBUG;
 static const std::string LOG_SUBSECTION = "[association] - ";
 
-NearestNeighborAssociation::NearestNeighborAssociation()
+namespace {
+constexpr double kPi = 3.14159265358979323846;
+
+double wrapAngle(double angle)
 {
-    _underConstrainedInitializationStrategy = std::make_shared<NoOpUnderConstrainedInitializationStrategy>();
+    while (angle > kPi) angle -= 2.0 * kPi;
+    while (angle < -kPi) angle += 2.0 * kPi;
+    return angle;
+}
+
+bool isBearingMeasurement(const Measurement& measurement)
+{
+    return std::dynamic_pointer_cast<BearingMeasurementModel>(measurement.model) != nullptr;
+}
+} // namespace
+
+NearestNeighborAssociation::NearestNeighborAssociation()
+    : NearestNeighborAssociation(std::make_shared<NoOpUnderConstrainedInitializationStrategy>())
+{
+}
+
+NearestNeighborAssociation::NearestNeighborAssociation(
+    UnderConstrainedInitializationStrategyPtr strategy)
+{
+    if (strategy)
+    {
+        _underConstrainedInitializationStrategy = std::move(strategy);
+    }
+    else
+    {
+        _underConstrainedInitializationStrategy = std::make_shared<NoOpUnderConstrainedInitializationStrategy>();
+    }
 }
 
 void NearestNeighborAssociation::onReceiveMeasurement(const Measurements& meas) 
@@ -102,7 +143,7 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
         markTentativeCandidatesUnseenForCurrentFrame();
 
         
-        // if (roll/picht is bigger than a limit) -> skip as detection will not be proside
+        // If angle moves too fast, skip detection update for this frame.
         if (_quaternionRate > QUATERNION_RATE_LIMIT) {
             _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Drone angle moving so fast: ", _quaternionRate ,", skip the detection.\n");
             pruneTentativeLandmarks();
@@ -186,19 +227,59 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
                     measurement,
                     landmark,
                     isUnderConstrainedInitialization,
-                    assignedMeasurements);
+                    assignedMeasurements,
+                    _robotPose);
                 continue;
             }
 
-            double shortestDistance = euclideanDistance(landmark, _landmarks[startingLandmarkIndex]);
-            double distance = 0;
-            std::size_t nearestIndex = startingLandmarkIndex;
+            const bool bearingMode = isBearingMeasurement(measurement);
+            const double associationGate = bearingMode ? BEARING_GATING_DISTANCE : GATING_DISTANCE;
 
-            for (std::size_t i = startingLandmarkIndex + 1; i < _landmarks.size(); i++)
+            double shortestDistance = std::numeric_limits<double>::infinity();
+            bool foundComparableLandmark = false;
+            std::size_t nearestIndex = startingLandmarkIndex;
+            Measurement nearestPredictedMeasurement;
+            bool hasNearestPredictedMeasurement = false;
+
+            for (std::size_t i = startingLandmarkIndex; i < _landmarks.size(); i++)
             {
-                _logger->log(LOW_LEVEL, LOG_SUBSECTION, "landmark ", i, " position is: (", _landmarks[i].position.x,
-                            ", ", _landmarks[i].position.y, ", ", _landmarks[i].position.z, ") \n");
-                distance = euclideanDistance(landmark, _landmarks[i]);
+                if (assignedFeature[i] != 0)
+                {
+                    continue;
+                }
+
+                double distance = std::numeric_limits<double>::infinity();
+                if (bearingMode)
+                {
+                    try
+                    {
+                        Measurement predicted = measurement.model->predict(_robotPose, _landmarks[i].position);
+                        if (measurement.payload.size() < 2 || predicted.payload.size() < 2)
+                        {
+                            continue;
+                        }
+
+                        const double dyaw = wrapAngle(measurement.payload(0) - predicted.payload(0));
+                        const double dpitch = wrapAngle(measurement.payload(1) - predicted.payload(1));
+                        distance = std::sqrt(dyaw * dyaw + dpitch * dpitch);
+
+                        if (distance < shortestDistance)
+                        {
+                            nearestPredictedMeasurement = predicted;
+                            hasNearestPredictedMeasurement = true;
+                        }
+                    }
+                    catch (const std::runtime_error&)
+                    {
+                        continue;
+                    }
+                }
+                else
+                {
+                    distance = euclideanDistance(landmark, _landmarks[i]);
+                }
+
+                foundComparableLandmark = true;
                 if (distance < shortestDistance)
                 {
                     shortestDistance = distance;
@@ -212,9 +293,22 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
                         " ]]], shortestDistance: ", shortestDistance, " \n");
 
             int landmarkId = 0;
-            if (shortestDistance < GATING_DISTANCE)
+            const bool strictAssociationMatch = foundComparableLandmark && shortestDistance < associationGate;
+            const bool relaxedBearingFallbackMatch =
+                bearingMode && foundComparableLandmark &&
+                shortestDistance >= associationGate &&
+                shortestDistance < BEARING_RELAXED_FALLBACK_DISTANCE;
+
+            if (strictAssociationMatch || relaxedBearingFallbackMatch)
             {
                 _logger->log(LOW_LEVEL, LOG_SUBSECTION, "Find a matching landmark\n.");
+                if (relaxedBearingFallbackMatch)
+                {
+                    _logger->log(LOW_LEVEL, LOG_SUBSECTION,
+                                 "Bearing fallback update used. residual=", shortestDistance,
+                                 " strict_gate=", associationGate,
+                                 " fallback_gate=", BEARING_RELAXED_FALLBACK_DISTANCE);
+                }
                 _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Nearest machitng id is", _landmarks[nearestIndex].id, ", and it landmark ",
                             "position is: (", _landmarks[nearestIndex].position.x, ", ", _landmarks[nearestIndex].position.y,
                             ", ", _landmarks[nearestIndex].position.z, ") \n");
@@ -236,6 +330,7 @@ void NearestNeighborAssociation::processMeasurement(const Measurements& measurem
                     landmark,
                     isUnderConstrainedInitialization,
                     assignedMeasurements,
+                    _robotPose,
                     &landmarkId);
             }
 
@@ -261,6 +356,7 @@ bool NearestNeighborAssociation::tryInitializeLandmarkFromMeasurement(
     Landmark& landmark,
     bool& isUnderConstrainedInitialization) const
 {
+    const bool bearingMeasurement = isBearingMeasurement(measurement);
     isUnderConstrainedInitialization = false;
 
     auto capturedLandmarkPosition = measurement.model->inverse(_robotPose, measurement);
@@ -278,7 +374,6 @@ bool NearestNeighborAssociation::tryInitializeLandmarkFromMeasurement(
 
         isUnderConstrainedInitialization = true;
     }
-
     landmark.position = capturedLandmarkPosition.value();
     return true;
 }
@@ -300,6 +395,7 @@ void NearestNeighborAssociation::trackOrConfirmTentativeLandmark(
     const Landmark& landmark,
     bool isUnderConstrainedInitialization,
     AssignedMeasurements& assignedMeasurements,
+    const Pose& robotPose,
     int* landmarkId)
 {
     const int tentativeCandidateId =
@@ -308,6 +404,7 @@ void NearestNeighborAssociation::trackOrConfirmTentativeLandmark(
     {
         TentativeLandmark& candidate = _tentativeLandmarks[tentativeCandidateId];
         updateTentativeLandmark(candidate, landmark.position);
+        updateBearingTriangulation(candidate, measurement, robotPose);
         candidate.seenInCurrentFrame = true;
 
         if (landmarkId)
@@ -319,6 +416,39 @@ void NearestNeighborAssociation::trackOrConfirmTentativeLandmark(
         {
             _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "Confirming tentative landmark candidate ", candidate.candidateId,
                          " after ", candidate.consistentObservations, " observations.");
+
+            int nearestExistingLandmarkIndex = -1;
+            double nearestExistingDistance = std::numeric_limits<double>::infinity();
+            for (std::size_t i = 0; i < _landmarks.size(); ++i)
+            {
+                const double distance =
+                    (candidate.position.getPositionVector() - _landmarks[i].position.getPositionVector()).norm();
+                if (distance < nearestExistingDistance)
+                {
+                    nearestExistingDistance = distance;
+                    nearestExistingLandmarkIndex = static_cast<int>(i);
+                }
+            }
+
+            if (nearestExistingLandmarkIndex >= 0 &&
+                nearestExistingDistance < MIN_NEW_LANDMARK_SEPARATION_METERS)
+            {
+                Landmark& mergedLandmark = _landmarks[static_cast<std::size_t>(nearestExistingLandmarkIndex)];
+                mergedLandmark.observeRepeat++;
+
+                AssignedMeasurement meas(measurement, mergedLandmark.id);
+                meas.isNew = false;
+                assignedMeasurements.push_back(meas);
+
+                _logger->log(LOW_LEVEL, LOG_SUBSECTION,
+                             "Tentative candidate ", candidate.candidateId,
+                             " merged with existing landmark id ", mergedLandmark.id,
+                             " at distance ", nearestExistingDistance,
+                             " (min separation gate=", MIN_NEW_LANDMARK_SEPARATION_METERS, ").");
+
+                _tentativeLandmarks.erase(candidate.candidateId);
+                return;
+            }
 
             Landmark confirmedLandmark;
             confirmedLandmark.id = _numberLandmarks++;
@@ -338,6 +468,7 @@ void NearestNeighborAssociation::trackOrConfirmTentativeLandmark(
         candidate.candidateId = _nextTentativeId++;
         candidate.isUnderConstrained = isUnderConstrainedInitialization;
         updateTentativeLandmark(candidate, landmark.position);
+        updateBearingTriangulation(candidate, measurement, robotPose);
         candidate.seenInCurrentFrame = true;
 
         if (landmarkId)
@@ -424,6 +555,180 @@ void NearestNeighborAssociation::updateTentativeLandmark(TentativeLandmark& cand
     }
 }
 
+void NearestNeighborAssociation::updateBearingTriangulation(
+    TentativeLandmark& candidate,
+    const Measurement& measurement,
+    const Pose& robotPose)
+{
+    if (!candidate.isUnderConstrained)
+    {
+        return;
+    }
+
+    auto bearingModel = std::dynamic_pointer_cast<BearingMeasurementModel>(measurement.model);
+    if (!bearingModel)
+    {
+        return;
+    }
+
+    Eigen::Vector3d rayOriginWorld;
+    Eigen::Vector3d rayDirectionWorld;
+    if (!bearingModel->worldRayFromMeasurement(robotPose, measurement, rayOriginWorld, rayDirectionWorld))
+    {
+        return;
+    }
+
+    candidate.bearingObservations.push_back(BearingRayObservation());
+    BearingRayObservation& observation = candidate.bearingObservations.back();
+    observation.originWorld = rayOriginWorld;
+    observation.directionWorld = rayDirectionWorld;
+
+    if (candidate.bearingObservations.size() > MAX_BEARING_OBSERVATION_BUFFER)
+    {
+        candidate.bearingObservations.pop_front();
+    }
+
+    Position triangulatedPosition;
+    Variance2D triangulatedVariance;
+    double residual = 0.0;
+    double maxParallaxRadians = 0.0;
+    double maxBaselineMeters = 0.0;
+    double minForwardDepthMeters = 0.0;
+    if (triangulateBearingCandidate(
+            candidate,
+            triangulatedPosition,
+            triangulatedVariance,
+            residual,
+            maxParallaxRadians,
+            maxBaselineMeters,
+            minForwardDepthMeters))
+    {
+        candidate.position = triangulatedPosition;
+        candidate.variance = triangulatedVariance;
+        candidate.hasTriangulatedPosition = true;
+        candidate.triangulationResidual = residual;
+        candidate.maxParallaxRadians = maxParallaxRadians;
+        candidate.maxBaselineMeters = maxBaselineMeters;
+        candidate.minForwardDepthMeters = minForwardDepthMeters;
+    }
+}
+
+bool NearestNeighborAssociation::triangulateBearingCandidate(
+    const TentativeLandmark& candidate,
+    Position& triangulatedPosition,
+    Variance2D& triangulatedVariance,
+    double& residual,
+    double& maxParallaxRadians,
+    double& maxBaselineMeters,
+    double& minForwardDepthMeters) const
+{
+    const std::size_t observationCount = candidate.bearingObservations.size();
+    if (observationCount < MIN_TRIANGULATION_OBSERVATIONS)
+    {
+        return false;
+    }
+
+    maxParallaxRadians = 0.0;
+    maxBaselineMeters = 0.0;
+    for (std::size_t i = 0; i < observationCount; ++i)
+    {
+        const Eigen::Vector3d d1 = candidate.bearingObservations[i].directionWorld.normalized();
+        for (std::size_t j = i + 1; j < observationCount; ++j)
+        {
+            const Eigen::Vector3d d2 = candidate.bearingObservations[j].directionWorld.normalized();
+            const double dot = std::max(-1.0, std::min(1.0, d1.dot(d2)));
+            const double angle = std::acos(dot);
+            if (angle > maxParallaxRadians)
+            {
+                maxParallaxRadians = angle;
+            }
+
+            const double baseline =
+                (candidate.bearingObservations[i].originWorld - candidate.bearingObservations[j].originWorld).norm();
+            if (baseline > maxBaselineMeters)
+            {
+                maxBaselineMeters = baseline;
+            }
+        }
+    }
+
+    if (maxParallaxRadians < MIN_TRIANGULATION_PARALLAX_RADIANS)
+    {
+        return false;
+    }
+
+    if (maxBaselineMeters < MIN_TRIANGULATION_BASELINE_METERS)
+    {
+        return false;
+    }
+
+    Eigen::Matrix3d A = Eigen::Matrix3d::Zero();
+    Eigen::Vector3d b = Eigen::Vector3d::Zero();
+    for (const BearingRayObservation& observation : candidate.bearingObservations)
+    {
+        const Eigen::Vector3d direction = observation.directionWorld.normalized();
+        const Eigen::Matrix3d projector = Eigen::Matrix3d::Identity() - direction * direction.transpose();
+        A += projector;
+        b += projector * observation.originWorld;
+    }
+
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eigensolver(A);
+    if (eigensolver.info() != Eigen::Success)
+    {
+        return false;
+    }
+
+    const Eigen::Vector3d eigenvalues = eigensolver.eigenvalues();
+    if (eigenvalues(0) < 1e-6)
+    {
+        return false;
+    }
+
+    const Eigen::Vector3d estimatedPosition = A.ldlt().solve(b);
+    if (!estimatedPosition.allFinite())
+    {
+        return false;
+    }
+
+    minForwardDepthMeters = std::numeric_limits<double>::infinity();
+    double residualSum = 0.0;
+    for (const BearingRayObservation& observation : candidate.bearingObservations)
+    {
+        const double forwardDepth =
+            (estimatedPosition - observation.originWorld).dot(observation.directionWorld.normalized());
+        minForwardDepthMeters = std::min(minForwardDepthMeters, forwardDepth);
+
+        residualSum += pointToRayDistance(
+            estimatedPosition,
+            observation.originWorld,
+            observation.directionWorld);
+    }
+
+    if (minForwardDepthMeters < MIN_TRIANGULATION_FORWARD_DEPTH_METERS)
+    {
+        return false;
+    }
+
+    residual = residualSum / static_cast<double>(observationCount);
+    triangulatedPosition = Position(estimatedPosition);
+
+    const double varianceComponent = residual * residual;
+    triangulatedVariance = Variance2D(varianceComponent, 0.0, varianceComponent);
+    return true;
+}
+
+double NearestNeighborAssociation::pointToRayDistance(
+    const Eigen::Vector3d& point,
+    const Eigen::Vector3d& rayOrigin,
+    const Eigen::Vector3d& rayDirection)
+{
+    const Eigen::Vector3d direction = rayDirection.normalized();
+    const Eigen::Vector3d offset = point - rayOrigin;
+    const double t = std::max(0.0, offset.dot(direction));
+    const Eigen::Vector3d closestPoint = rayOrigin + t * direction;
+    return (point - closestPoint).norm();
+}
+
 bool NearestNeighborAssociation::shouldConfirmTentativeLandmark(const TentativeLandmark& candidate) const
 {
     if (candidate.consistentObservations < MIN_CONFIRMATION_OBSERVATIONS)
@@ -431,12 +736,46 @@ bool NearestNeighborAssociation::shouldConfirmTentativeLandmark(const TentativeL
         return false;
     }
 
+    const double covarianceTrace = candidate.variance.xx + candidate.variance.yy;
+
     if (candidate.isUnderConstrained)
     {
-        return true;
+        if (!candidate.bearingObservations.empty())
+        {
+            if (!candidate.hasTriangulatedPosition)
+            {
+                return false;
+            }
+
+            if (candidate.bearingObservations.size() < MIN_TRIANGULATION_OBSERVATIONS)
+            {
+                return false;
+            }
+
+            if (candidate.maxParallaxRadians < MIN_TRIANGULATION_PARALLAX_RADIANS)
+            {
+                return false;
+            }
+
+            if (candidate.maxBaselineMeters < MIN_TRIANGULATION_BASELINE_METERS)
+            {
+                return false;
+            }
+
+            if (candidate.minForwardDepthMeters < MIN_TRIANGULATION_FORWARD_DEPTH_METERS)
+            {
+                return false;
+            }
+
+            if (candidate.triangulationResidual > MAX_TRIANGULATION_MEAN_RAY_RESIDUAL)
+            {
+                return false;
+            }
+        }
+
+        return covarianceTrace <= UNDER_CONSTRAINED_MAX_COVARIANCE_TRACE;
     }
 
-    const double covarianceTrace = candidate.variance.xx + candidate.variance.yy;
     return covarianceTrace <= MAX_TENTATIVE_COVARIANCE_TRACE;
 }
 

@@ -247,8 +247,8 @@ TEST(EkfSlamPipelineTest, EndToEndBearingObservationCreatesLandmarkWithStrategy)
 {
   auto motion = std::make_shared<PositionOnlyMotionModel>();
   auto ekf = std::make_shared<ExtendedKalmanFilter>(motion);
-  auto assoc = std::make_shared<NearestNeighborAssociation>();
-  assoc->setUnderConstrainedInitializationStrategy(std::make_shared<EkfBearingInitializationStrategy>());
+  auto assoc = std::make_shared<NearestNeighborAssociation>(
+    std::make_shared<EkfBearingInitializationStrategy>());
   auto factory = std::make_shared<MeasurementFactory>();
 
   EkfSlamPipeline pipeline(ekf, assoc, factory);
@@ -290,8 +290,8 @@ TEST(EkfSlamPipelineTest, NoisyBearingObservationsStillConfirmTentativeLandmark)
 {
   auto motion = std::make_shared<PositionOnlyMotionModel>();
   auto ekf = std::make_shared<ExtendedKalmanFilter>(motion);
-  auto assoc = std::make_shared<NearestNeighborAssociation>();
-  assoc->setUnderConstrainedInitializationStrategy(std::make_shared<EkfBearingInitializationStrategy>());
+  auto assoc = std::make_shared<NearestNeighborAssociation>(
+    std::make_shared<EkfBearingInitializationStrategy>());
   auto factory = std::make_shared<MeasurementFactory>();
 
   EkfSlamPipeline pipeline(ekf, assoc, factory);

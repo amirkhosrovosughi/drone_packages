@@ -7,6 +7,7 @@
 #include "measurement/measurement.hpp"
 #include "association/under_constrained_initialization_strategy.hpp"
 #include <cmath>
+#include <deque>
 #include <mutex>
 #include <unordered_map>
 #include "common/slam_logger.hpp"
@@ -21,6 +22,14 @@
  * Stores running statistics and lifecycle counters used to decide
  * whether a candidate should be confirmed or rejected.
  */
+struct BearingRayObservation {
+        Eigen::Vector3d originWorld;
+        Eigen::Vector3d directionWorld;
+
+        BearingRayObservation()
+            : originWorld(Eigen::Vector3d::Zero()), directionWorld(Eigen::Vector3d::UnitX()) {}
+};
+
 struct TentativeLandmark {
         int candidateId;
         Position position;
@@ -35,11 +44,19 @@ struct TentativeLandmark {
         double meanZ;
         double m2X;
         double m2Y;
+        std::deque<BearingRayObservation> bearingObservations;
+        bool hasTriangulatedPosition;
+        double triangulationResidual;
+        double maxParallaxRadians;
+        double maxBaselineMeters;
+        double minForwardDepthMeters;
 
         TentativeLandmark()
             : candidateId(0), position(Position()), variance(Variance2D()), isUnderConstrained(false), consistentObservations(0),
                     missedFrames(0), seenInCurrentFrame(false), sampleCount(0), meanX(0.0), meanY(0.0),
-                    meanZ(0.0), m2X(0.0), m2Y(0.0) {}
+                    meanZ(0.0), m2X(0.0), m2Y(0.0), bearingObservations(), hasTriangulatedPosition(false),
+                    triangulationResidual(0.0), maxParallaxRadians(0.0), maxBaselineMeters(0.0),
+                    minForwardDepthMeters(0.0) {}
 };
 
 using UnderConstrainedInitializationStrategyPtr =
@@ -57,6 +74,13 @@ public:
      * @brief Construct a new NearestNeighborAssociation object.
      */
     NearestNeighborAssociation();
+
+    /**
+     * @brief Construct association with a fixed under-constrained initialization strategy.
+     *
+     * @param strategy Strategy instance. If nullptr, a no-op strategy is used.
+     */
+    explicit NearestNeighborAssociation(UnderConstrainedInitializationStrategyPtr strategy);
 
     /**
      * @brief Receive new raw measurements for association.
@@ -95,24 +119,6 @@ public:
     void setLogger(LoggerPtr logger) override
     {
         _logger = logger;
-    }
-
-    /**
-     * @brief Set strategy used when a measurement model inverse is under-constrained.
-     *
-     * @param strategy Strategy instance. If nullptr, a no-op strategy is restored.
-     */
-    void setUnderConstrainedInitializationStrategy(
-        UnderConstrainedInitializationStrategyPtr strategy)
-    {
-        if (strategy)
-        {
-            _underConstrainedInitializationStrategy = std::move(strategy);
-        }
-        else
-        {
-            _underConstrainedInitializationStrategy = std::make_shared<NoOpUnderConstrainedInitializationStrategy>();
-        }
     }
 
 private:
@@ -184,6 +190,7 @@ private:
         const Landmark& landmark,
         bool isUnderConstrainedInitialization,
         AssignedMeasurements& assignedMeasurements,
+        const Pose& robotPose,
         int* landmarkId = nullptr);
 
     /**
@@ -200,6 +207,34 @@ private:
      * @param measurementPosition Position inferred from current measurement.
      */
     void updateTentativeLandmark(TentativeLandmark& candidate, const Position& measurementPosition);
+
+    /**
+     * @brief Update triangulated state for under-constrained bearing candidates.
+     */
+    void updateBearingTriangulation(
+        TentativeLandmark& candidate,
+        const Measurement& measurement,
+        const Pose& robotPose);
+
+    /**
+     * @brief Triangulate candidate position from buffered bearing observations.
+     */
+    bool triangulateBearingCandidate(
+        const TentativeLandmark& candidate,
+        Position& triangulatedPosition,
+        Variance2D& triangulatedVariance,
+        double& residual,
+        double& maxParallaxRadians,
+        double& maxBaselineMeters,
+        double& minForwardDepthMeters) const;
+
+    /**
+     * @brief Compute Euclidean distance between a 3D point and a ray.
+     */
+    static double pointToRayDistance(
+        const Eigen::Vector3d& point,
+        const Eigen::Vector3d& rayOrigin,
+        const Eigen::Vector3d& rayDirection);
 
     /**
      * @brief Check whether a tentative candidate is ready for confirmation.

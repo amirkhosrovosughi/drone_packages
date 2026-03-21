@@ -38,6 +38,21 @@ public:
 
     std::optional<Position> inverse(const Pose &robot_pose, const Measurement &m) const override;
 
+    /**
+     * @brief Convert a bearing measurement into a world-frame camera ray.
+     *
+     * @param robot_pose Robot pose used with camera extrinsics.
+     * @param m Bearing measurement payload [yaw, pitch].
+     * @param rayOriginWorld Camera origin in world frame.
+     * @param rayDirectionWorld Unit ray direction in world frame.
+     * @return True if the ray could be computed.
+     */
+    bool worldRayFromMeasurement(
+        const Pose& robot_pose,
+        const Measurement& m,
+        Eigen::Vector3d& rayOriginWorld,
+        Eigen::Vector3d& rayDirectionWorld) const;
+
 private:
     void assertCameraInfoAvailable() const;
     std::optional<CameraInfo> _cameraInfo;

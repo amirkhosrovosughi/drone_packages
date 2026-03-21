@@ -193,9 +193,8 @@ TEST(NearestNeighborAssociationTest, Point3DMeasurementsAreAddedDirectly)
 
 TEST(NearestNeighborAssociationTest, UsesUnderConstrainedInitializationStrategyWhenInverseFails)
 {
-    NearestNeighborAssociation assoc;
+    NearestNeighborAssociation assoc(std::make_shared<FixedPointUnderConstrainedStrategy>());
     assoc.setLogger(std::make_shared<MockSlamLogger>());
-    assoc.setUnderConstrainedInitializationStrategy(std::make_shared<FixedPointUnderConstrainedStrategy>());
 
     auto sendAndGet = [&assoc](const Measurements& measurements) {
         std::promise<AssignedMeasurements> prom;

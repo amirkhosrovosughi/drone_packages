@@ -114,6 +114,30 @@ std::optional<Position> BearingMeasurementModel::inverse(
     // Use the same default depth prior as EKF bearing initialization.
     constexpr double kDefaultDepthMeters = 6.0;
 
+    Eigen::Vector3d rayOriginWorld;
+    Eigen::Vector3d rayDirectionWorld;
+    if (!worldRayFromMeasurement(robot_pose, m, rayOriginWorld, rayDirectionWorld))
+    {
+        return std::nullopt;
+    }
+
+    const Eigen::Vector3d p_w = rayOriginWorld + kDefaultDepthMeters * rayDirectionWorld;
+    return Position(p_w);
+}
+
+bool BearingMeasurementModel::worldRayFromMeasurement(
+    const Pose& robot_pose,
+    const Measurement& m,
+    Eigen::Vector3d& rayOriginWorld,
+    Eigen::Vector3d& rayDirectionWorld) const
+{
+    assertCameraInfoAvailable();
+
+    if (m.payload.size() < 2)
+    {
+        return false;
+    }
+
     const double yaw = m.payload(0);
     const double pitch = m.payload(1);
 
@@ -121,20 +145,24 @@ std::optional<Position> BearingMeasurementModel::inverse(
     const double norm = dir_camera.norm();
     if (norm <= 1e-9)
     {
-        return std::nullopt;
+        return false;
     }
     dir_camera /= norm;
-
-    Eigen::Vector4d p_c;
-    p_c << kDefaultDepthMeters * dir_camera.x(),
-           kDefaultDepthMeters * dir_camera.y(),
-           kDefaultDepthMeters * dir_camera.z(),
-           1.0;
 
     const auto& cam = _cameraInfo.value();
     const Eigen::Matrix4d T_wr = robot_pose.getTransformationMatrix();
     const Eigen::Matrix4d& T_rc = cam.extrinsics;
+    const Eigen::Matrix4d T_wc = T_wr * T_rc;
 
-    const Eigen::Vector4d p_w = T_wr * T_rc * p_c;
-    return Position(p_w.head<3>());
+    rayOriginWorld = T_wc.block<3, 1>(0, 3);
+    rayDirectionWorld = T_wc.block<3, 3>(0, 0) * dir_camera;
+
+    const double directionNorm = rayDirectionWorld.norm();
+    if (directionNorm <= 1e-9)
+    {
+        return false;
+    }
+
+    rayDirectionWorld /= directionNorm;
+    return true;
 }

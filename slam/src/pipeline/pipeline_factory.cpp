@@ -3,18 +3,17 @@
 #include <stdexcept>
 
 #if defined(EKF)
-#include "association/ekf_bearing_initialization_strategy.hpp"
+#include "association/ekf_nearest_neighbor_association.hpp"
 #include "pipeline/ekf_slam_pipeline.hpp"
 #include "filter/extended_kalman_filter.hpp"
 #include "motion/position_only_motion_model.hpp"
 #elif defined(GRAPH)
-#include "association/graph_bearing_initialization_strategy.hpp"
+#include "association/graph_nearest_neighbor_association.hpp"
 #include "pipeline/graph_slam_backend.hpp"
 #include "pipeline/graph_slam_frontend.hpp"
 #include "pipeline/graph_slam_pipeline.hpp"
 #include "graph/internal_graph_optimizer.hpp"
 #endif
-#include "association/nearest_neighbor_association.hpp"
 
 namespace slam
 {
@@ -31,21 +30,17 @@ namespace slam
 #if defined(EKF)
         auto motionModel = std::make_shared<PositionOnlyMotionModel>();
         auto ekf = std::make_shared<ExtendedKalmanFilter>(motionModel);
-        auto association = std::make_shared<NearestNeighborAssociation>();
+        auto association = std::make_shared<EkfNearestNeighborAssociation>();
 
         association->setLogger(logger);
-        association->setUnderConstrainedInitializationStrategy(
-            std::make_shared<EkfBearingInitializationStrategy>());
         ekf->setLogger(logger);
 
         return std::make_shared<EkfSlamPipeline>(ekf, association, measurementFactory);
 #elif defined(GRAPH)
-        auto association = std::make_shared<NearestNeighborAssociation>();
+        auto association = std::make_shared<GraphNearestNeighborAssociation>();
         auto optimizer = std::make_shared<InternalGraphOptimizer>();
 
         association->setLogger(logger);
-        association->setUnderConstrainedInitializationStrategy(
-            std::make_shared<GraphBearingInitializationStrategy>());
         optimizer->setLogger(logger);
 
         auto frontend = std::make_shared<GraphSlamFrontend>(association, measurementFactory);
