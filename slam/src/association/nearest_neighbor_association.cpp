@@ -30,10 +30,12 @@ static const double MIN_TRIANGULATION_BASELINE_METERS = 0.20;
 static const double MIN_TRIANGULATION_FORWARD_DEPTH_METERS = 1.00;
 static const double MAX_TRIANGULATION_MEAN_RAY_RESIDUAL = 0.75;
 static const double MIN_NEW_LANDMARK_SEPARATION_METERS = 1.00;
+static const double MIN_NEW_POINT_LANDMARK_SEPARATION_METERS = 0.80; // wider merge gate for 3D-point path
+static const double POINT_DUPLICATE_SUPPRESS_GATE = 0.08; // suppress point meas if within this of a confirmed landmark
 static const double BEARING_TENTATIVE_DIRECTION_GATING_RADIANS = 0.12;
 static const double BEARING_TRIANGULATED_RAY_DISTANCE_GATING_METERS = 0.35;
 static const std::size_t EARLY_REJECTION_OBSERVATION_THRESHOLD = 15;
-static const double EARLY_REJECTION_PARALLAX_THRESHOLD = 0.06;
+static const double EARLY_REJECTION_PARALLAX_THRESHOLD = 0.06; 
 static const double CLUTTER_MEASUREMENT_THRESHOLD = 2.0;
 static const double BEARING_RELAXED_FALLBACK_DISTANCE_HIGH_CLUTTER = 0.30;
 
@@ -284,6 +286,13 @@ void NearestNeighborAssociation::processPointMeasurement(
     }
     else
     {
+        if (foundComparableLandmark && shortestDistance < POINT_DUPLICATE_SUPPRESS_GATE)
+        {
+            _logger->log(LOW_LEVEL, LOG_SUBSECTION,
+                         "Point measurement suppressed (", shortestDistance,
+                         "m from confirmed landmark, within duplicate gate).");
+            return;
+        }
         trackOrConfirmTentativeLandmark(
             measurement,
             landmark,
@@ -488,8 +497,10 @@ void NearestNeighborAssociation::trackOrConfirmTentativeLandmark(
                 }
             }
 
+            const double separationGate = isUnderConstrainedInitialization ?
+                MIN_NEW_LANDMARK_SEPARATION_METERS : MIN_NEW_POINT_LANDMARK_SEPARATION_METERS;
             if (nearestExistingLandmarkIndex >= 0 &&
-                nearestExistingDistance < MIN_NEW_LANDMARK_SEPARATION_METERS)
+                nearestExistingDistance < separationGate)
             {
                 Landmark& mergedLandmark = _landmarks[static_cast<std::size_t>(nearestExistingLandmarkIndex)];
                 mergedLandmark.observeRepeat++;
@@ -499,11 +510,10 @@ void NearestNeighborAssociation::trackOrConfirmTentativeLandmark(
                 assignedMeasurements.push_back(meas);
 
                 _logger->log(HIGH_LEVEL, LOG_SUBSECTION,
-
                              "Tentative candidate ", candidate.candidateId,
                              " merged with existing landmark id ", mergedLandmark.id,
                              " at distance ", nearestExistingDistance,
-                             " (min separation gate=", MIN_NEW_LANDMARK_SEPARATION_METERS, ").");
+                             " (min separation gate=", separationGate, ").");
 
                 _tentativeLandmarks.erase(candidate.candidateId);
                 return;
