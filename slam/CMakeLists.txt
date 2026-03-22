@@ -7,7 +7,7 @@ option(SLAM_GRAPH "Build with Graph SLAM" OFF)
 option(SLAM_FAST_SLAM "Build with FastSLAM SLAM (future)" OFF)
 
 # Default pipeline used when no explicit SLAM_* option is enabled.
-set(SLAM_DEFAULT_PIPELINE "GRAPH")
+set(SLAM_DEFAULT_PIPELINE "EKF")
 
 set(_slam_pipeline_count 0)
 if(SLAM_EKF)
@@ -57,7 +57,7 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-option(STORE_DEBUG_DATA "Enable store debug data" OFF)
+option(STORE_DEBUG_DATA "Enable store debug data" ON)
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
@@ -190,6 +190,7 @@ if(BUILD_TESTING)
       test/association/test_nearest_neighbor_association.cpp
       src/association/nearest_neighbor_association.cpp
       src/measurement/point3d_measurement_model.cpp
+      src/measurement/bearing_measurement_model.cpp
   )
 
   add_slam_gtest(test_slam_map
