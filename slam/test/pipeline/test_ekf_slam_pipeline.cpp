@@ -3,6 +3,7 @@
 #include "pipeline/ekf_slam_pipeline.hpp"
 #include "association/base_association.hpp"
 #include "association/ekf_bearing_initialization_strategy.hpp"
+#include "association/ekf_nearest_neighbor_association.hpp"
 #include "common/mock_slam_logger.hpp"
 #include "motion/position_only_motion_model.hpp"
 #include "association/nearest_neighbor_association.hpp"
@@ -110,6 +111,45 @@ private:
   std::function<void(AssignedMeasurements)> storedCallback;
 };
 
+class PipelineTestNearestNeighborAssociation : public EkfNearestNeighborAssociation
+{
+public:
+  PipelineTestNearestNeighborAssociation() = default;
+
+  explicit PipelineTestNearestNeighborAssociation(UnderConstrainedInitializationStrategyPtr strategy)
+  : EkfNearestNeighborAssociation()
+  {
+    _underConstrainedInitializationStrategy = strategy;
+  }
+
+private:
+  void processPointMeasurement(
+      const Measurement& measurement,
+      std::vector<int>& assignedFeature,
+      AssignedMeasurements& assignedMeasurements) override
+  {
+    EkfNearestNeighborAssociation::processPointMeasurement(measurement, assignedFeature, assignedMeasurements);
+  }
+
+  int findNearestTentativeBearingCandidate(
+      const Eigen::Vector3d& rayOriginWorld,
+      const Eigen::Vector3d& rayDirectionWorld) const override
+  {
+    return EkfNearestNeighborAssociation::findNearestTentativeBearingCandidate(rayOriginWorld, rayDirectionWorld);
+  }
+
+  double getGatingDistance() const override { return 0.5; }
+  double getBearingGatingDistance() const override { return 0.22; }
+  double getBearingRelaxedFallbackDistance() const override { return 0.40; }
+  int getMinConfirmationObservations() const override { return 5; }
+  double getMaxTentativeCovarianceTrace() const override { return 0.10; }
+  double getUnderConstrainedMaxCovarianceTrace() const override { return 0.35; }
+  std::size_t getMinTriangulationObservations() const override { return 4; }
+  double getMinTriangulationParallaxRadians() const override { return 0.08; }
+  double getMinTriangulationBaselineMeters() const override { return 0.20; }
+  double getMaxTriangulationMeanRayResidual() const override { return 0.75; }
+};
+
 TEST(EkfSlamPipelineTest, InitializeThrowsWhenDependenciesMissing)
 {
   auto motion = std::make_shared<PositionOnlyMotionModel>();
@@ -206,7 +246,7 @@ TEST(EkfSlamPipelineTest, EndToEndObservationCreatesLandmarkAndResetClearsIt)
 {
   auto motion = std::make_shared<PositionOnlyMotionModel>();
   auto ekf = std::make_shared<ExtendedKalmanFilter>(motion);
-  auto assoc = std::make_shared<NearestNeighborAssociation>();
+  auto assoc = std::make_shared<PipelineTestNearestNeighborAssociation>();
   auto factory = std::make_shared<MeasurementFactory>();
 
   EkfSlamPipeline pipeline(ekf, assoc, factory);
@@ -247,7 +287,7 @@ TEST(EkfSlamPipelineTest, EndToEndBearingObservationCreatesLandmarkWithStrategy)
 {
   auto motion = std::make_shared<PositionOnlyMotionModel>();
   auto ekf = std::make_shared<ExtendedKalmanFilter>(motion);
-  auto assoc = std::make_shared<NearestNeighborAssociation>(
+  auto assoc = std::make_shared<PipelineTestNearestNeighborAssociation>(
     std::make_shared<EkfBearingInitializationStrategy>());
   auto factory = std::make_shared<MeasurementFactory>();
 
@@ -290,7 +330,7 @@ TEST(EkfSlamPipelineTest, NoisyBearingObservationsStillConfirmTentativeLandmark)
 {
   auto motion = std::make_shared<PositionOnlyMotionModel>();
   auto ekf = std::make_shared<ExtendedKalmanFilter>(motion);
-  auto assoc = std::make_shared<NearestNeighborAssociation>(
+  auto assoc = std::make_shared<PipelineTestNearestNeighborAssociation>(
     std::make_shared<EkfBearingInitializationStrategy>());
   auto factory = std::make_shared<MeasurementFactory>();
 
@@ -346,7 +386,7 @@ protected:
   {
     auto motion = std::make_shared<PositionOnlyMotionModel>();
     auto ekf = std::make_shared<ExtendedKalmanFilter>(motion);
-    auto assoc = std::make_shared<NearestNeighborAssociation>();
+    auto assoc = std::make_shared<PipelineTestNearestNeighborAssociation>();
     auto factory = std::make_shared<MeasurementFactory>();
 
     EkfSlamPipeline pipeline(ekf, assoc, factory);
@@ -408,7 +448,7 @@ protected:
   {
     auto motion = std::make_shared<PositionOnlyMotionModel>();
     auto ekf = std::make_shared<ExtendedKalmanFilter>(motion);
-    auto assoc = std::make_shared<NearestNeighborAssociation>();
+    auto assoc = std::make_shared<PipelineTestNearestNeighborAssociation>();
     auto factory = std::make_shared<MeasurementFactory>();
 
     EkfSlamPipeline pipeline(ekf, assoc, factory);

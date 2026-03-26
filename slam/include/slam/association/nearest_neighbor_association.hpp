@@ -6,106 +6,109 @@
 #include "measurement/measurement_model.hpp"
 #include "measurement/measurement.hpp"
 #include "association/under_constrained_initialization_strategy.hpp"
+#include "common/slam_logger.hpp"
 #include <cmath>
 #include <deque>
 #include <mutex>
 #include <unordered_map>
 #include <vector>
-#include "common/slam_logger.hpp"
 
 #ifdef STORE_DEBUG_DATA
 #include "data_logging_utils/data_logger.hpp"
 #endif
 
 /**
- * @brief Tentative landmark candidate tracked before EKF insertion.
- *
- * Stores running statistics and lifecycle counters used to decide
- * whether a candidate should be confirmed or rejected.
+ * @brief Single bearing ray sample used to triangulate under-constrained landmarks.
  */
 struct BearingRayObservation {
-        Eigen::Vector3d originWorld;
-        Eigen::Vector3d directionWorld;
+    Eigen::Vector3d originWorld;
+    Eigen::Vector3d directionWorld;
 
-        BearingRayObservation()
-            : originWorld(Eigen::Vector3d::Zero()), directionWorld(Eigen::Vector3d::UnitX()) {}
+    BearingRayObservation()
+        : originWorld(Eigen::Vector3d::Zero()), directionWorld(Eigen::Vector3d::UnitX())
+    {}
 };
 
+/**
+ * @brief Tentative landmark candidate tracked before confirmation.
+ *
+ * Stores running statistics, observation history, and quality metrics used
+ * by the association stage to either confirm or reject the candidate.
+ */
 struct TentativeLandmark {
-        int candidateId;
-        Position position;
-        Variance2D variance;
-        bool isUnderConstrained;
-        int consistentObservations;
-        int missedFrames;
-        bool seenInCurrentFrame;
-        int sampleCount;
-        double meanX;
-        double meanY;
-        double meanZ;
-        double m2X;
-        double m2Y;
-        std::deque<BearingRayObservation> bearingObservations;
-        bool hasTriangulatedPosition;
-        double triangulationResidual;
-        double maxParallaxRadians;
-        double maxBaselineMeters;
-        double minForwardDepthMeters;
+    int candidateId;
+    Position position;
+    Variance2D variance;
+    bool isUnderConstrained;
+    int consistentObservations;
+    int missedFrames;
+    bool seenInCurrentFrame;
+    int sampleCount;
+    double meanX;
+    double meanY;
+    double meanZ;
+    double m2X;
+    double m2Y;
+    std::deque<BearingRayObservation> bearingObservations;
+    bool hasTriangulatedPosition;
+    double triangulationResidual;
+    double maxParallaxRadians;
+    double maxBaselineMeters;
+    double minForwardDepthMeters;
 
-        TentativeLandmark()
-            : candidateId(0), position(Position()), variance(Variance2D()), isUnderConstrained(false), consistentObservations(0),
-                    missedFrames(0), seenInCurrentFrame(false), sampleCount(0), meanX(0.0), meanY(0.0),
-                    meanZ(0.0), m2X(0.0), m2Y(0.0), bearingObservations(), hasTriangulatedPosition(false),
-                    triangulationResidual(0.0), maxParallaxRadians(0.0), maxBaselineMeters(0.0),
-                    minForwardDepthMeters(0.0) {}
+    TentativeLandmark()
+        : candidateId(0),
+          position(Position()),
+          variance(Variance2D()),
+          isUnderConstrained(false),
+          consistentObservations(0),
+          missedFrames(0),
+          seenInCurrentFrame(false),
+          sampleCount(0),
+          meanX(0.0),
+          meanY(0.0),
+          meanZ(0.0),
+          m2X(0.0),
+          m2Y(0.0),
+          bearingObservations(),
+          hasTriangulatedPosition(false),
+          triangulationResidual(0.0),
+          maxParallaxRadians(0.0),
+          maxBaselineMeters(0.0),
+          minForwardDepthMeters(0.0)
+    {}
 };
 
 using UnderConstrainedInitializationStrategyPtr =
     std::shared_ptr<UnderConstrainedInitializationStrategy>;
 
-/**
- * @brief Nearest Neighbor Association implementation.
- *
- * Compares incoming measurements to stored landmarks and assigns each measurement
- * to the nearest landmark (if within a threshold) or creates a new landmark.
- */
 class NearestNeighborAssociation : public BaseAssociation {
 public:
     /**
-     * @brief Construct a new NearestNeighborAssociation object.
+     * @brief Construct nearest-neighbor association with default under-constrained strategy.
      */
     NearestNeighborAssociation();
 
     /**
-     * @brief Construct association with a fixed under-constrained initialization strategy.
+     * @brief Construct nearest-neighbor association with custom under-constrained strategy.
      *
-     * @param strategy Strategy instance. If nullptr, a no-op strategy is used.
+     * @param strategy Strategy used when inverse measurement initialization fails.
      */
     explicit NearestNeighborAssociation(UnderConstrainedInitializationStrategyPtr strategy);
+    virtual ~NearestNeighborAssociation() = default;
 
     /**
-     * @brief Receive new raw measurements for association.
-     *
-     * This function typically schedules processing (e.g. on a background thread)
-     * and returns quickly.
-     *
-     * @param meas Vector of incoming measurements.
+     * @brief Receive a measurement batch for association.
      */
     void onReceiveMeasurement(const Measurements& meas) override;
 
     /**
-     * @brief Update internal map summary (landmarks + robot pose).
-     *
-     * Synchronizes internal landmark list and robot pose with the SLAM map.
-     *
-     * @param map Current map summary.
+     * @brief Synchronize local association state from map summary updates.
      */
     void handleUpdate(const MapSummary& map) override;
 
     /**
-     * @brief Register callback to receive associated measurements.
-     *
-     * @param callback Function to call after association completes.
+     * @brief Register callback for association output.
      */
     void registerCallback(std::function<void(AssignedMeasurements)> callback) override
     {
@@ -114,8 +117,6 @@ public:
 
     /**
      * @brief Set logger instance used by this component.
-     *
-     * @param logger Shared logger pointer.
      */
     void setLogger(LoggerPtr logger) override
     {
@@ -124,121 +125,65 @@ public:
 
 private:
     /**
-     * @brief Core measurement-processing routine (does the actual association).
-     *
-     * @param meas Measurements to process/associate.
+     * @brief Core measurement processing routine.
      */
     void processMeasurement(const Measurements& meas) override;
 
-    void processPointMeasurement(
-        const Measurement& measurement,
-        std::vector<int>& assignedFeature,
-        AssignedMeasurements& assignedMeasurements);
-
-    void processBearingMeasurement(
-        const Measurement& measurement,
-        std::vector<int>& assignedFeature,
-        AssignedMeasurements& assignedMeasurements);
-
-    /**
-     * @brief Compute Euclidean distance between two landmarks (positions).
-     *
-     * @param meas Landmark derived from measurement (candidate).
-     * @param feature Existing map feature to compare against.
-     * @return Euclidean distance.
-     */
-
 protected:
-    double euclideanDistance(const Landmark& meas, Landmark feature);
-
     /**
-     * @brief Compute Mahalanobis distance between two landmarks (placeholder).
+     * @brief Process one point measurement.
      *
-     * @param meas Landmark derived from measurement.
-     * @param feature Existing map feature to compare against.
-     * @return Mahalanobis distance.
+     * Pipeline-specific behavior must be implemented by child classes.
      */
-    double mahalanobisDistance(const Landmark& meas, Landmark feature);
+    virtual void processPointMeasurement(
+        const Measurement& measurement,
+        std::vector<int>& assignedFeature,
+        AssignedMeasurements& assignedMeasurements) = 0;
 
     /**
-     * @brief Convert a distance value into a matching score (0..1).
+     * @brief Process one bearing measurement.
      *
-     * @param distance Euclidean distance value.
-     * @return Matching score in (0,1].
-     */
-    double matchingScore(double distance);
-
-private:
-    /**
-     * @brief Initialize a landmark position from measurement.
+     * Kept in the base class for now because current EKF and Graph pipelines
+     * still share the same high-level bearing flow (predict residual, gate,
+     * then tentative tracking/confirmation).
      *
-     * Uses model inverse when possible, otherwise falls back to the configured
-     * under-constrained initialization strategy.
+     * Child classes already specialize the parts that differ today via
+     * threshold getters and tentative-candidate matching overrides.
      *
-     * @param measurement Input measurement.
-     * @param landmark Output initialized landmark (position only).
-     * @param isUnderConstrainedInitialization True when strategy fallback is used.
-     * @return True if initialization succeeded.
+     * Move this to separate EKF/Graph implementations only when one pipeline
+     * needs a different confirmed-landmark association metric, different
+     * fallback semantics, or a different bearing tentative confirmation flow.
      */
-    bool tryInitializeLandmarkFromMeasurement(
+    virtual void processBearingMeasurement(
         const Measurement& measurement,
-        Landmark& landmark,
-        bool& isUnderConstrainedInitialization) const;
+        std::vector<int>& assignedFeature,
+        AssignedMeasurements& assignedMeasurements);
 
     /**
-     * @brief Append a newly initialized/confirmed landmark assignment.
+     * @brief Find nearest tentative point candidate.
      */
-    void appendNewLandmarkAssignment(
-        const Measurement& measurement,
-        const Landmark& landmark,
-        AssignedMeasurements& assignedMeasurements) const;
+    virtual int findNearestTentativeCandidate(
+        const Landmark& measurementLandmark,
+        bool isUnderConstrainedInitialization) const;
 
     /**
-     * @brief Track tentative landmark and confirm when ready.
+     * @brief Find nearest tentative bearing candidate.
+     *
+     * Pipeline-specific behavior must be implemented by child classes.
      */
-    void trackOrConfirmTentativeLandmark(
-        const Measurement& measurement,
-        const Landmark& landmark,
-        bool isUnderConstrainedInitialization,
-        AssignedMeasurements& assignedMeasurements,
-        const Pose& robotPose,
-        int* landmarkId = nullptr);
-
-    void trackOrConfirmTentativeBearingLandmark(
-        const Measurement& measurement,
+    virtual int findNearestTentativeBearingCandidate(
         const Eigen::Vector3d& rayOriginWorld,
-        const Eigen::Vector3d& rayDirectionWorld,
-        AssignedMeasurements& assignedMeasurements,
-        const Pose& robotPose,
-        int* landmarkId = nullptr);
+        const Eigen::Vector3d& rayDirectionWorld) const = 0;
 
     /**
-        * @brief Mark all tentative candidates as not observed for the current frame.
-        *
-        * This prepares lifecycle bookkeeping before processing incoming measurements.
-        */
-        void markTentativeCandidatesUnseenForCurrentFrame();
-
-        /**
-     * @brief Update tentative landmark running statistics from a new observation.
-     *
-     * @param candidate Tentative candidate to update.
-     * @param measurementPosition Position inferred from current measurement.
+     * @brief Check whether a tentative landmark should be confirmed.
      */
-    void updateTentativeLandmark(TentativeLandmark& candidate, const Position& measurementPosition);
+    virtual bool shouldConfirmTentativeLandmark(const TentativeLandmark& candidate) const;
 
     /**
-     * @brief Update triangulated state for under-constrained bearing candidates.
+     * @brief Triangulate a tentative bearing candidate.
      */
-    void updateBearingTriangulation(
-        TentativeLandmark& candidate,
-        const Measurement& measurement,
-        const Pose& robotPose);
-
-    /**
-     * @brief Triangulate candidate position from buffered bearing observations.
-     */
-    bool triangulateBearingCandidate(
+    virtual bool triangulateBearingCandidate(
         const TentativeLandmark& candidate,
         Position& triangulatedPosition,
         Variance2D& triangulatedVariance,
@@ -248,7 +193,44 @@ private:
         double& minForwardDepthMeters) const;
 
     /**
-     * @brief Compute Euclidean distance between a 3D point and a ray.
+     * @brief Track/update a tentative point candidate and confirm when ready.
+     */
+    virtual void trackOrConfirmTentativeLandmark(
+        const Measurement& measurement,
+        const Landmark& landmark,
+        bool isUnderConstrainedInitialization,
+        AssignedMeasurements& assignedMeasurements,
+        const Pose& robotPose,
+        int* landmarkId = nullptr);
+
+    /**
+     * @brief Track/update a tentative bearing candidate and confirm when ready.
+     */
+    virtual void trackOrConfirmTentativeBearingLandmark(
+        const Measurement& measurement,
+        const Eigen::Vector3d& rayOriginWorld,
+        const Eigen::Vector3d& rayDirectionWorld,
+        AssignedMeasurements& assignedMeasurements,
+        const Pose& robotPose,
+        int* landmarkId = nullptr);
+
+    /**
+     * @brief Compute Euclidean distance between a measured landmark and feature.
+     */
+    double euclideanDistance(const Landmark& meas, Landmark feature);
+
+    /**
+     * @brief Compute Mahalanobis distance between a measured landmark and feature.
+     */
+    double mahalanobisDistance(const Landmark& meas, Landmark feature);
+
+    /**
+     * @brief Convert distance value into matching score.
+     */
+    double matchingScore(double distance);
+
+    /**
+     * @brief Utility distance from 3D point to ray.
      */
     static double pointToRayDistance(
         const Eigen::Vector3d& point,
@@ -256,50 +238,79 @@ private:
         const Eigen::Vector3d& rayDirection);
 
     /**
-     * @brief Check whether a tentative candidate is ready for confirmation.
-     *
-     * @param candidate Tentative candidate to evaluate.
-     * @return True when confirmation criteria are satisfied.
+     * @brief Mark all tentative candidates unseen for current frame.
      */
-    bool shouldConfirmTentativeLandmark(const TentativeLandmark& candidate) const;
+    void markTentativeCandidatesUnseenForCurrentFrame();
 
     /**
-     * @brief Remove stale tentative candidates that were not re-observed.
+     * @brief Remove stale tentative candidates.
      */
     void pruneTentativeLandmarks();
 
     /**
-     * @brief Find nearest tentative candidate for a measurement-derived landmark.
-     *
-     * @param measurementLandmark Landmark estimated from current measurement.
-     * @param isUnderConstrainedInitialization Match candidates of same measurement type.
-     * @return Candidate id if within gating distance, otherwise -1.
+     * @brief Update running mean/variance for a tentative candidate.
      */
-    int findNearestTentativeCandidate(
-        const Landmark& measurementLandmark,
-        bool isUnderConstrainedInitialization) const;
+    void updateTentativeLandmark(TentativeLandmark& candidate, const Position& measurementPosition);
 
-    int findNearestTentativeBearingCandidate(
-        const Eigen::Vector3d& rayOriginWorld,
-        const Eigen::Vector3d& rayDirectionWorld) const;
+    /**
+     * @brief Update triangulation state from a new measurement.
+     */
+    void updateBearingTriangulation(
+        TentativeLandmark& candidate,
+        const Measurement& measurement,
+        const Pose& robotPose);
 
+    /**
+     * @brief Update triangulation state from a world-frame ray.
+     */
     void updateBearingTriangulationFromRay(
         TentativeLandmark& candidate,
         const Eigen::Vector3d& rayOriginWorld,
         const Eigen::Vector3d& rayDirectionWorld,
         const Pose& robotPose);
 
-    std::function<void(AssignedMeasurements)> _callback;            ///< Callback invoked with associated measurements
-    std::mutex _mutex;                                              ///< Mutex to protect internal state
-    Landmarks _landmarks;                                           ///< Current list of landmarks
-    std::unordered_map<int, TentativeLandmark> _tentativeLandmarks; ///< Tentative landmarks pending confirmation
-    int _numberLandmarks = 0;                                       ///< Counter used to assign new landmark ids
-    int _nextTentativeId = 0;                                       ///< Counter used to assign tentative candidate ids
-    std::size_t _frameCounter = 0;                                  ///< Internal frame counter for lifecycle updates
-    Pose _robotPose;                                                ///< Latest robot pose
-    LoggerPtr _logger;                                              ///< Logger instance
-    double _quaternionRate = 0.0;                                   ///< Rate of quaternion change (used for skipping)
-    UnderConstrainedInitializationStrategyPtr _underConstrainedInitializationStrategy; ///< Under-constrained initialization strategy instance
+    /**
+     * @brief Initialize landmark estimate from measurement or fallback strategy.
+     */
+    bool tryInitializeLandmarkFromMeasurement(
+        const Measurement& measurement,
+        Landmark& landmark,
+        bool& isUnderConstrainedInitialization) const;
+
+    /**
+     * @brief Append a new-landmark assignment output item.
+     */
+    void appendNewLandmarkAssignment(
+        const Measurement& measurement,
+        const Landmark& landmark,
+        AssignedMeasurements& assignedMeasurements) const;
+
+private:
+    // Pipeline-specific thresholds are abstract and supplied only by child classes.
+    virtual double getGatingDistance() const = 0;
+    virtual double getBearingGatingDistance() const = 0;
+    virtual double getBearingRelaxedFallbackDistance() const = 0;
+    virtual int getMinConfirmationObservations() const = 0;
+    virtual double getMaxTentativeCovarianceTrace() const = 0;
+    virtual double getUnderConstrainedMaxCovarianceTrace() const = 0;
+    virtual std::size_t getMinTriangulationObservations() const = 0;
+    virtual double getMinTriangulationParallaxRadians() const = 0;
+    virtual double getMinTriangulationBaselineMeters() const = 0;
+    virtual double getMaxTriangulationMeanRayResidual() const = 0;
+
+protected:
+    // Shared state intended for child-class specialization logic.
+    std::function<void(AssignedMeasurements)> _callback;
+    std::mutex _mutex;
+    Landmarks _landmarks;
+    std::unordered_map<int, TentativeLandmark> _tentativeLandmarks;
+    int _numberLandmarks = 0;
+    int _nextTentativeId = 0;
+    std::size_t _frameCounter = 0;
+    Pose _robotPose;
+    LoggerPtr _logger;
+    double _quaternionRate = 0.0;
+    UnderConstrainedInitializationStrategyPtr _underConstrainedInitializationStrategy;
 };
 
 #endif  // SLAM__NEAREST_NEIGHBOR_ASSOCIATION_HPP_

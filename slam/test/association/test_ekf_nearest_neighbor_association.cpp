@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "association/nearest_neighbor_association.hpp"
+#include "association/ekf_nearest_neighbor_association.hpp"
 #include "association/under_constrained_initialization_strategy.hpp"
 #include "measurement/measurement_model.hpp"
 #include "measurement/point3d_measurement_model.hpp"
@@ -14,6 +15,58 @@
 using namespace slam;
 
 namespace {
+
+// Named constants for EKF-specific threshold values used in the test adapter.
+// Keep these aligned with test intent; these may intentionally differ from
+// production values when a shorter confirmation horizon is desired in unit tests.
+static constexpr double EKF_TEST_GATING_DISTANCE = 0.5;
+static constexpr double EKF_TEST_BEARING_GATING = 0.22;
+static constexpr double EKF_TEST_BEARING_FALLBACK = 0.40;
+static constexpr int EKF_TEST_MIN_CONFIRM_OBS = 5;
+static constexpr double EKF_TEST_MAX_COVARIANCE = 0.10;
+static constexpr double EKF_TEST_UNDER_CONSTRAINED_COVARIANCE = 0.35;
+static constexpr std::size_t EKF_TEST_MIN_TRIANGULATION_OBS = 4;
+static constexpr double EKF_TEST_MIN_PARALLAX = 0.08;
+static constexpr double EKF_TEST_MIN_BASELINE = 0.20;
+static constexpr double EKF_TEST_MAX_RAY_RESIDUAL = 0.75;
+
+class TestEkfNearestNeighborAssociation : public EkfNearestNeighborAssociation {
+public:
+    TestEkfNearestNeighborAssociation() = default;
+
+    explicit TestEkfNearestNeighborAssociation(UnderConstrainedInitializationStrategyPtr strategy)
+        : EkfNearestNeighborAssociation()
+    {
+        _underConstrainedInitializationStrategy = strategy;
+    }
+
+private:
+    void processPointMeasurement(
+        const Measurement& measurement,
+        std::vector<int>& assignedFeature,
+        AssignedMeasurements& assignedMeasurements) override
+    {
+        EkfNearestNeighborAssociation::processPointMeasurement(measurement, assignedFeature, assignedMeasurements);
+    }
+
+    int findNearestTentativeBearingCandidate(
+        const Eigen::Vector3d& rayOriginWorld,
+        const Eigen::Vector3d& rayDirectionWorld) const override
+    {
+        return EkfNearestNeighborAssociation::findNearestTentativeBearingCandidate(rayOriginWorld, rayDirectionWorld);
+    }
+
+    double getGatingDistance() const override { return EKF_TEST_GATING_DISTANCE; }
+    double getBearingGatingDistance() const override { return EKF_TEST_BEARING_GATING; }
+    double getBearingRelaxedFallbackDistance() const override { return EKF_TEST_BEARING_FALLBACK; }
+    int getMinConfirmationObservations() const override { return EKF_TEST_MIN_CONFIRM_OBS; }
+    double getMaxTentativeCovarianceTrace() const override { return EKF_TEST_MAX_COVARIANCE; }
+    double getUnderConstrainedMaxCovarianceTrace() const override { return EKF_TEST_UNDER_CONSTRAINED_COVARIANCE; }
+    std::size_t getMinTriangulationObservations() const override { return EKF_TEST_MIN_TRIANGULATION_OBS; }
+    double getMinTriangulationParallaxRadians() const override { return EKF_TEST_MIN_PARALLAX; }
+    double getMinTriangulationBaselineMeters() const override { return EKF_TEST_MIN_BASELINE; }
+    double getMaxTriangulationMeanRayResidual() const override { return EKF_TEST_MAX_RAY_RESIDUAL; }
+};
 
 class UnderConstrainedTestMeasurementModel : public MeasurementModel {
 public:
@@ -64,7 +117,7 @@ public:
 
 TEST(NearestNeighborAssociationTest, CreatesThenMatchesLandmark)
 {
-    NearestNeighborAssociation assoc;
+    TestEkfNearestNeighborAssociation assoc;
     assoc.setLogger(std::make_shared<MockSlamLogger>());
 
     auto sendAndGet = [&assoc](const Measurements& measurements) {
@@ -89,7 +142,13 @@ TEST(NearestNeighborAssociationTest, CreatesThenMatchesLandmark)
     meas.payload << 1.0, 2.0, 3.0;
     meas.model = std::make_shared<Point3DMeasurementModel>();
 
-    // First call: fully-constrained Point3D should be added directly.
+    // Point3D measurements now follow tentative-first confirmation.
+    for (int i = 0; i < EKF_TEST_MIN_CONFIRM_OBS - 1; i++)
+    {
+        AssignedMeasurements tentative = sendAndGet(Measurements{meas});
+        EXPECT_TRUE(tentative.empty());
+    }
+
     AssignedMeasurements firstResult = sendAndGet(Measurements{meas});
     ASSERT_EQ(firstResult.size(), 1u);
     EXPECT_TRUE(firstResult[0].isNew);
@@ -105,10 +164,10 @@ TEST(NearestNeighborAssociationTest, CreatesThenMatchesLandmark)
 TEST(NearestNeighborAssociationTest, EuclideanDistanceAndHandleUpdate)
 {
     // expose protected euclideanDistance via derived test class
-    struct TestAssoc : public NearestNeighborAssociation
+    struct TestAssoc : public TestEkfNearestNeighborAssociation
     {
-        using NearestNeighborAssociation::euclideanDistance;
-        using NearestNeighborAssociation::handleUpdate;
+        using TestEkfNearestNeighborAssociation::euclideanDistance;
+        using TestEkfNearestNeighborAssociation::handleUpdate;
     } assoc;
     assoc.setLogger(std::make_shared<MockSlamLogger>());
 
@@ -130,11 +189,16 @@ TEST(NearestNeighborAssociationTest, EuclideanDistanceAndHandleUpdate)
         return fut.get();
     };
 
-    // Now test handleUpdate: create initial landmark at (0,0,0)
+    // Create initial landmark at (0,0,0) via tentative confirmation.
     Measurement meas;
     meas.payload = Eigen::VectorXd(3);
     meas.payload << 0.0, 0.0, 0.0;
     meas.model = std::make_shared<Point3DMeasurementModel>();
+    for (int i = 0; i < EKF_TEST_MIN_CONFIRM_OBS - 1; i++)
+    {
+        AssignedMeasurements tentative = sendAndGet(Measurements{meas});
+        EXPECT_TRUE(tentative.empty());
+    }
     AssignedMeasurements res = sendAndGet(Measurements{meas});
     ASSERT_EQ(res.size(), 1u);
     int initialId = res[0].id;
@@ -161,9 +225,9 @@ TEST(NearestNeighborAssociationTest, EuclideanDistanceAndHandleUpdate)
     EXPECT_EQ(res2[0].id, initialId);
 }
 
-TEST(NearestNeighborAssociationTest, Point3DMeasurementsAreAddedDirectly)
+TEST(NearestNeighborAssociationTest, Point3DMeasurementsRequireTentativeConfirmation)
 {
-    NearestNeighborAssociation assoc;
+    TestEkfNearestNeighborAssociation assoc;
     assoc.setLogger(std::make_shared<MockSlamLogger>());
 
     auto sendAndGet = [&assoc](const Measurements& measurements) {
@@ -181,6 +245,12 @@ TEST(NearestNeighborAssociationTest, Point3DMeasurementsAreAddedDirectly)
     pointA.payload << 1.0, 2.0, 3.0;
     pointA.model = std::make_shared<Point3DMeasurementModel>();
 
+    for (int i = 0; i < EKF_TEST_MIN_CONFIRM_OBS - 1; i++)
+    {
+        AssignedMeasurements tentative = sendAndGet(Measurements{pointA});
+        EXPECT_TRUE(tentative.empty());
+    }
+
     AssignedMeasurements created = sendAndGet(Measurements{pointA});
     ASSERT_EQ(created.size(), 1u);
     EXPECT_TRUE(created[0].isNew);
@@ -193,7 +263,7 @@ TEST(NearestNeighborAssociationTest, Point3DMeasurementsAreAddedDirectly)
 
 TEST(NearestNeighborAssociationTest, UsesUnderConstrainedInitializationStrategyWhenInverseFails)
 {
-    NearestNeighborAssociation assoc(std::make_shared<FixedPointUnderConstrainedStrategy>());
+    TestEkfNearestNeighborAssociation assoc(std::make_shared<FixedPointUnderConstrainedStrategy>());
     assoc.setLogger(std::make_shared<MockSlamLogger>());
 
     auto sendAndGet = [&assoc](const Measurements& measurements) {
@@ -211,7 +281,7 @@ TEST(NearestNeighborAssociationTest, UsesUnderConstrainedInitializationStrategyW
     meas.payload << 0.1, -0.2;
     meas.model = std::make_shared<UnderConstrainedTestMeasurementModel>();
 
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < EKF_TEST_MIN_CONFIRM_OBS - 1; i++)
     {
         AssignedMeasurements tentativeResult = sendAndGet(Measurements{meas});
         EXPECT_TRUE(tentativeResult.empty());

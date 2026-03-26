@@ -95,6 +95,8 @@ set(SOURCES
   src/measurement/bearing_measurement_model.cpp
   src/association/joint_compatibility_association.cpp
   src/association/nearest_neighbor_association.cpp
+  src/association/ekf_nearest_neighbor_association.cpp
+  src/association/graph_nearest_neighbor_association.cpp
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES})
@@ -185,10 +187,20 @@ if(BUILD_TESTING)
       src/measurement/bearing_measurement_model.cpp
   )
 
-  add_slam_gtest(test_nearest_neighbor_association
+  add_slam_gtest(test_ekf_nearest_neighbor_association
     SOURCES
-      test/association/test_nearest_neighbor_association.cpp
+      test/association/test_ekf_nearest_neighbor_association.cpp
       src/association/nearest_neighbor_association.cpp
+      src/association/ekf_nearest_neighbor_association.cpp
+      src/measurement/point3d_measurement_model.cpp
+      src/measurement/bearing_measurement_model.cpp
+  )
+
+  add_slam_gtest(test_graph_nearest_neighbor_association
+    SOURCES
+      test/association/test_graph_nearest_neighbor_association.cpp
+      src/association/nearest_neighbor_association.cpp
+      src/association/graph_nearest_neighbor_association.cpp
       src/measurement/point3d_measurement_model.cpp
       src/measurement/bearing_measurement_model.cpp
   )
@@ -214,6 +226,7 @@ if(BUILD_TESTING)
       src/pipeline/ekf_slam_pipeline.cpp
       src/filter/extended_kalman_filter.cpp
       src/association/nearest_neighbor_association.cpp
+      src/association/ekf_nearest_neighbor_association.cpp
       src/measurement/measurement_factory.cpp
       src/measurement/point3d_measurement_model.cpp
       src/measurement/bbox_measurement_model.cpp
