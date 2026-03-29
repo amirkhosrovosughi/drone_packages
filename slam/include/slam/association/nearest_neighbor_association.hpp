@@ -178,7 +178,7 @@ protected:
     /**
      * @brief Check whether a tentative landmark should be confirmed.
      */
-    virtual bool shouldConfirmTentativeLandmark(const TentativeLandmark& candidate) const;
+    bool shouldConfirmTentativeLandmark(const TentativeLandmark& candidate) const;
 
     /**
      * @brief Triangulate a tentative bearing candidate.

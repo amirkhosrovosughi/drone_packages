@@ -40,7 +40,6 @@ constexpr double kEkfUnderConstrainedGatingDistance = 2.0;
 constexpr double kEkfVarianceEpsilon = 1e-6;
 }  // namespace
 
-
 void EkfNearestNeighborAssociation::processPointMeasurement(
     const Measurement& measurement,
     std::vector<int>& assignedFeature,

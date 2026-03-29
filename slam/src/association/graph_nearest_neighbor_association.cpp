@@ -6,8 +6,7 @@
 // ============================================================================
 // Graph-Specific Pipeline Constants
 // ============================================================================
-// These constants are tuned for the Graph SLAM backend and emphasize
-// triangulation quality and ray-space matching consistency.
+// These constants are tuned for the Graph SLAM backend.
 
 // Point measurement gating for graph-based optimization
 static const double GRAPH_GATING_DISTANCE = 0.6;  // Slightly relaxed for graph bundle adjustment
@@ -18,12 +17,13 @@ static const double GRAPH_BEARING_GATING_DISTANCE = 0.25;  // ~14.3 deg in yaw/p
 // Bearing relaxed fallback: larger gate to manage dynamic objects in graph
 static const double GRAPH_BEARING_RELAXED_FALLBACK_DISTANCE = 0.45;  // ~25.8 deg
 
-// Graph relies on triangulation quality more than EKF, different confirmation strategy
+// Graph confirms candidates quickly and relies on backend optimization to refine them.
 static const int GRAPH_MIN_CONFIRMATION_OBSERVATIONS = 2;  // Fewer required (graph more robust)
-static const double GRAPH_MAX_TENTATIVE_COVARIANCE_TRACE = 0.15;
-static const double GRAPH_UNDER_CONSTRAINED_MAX_COVARIANCE_TRACE = 0.40;
+static const double GRAPH_MAX_TENTATIVE_COVARIANCE_TRACE = 0.30;
+static const double GRAPH_UNDER_CONSTRAINED_MAX_COVARIANCE_TRACE = 1.20;
 
-// Graph bearing triangulation quality gates - emphasizes good triangulation
+// Triangulation quality gates retained for geometry estimation, but Graph can
+// choose to skip requiring them at confirmation via the pipeline hook.
 static const std::size_t GRAPH_MIN_TRIANGULATION_OBSERVATIONS = 4;
 static const double GRAPH_MIN_TRIANGULATION_PARALLAX_RADIANS = 0.08;
 static const double GRAPH_MIN_TRIANGULATION_BASELINE_METERS = 0.20;
@@ -39,9 +39,6 @@ constexpr double kGraphUnderConstrainedGatingDistance = 2.0;
 constexpr double kGraphBearingDirectionGateRadians = 0.16;
 constexpr double kGraphTriangulatedRayDistanceGateMeters = 0.5;
 }  // namespace
-
-// TODO(association-graph): Add graph-native overrides for point/bearing processing,
-// triangulation quality handling, and tentative tracking confirmation updates.
 
 void GraphNearestNeighborAssociation::processPointMeasurement(
     const Measurement& measurement,
