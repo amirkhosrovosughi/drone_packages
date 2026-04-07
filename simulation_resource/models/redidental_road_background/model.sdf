@@ -1,0 +1,33 @@
+<sdf version="1.9">
+  <model name="redidental_road_background">
+    <static>true</static>
+
+    <!-- Houses from one side of residental_block (north side) -->
+    <include><uri>model://house_palette_3</uri><name>house_1</name><pose>-2.5 3.5 0 0 0 1.5708</pose></include>
+    <include><uri>model://house_palette_1</uri><name>house_2</name><pose>-0.75 3.5 0 0 0 1.5708</pose></include>
+    <include><uri>model://house_palette_4</uri><name>house_3</name><pose>0.75 3.5 0 0 0 1.5708</pose></include>
+    <include><uri>model://house_palette_2</uri><name>house_4</name><pose>2.5 3.5 0 0 0 1.5708</pose></include>
+
+    <!-- Sidewalk strip -->
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_0</name><pose>-3.75 4.175 0 0 0 0</pose></include>
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_1</name><pose>-2.25 4.175 0 0 0 0</pose></include>
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_2</name><pose>-0.75 4.175 0 0 0 0</pose></include>
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_3</name><pose>0.75 4.175 0 0 0 0</pose></include>
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_4</name><pose>2.25 4.175 0 0 0 0</pose></include>
+    <include><uri>model://sidewalk_segment</uri><name>sidewalk_5</name><pose>3.75 4.175 0 0 0 0</pose></include>
+
+    <!-- Road strip -->
+    <include><uri>model://road_segment</uri><name>road_0</name><pose>-3.75 4.5 0 0 0 0</pose></include>
+    <include><uri>model://road_segment</uri><name>road_1</name><pose>-2.25 4.5 0 0 0 0</pose></include>
+    <include><uri>model://road_segment</uri><name>road_2</name><pose>-0.75 4.5 0 0 0 0</pose></include>
+    <include><uri>model://road_segment</uri><name>road_3</name><pose>0.75 4.5 0 0 0 0</pose></include>
+    <include><uri>model://road_segment</uri><name>road_4</name><pose>2.25 4.5 0 0 0 0</pose></include>
+    <include><uri>model://road_segment</uri><name>road_5</name><pose>3.75 4.5 0 0 0 0</pose></include>
+
+    <!-- Light roadside details -->
+    <include><uri>model://base_car_variant</uri><name>car_main</name><pose>0.3 4.5 0 0 0 0</pose></include>
+    <include><uri>model://pine_tree</uri><name>pine_mid</name><pose>0.05 3.18 0 0 0 0</pose></include>
+    <include><uri>model://bush</uri><name>bush_left</name><pose>-3.25 3.0 0 0 0 0</pose></include>
+    <include><uri>model://bush</uri><name>bush_right</name><pose>3.1 2.95 0 0 0 0</pose></include>
+  </model>
+</sdf>

@@ -8,7 +8,7 @@
       <name>residental_block_background_main</name>
       <pose>0 0 0 0 0 0</pose>
     </include>
-
+    
     <!-- Toggleable pole layout layer -->
     <include>
       <uri>model://residental_block_pole_layout</uri>

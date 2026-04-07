@@ -1,0 +1,10 @@
+<sdf version="1.9">
+  <model name="redidental_road_pole_layout">
+    <static>true</static>
+
+    <!-- Poles from one side of residental_block (north side) -->
+    <include><uri>model://pole</uri><name>pole_1</name><pose>4.34 4.34 0 0 0 1.5708</pose></include>
+    <include><uri>model://pole</uri><name>pole_2</name><pose>1.4467 4.34 0 0 0 1.5708</pose></include>
+    <include><uri>model://pole</uri><name>pole_3</name><pose>-1.4467 4.34 0 0 0 1.5708</pose></include>
+  </model>
+</sdf>
