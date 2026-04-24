@@ -3,8 +3,8 @@
     <static>true</static>
 
     <!-- One side only, 3 poles evenly spaced and not on edges -->
-    <include><uri>model://pole</uri><name>connector_pole_1</name><pose>-2.17 1.18 0 0 0 1.5708</pose></include>
+    <include><uri>model://pole</uri><name>connector_pole_1</name><pose>-2.8 1.18 0 0 0 1.5708</pose></include>
     <include><uri>model://pole</uri><name>connector_pole_2</name><pose>0.00 1.18 0 0 0 1.5708</pose></include>
-    <include><uri>model://pole</uri><name>connector_pole_3</name><pose>2.17 1.18 0 0 0 1.5708</pose></include>
+    <include><uri>model://pole</uri><name>connector_pole_3</name><pose>2.8 1.18 0 0 0 1.5708</pose></include>
   </model>
 </sdf>
