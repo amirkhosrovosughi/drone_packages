@@ -84,6 +84,30 @@ public:
     }
   }
 
+  std::vector<LoopClosureCandidate> findSpatialLoopClosureCandidates(
+    double,
+    int) const override
+  {
+    return candidates;
+  }
+
+  LoopClosureValidationResult validateLoopClosureCandidate(
+    const LoopClosureCandidate& candidate) const override
+  {
+    lastValidatedCandidate = candidate;
+    return validationToReturn;
+  }
+
+  bool commitLoopClosure(
+    const LoopClosureCandidate& candidate,
+    const LoopClosureValidationResult& validation) override
+  {
+    commitCalled = true;
+    lastCommittedCandidate = candidate;
+    lastCommitValidation = validation;
+    return commitReturnValue;
+  }
+
   GraphState getGraphState() const override
   {
     return graph;
@@ -98,8 +122,15 @@ public:
   bool resetCalled = false;
   bool applyMotionCalled = false;
   bool applyMeasurementsCalled = false;
+  bool commitCalled = false;
   LoggerPtr loggerSet;
   GraphState graph;
+  std::vector<LoopClosureCandidate> candidates;
+  mutable LoopClosureCandidate lastValidatedCandidate;
+  mutable LoopClosureCandidate lastCommittedCandidate;
+  mutable LoopClosureValidationResult lastCommitValidation;
+  LoopClosureValidationResult validationToReturn;
+  bool commitReturnValue = false;
 };
 
 static MotionConstraint makeMotion(
@@ -205,6 +236,45 @@ TEST(GraphSlamBackendTest, ApplyObservationConstraintUpdatesLandmarksAndEdgesCon
   ASSERT_EQ(map.landmarks.size(), 1u);
   EXPECT_EQ(map.landmarks[0].id, 7);
   EXPECT_EQ(map.landmarks[0].observeRepeat, 2);
+}
+
+TEST(GraphSlamBackendTest, ValidateAndCommitFlowRejectsWithoutCommit)
+{
+  auto optimizer = std::make_shared<FakeGraphOptimizer>();
+  GraphSlamBackend backend(optimizer);
+  backend.initialize();
+
+  optimizer->validationToReturn =
+    LoopClosureValidationResult(false, 0, 0, "rejected");
+
+  const LoopClosureCandidate candidate(5, 1, 0.3, false, 0.0);
+  LoopClosureValidationResult validation;
+  const bool accepted = backend.validateAndCommitLoopClosure(candidate, &validation);
+
+  EXPECT_FALSE(accepted);
+  EXPECT_FALSE(optimizer->commitCalled);
+  EXPECT_FALSE(validation.accepted);
+}
+
+TEST(GraphSlamBackendTest, ValidateAndCommitFlowCommitsWhenAccepted)
+{
+  auto optimizer = std::make_shared<FakeGraphOptimizer>();
+  GraphSlamBackend backend(optimizer);
+  backend.initialize();
+
+  optimizer->validationToReturn =
+    LoopClosureValidationResult(true, 12, 15, "");
+  optimizer->commitReturnValue = true;
+
+  const LoopClosureCandidate candidate(8, 2, 0.4, false, 0.0);
+  LoopClosureValidationResult validation;
+  const bool accepted = backend.validateAndCommitLoopClosure(candidate, &validation);
+
+  EXPECT_TRUE(accepted);
+  EXPECT_TRUE(optimizer->commitCalled);
+  EXPECT_TRUE(validation.accepted);
+  EXPECT_EQ(optimizer->lastCommittedCandidate.sourceKeyframeId, 8);
+  EXPECT_EQ(optimizer->lastCommittedCandidate.targetKeyframeId, 2);
 }
 
 }  // namespace slam

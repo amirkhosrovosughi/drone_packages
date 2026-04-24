@@ -251,6 +251,19 @@ if(BUILD_TESTING)
       src/pipeline/graph_slam_backend.cpp
   )
 
+  add_slam_gtest(test_graph_slam_pipeline
+    SOURCES
+      test/pipeline/test_graph_slam_pipeline.cpp
+      src/pipeline/graph_slam_pipeline.cpp
+      src/pipeline/graph_slam_backend.cpp
+      src/pipeline/graph_slam_frontend.cpp
+      src/graph/internal_graph_optimizer.cpp
+      src/measurement/measurement_factory.cpp
+      src/measurement/point3d_measurement_model.cpp
+      src/measurement/bbox_measurement_model.cpp
+      src/measurement/bearing_measurement_model.cpp
+  )
+
   add_slam_gtest(test_internal_graph_optimizer
     SOURCES
       test/graph/test_internal_graph_optimizer.cpp

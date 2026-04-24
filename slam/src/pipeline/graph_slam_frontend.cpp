@@ -6,7 +6,7 @@
 
 namespace
 {
-constexpr double KEYFRAME_TRANSLATION_THRESHOLD_M = 0.25;
+constexpr double KEYFRAME_TRANSLATION_THRESHOLD_M = 0.5;
 constexpr double KEYFRAME_ROTATION_THRESHOLD_RAD = 10.0 * M_PI / 180.0;
 constexpr auto OBSERVATION_MERGE_WINDOW = std::chrono::milliseconds(80);
 }

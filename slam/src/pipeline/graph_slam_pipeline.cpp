@@ -5,6 +5,9 @@
 namespace slam
 {
 
+constexpr double kLoopClosureCandidateDistanceMeters = 0.5;
+constexpr int kLoopClosureMinKeyframeSeparation = 2;
+
 GraphSlamPipeline::GraphSlamPipeline(
   std::shared_ptr<GraphSlamFrontend> frontend,
   std::shared_ptr<GraphSlamBackend> backend)
@@ -76,7 +79,27 @@ void GraphSlamPipeline::onFrontendMotionConstraint(const MotionConstraint& motio
 void GraphSlamPipeline::onFrontendAssociatedMeasurements(const AssignedMeasurements& measurements)
 {
   _backend->applyObservationConstraint(measurements);
+  processLoopClosureCandidates();
   _frontend->updateMap(_backend->getMap());
+}
+
+void GraphSlamPipeline::processLoopClosureCandidates()
+{
+  const std::vector<LoopClosureCandidate> candidates =
+    _backend->findSpatialLoopClosureCandidates(
+      kLoopClosureCandidateDistanceMeters,
+      kLoopClosureMinKeyframeSeparation);
+
+  // TODO(Step 5): Merge appearance-cue candidates as an optional secondary source.
+  // Query an appearance index (e.g. DBoW / NetVLAD descriptor store) for the active
+  // keyframe, produce additional LoopClosureCandidates with hasAppearanceScore=true,
+  // and append them here (deduplicating against spatially-found candidates by
+  // {sourceKeyframeId, targetKeyframeId} pair) before the validation loop below.
+
+  for (const LoopClosureCandidate& candidate : candidates)
+  {
+    _backend->validateAndCommitLoopClosure(candidate);
+  }
 }
 
 }  // namespace slam

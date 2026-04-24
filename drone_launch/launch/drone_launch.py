@@ -3,6 +3,7 @@
 import launch
 from launch_ros.actions import Node
 
+
 def generate_launch_description():
     return launch.LaunchDescription([
         # TF publisher node
@@ -11,9 +12,13 @@ def generate_launch_description():
             executable='static_transform_publisher',
             name='static_transform_publisher',
             output='screen',
-            arguments=['0.12', '0.03', '0.242', '0', '0.785', '0', 'base_link', 'camera_frame'] # camera look downwards 1.57
+            # camera look downwards 1.57
+            arguments=[
+                '0.12', '0.03', '0.242', '0', '0.785', '0',
+                'base_link', 'camera_frame'
+            ]
         ),
-        
+
         # Image bridge nodes
         Node(
             package='ros_gz_image',
@@ -67,4 +72,3 @@ def generate_launch_description():
             output='screen',
         ),
     ])
-

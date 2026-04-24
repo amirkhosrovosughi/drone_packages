@@ -1,6 +1,7 @@
 #ifndef DEF_SLAM_HPP_
 #define DEF_SLAM_HPP_
 
+#include <string>
 #include <vector>
 #include <Eigen/Dense>
 
@@ -191,12 +192,79 @@ struct GraphObservationEdge {
         : keyframeId(keyframeId), landmarkId(landmarkId) {}
 };
 
+struct LoopClosureCandidate {
+    int sourceKeyframeId;
+    int targetKeyframeId;
+    double spatialDistanceMeters;
+    bool hasAppearanceScore;
+    double appearanceScore;
+
+    LoopClosureCandidate(
+        int sourceKeyframeId = 0,
+        int targetKeyframeId = 0,
+        double spatialDistanceMeters = 0.0,
+        bool hasAppearanceScore = false,
+        double appearanceScore = 0.0)
+        : sourceKeyframeId(sourceKeyframeId),
+          targetKeyframeId(targetKeyframeId),
+          spatialDistanceMeters(spatialDistanceMeters),
+          hasAppearanceScore(hasAppearanceScore),
+          appearanceScore(appearanceScore) {}
+};
+
+struct LoopClosureValidationResult {
+    bool accepted;
+    int inlierCount;
+    int supportCount;
+    double inlierRatio;
+    std::string reason;
+    MotionConstraint estimatedRelativeMotion;
+
+    LoopClosureValidationResult(
+        bool accepted = false,
+        int inlierCount = 0,
+        int supportCount = 0,
+        const std::string& reason = "",
+                const MotionConstraint& estimatedRelativeMotion = MotionConstraint(),
+                double inlierRatio = 0.0)
+        : accepted(accepted),
+          inlierCount(inlierCount),
+          supportCount(supportCount),
+          inlierRatio(inlierRatio),
+          reason(reason),
+          estimatedRelativeMotion(estimatedRelativeMotion) {}
+};
+
+struct GraphLoopClosureEdge {
+    int fromKeyframeId;
+    int toKeyframeId;
+    MotionConstraint relativeMotion;
+    int inlierCount;
+    int supportCount;
+    double inlierRatio;
+
+    GraphLoopClosureEdge(
+        int fromKeyframeId = 0,
+        int toKeyframeId = 0,
+        const MotionConstraint& relativeMotion = MotionConstraint(),
+        int inlierCount = 0,
+        int supportCount = 0,
+        double inlierRatio = 0.0)
+        : fromKeyframeId(fromKeyframeId),
+          toKeyframeId(toKeyframeId),
+          relativeMotion(relativeMotion),
+          inlierCount(inlierCount),
+          supportCount(supportCount),
+          inlierRatio(inlierRatio) {}
+};
+
 struct GraphState {
     RobotState robot;
     std::vector<GraphKeyframeNode> keyframes;
     std::vector<GraphLandmarkNode> landmarks;
     std::vector<GraphOdometryEdge> odometryEdges;
     std::vector<GraphObservationEdge> observationEdges;
+    std::vector<GraphLoopClosureEdge> loopClosureEdges;
     int activeKeyframeId = 0;
 
     GraphState() {}

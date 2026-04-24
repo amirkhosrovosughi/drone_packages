@@ -24,6 +24,14 @@ public:
   void reset();
   void applyMotionConstraint(const MotionConstraint& motion);
   void applyObservationConstraint(const AssignedMeasurements& measurements);
+  std::vector<LoopClosureCandidate> findSpatialLoopClosureCandidates(
+    double maxDistanceMeters,
+    int minKeyframeSeparation) const;
+  LoopClosureValidationResult validateLoopClosureCandidate(
+    const LoopClosureCandidate& candidate) const;
+  bool validateAndCommitLoopClosure(
+    const LoopClosureCandidate& candidate,
+    LoopClosureValidationResult* validationOut = nullptr);
   MapSummary getMap() const;
   void setLogger(LoggerPtr logger);
 

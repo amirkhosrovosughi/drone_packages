@@ -23,6 +23,14 @@ public:
   virtual void reset() = 0;
   virtual void applyMotion(const MotionConstraint& motion) = 0;
   virtual void applyObservation(const AssignedMeasurements& measurements) = 0;
+  virtual std::vector<LoopClosureCandidate> findSpatialLoopClosureCandidates(
+    double maxDistanceMeters,
+    int minKeyframeSeparation) const = 0;
+  virtual LoopClosureValidationResult validateLoopClosureCandidate(
+    const LoopClosureCandidate& candidate) const = 0;
+  virtual bool commitLoopClosure(
+    const LoopClosureCandidate& candidate,
+    const LoopClosureValidationResult& validation) = 0;
   virtual GraphState getGraphState() const = 0;
 
   MapSummary getMap() const

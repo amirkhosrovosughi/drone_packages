@@ -1,0 +1,366 @@
+#include <gtest/gtest.h>
+
+#include <memory>
+
+#include <Eigen/Geometry>
+
+#include "association/base_association.hpp"
+#include "graph/graph_optimizer.hpp"
+#include "graph/internal_graph_optimizer.hpp"
+#include "pipeline/graph_slam_backend.hpp"
+#include "pipeline/graph_slam_frontend.hpp"
+#include "pipeline/graph_slam_pipeline.hpp"
+
+namespace slam
+{
+
+class PipelineFakeAssociation : public BaseAssociation
+{
+public:
+  void onReceiveMeasurement(const Measurements& meas) override
+  {
+    lastMeasurements = meas;
+    if (storedCallback)
+    {
+      storedCallback(assignedToEmit);
+    }
+  }
+
+  void handleUpdate(const MapSummary& map) override
+  {
+    lastMap = map;
+  }
+
+  void registerCallback(std::function<void(AssignedMeasurements)> callback) override
+  {
+    storedCallback = std::move(callback);
+  }
+
+  void setLogger(LoggerPtr logger) override
+  {
+    loggerSet = logger;
+  }
+
+  AssignedMeasurements assignedToEmit;
+  Measurements lastMeasurements;
+  MapSummary lastMap;
+  LoggerPtr loggerSet;
+
+private:
+  void processMeasurement(const Measurements&) override {}
+  std::function<void(AssignedMeasurements)> storedCallback;
+};
+
+class PipelineFakeGraphOptimizer : public GraphOptimizer
+{
+public:
+  void initialize() override
+  {
+    graph = GraphState();
+    graph.activeKeyframeId = 0;
+    graph.keyframes.emplace_back(0, 0.0, graph.robot);
+  }
+
+  void reset() override
+  {
+    graph = GraphState();
+    graph.activeKeyframeId = 0;
+    graph.keyframes.emplace_back(0, 0.0, graph.robot);
+  }
+
+  void applyMotion(const MotionConstraint& motion) override
+  {
+    const int fromId = graph.activeKeyframeId;
+    graph.robot.pose.position.x += motion.delta_position.x();
+    graph.robot.pose.position.y += motion.delta_position.y();
+    graph.robot.pose.position.z += motion.delta_position.z();
+    graph.robot.pose.quaternion.w = motion.orientation.w();
+    graph.robot.pose.quaternion.x = motion.orientation.x();
+    graph.robot.pose.quaternion.y = motion.orientation.y();
+    graph.robot.pose.quaternion.z = motion.orientation.z();
+
+    const int toId = fromId + 1;
+    graph.keyframes.emplace_back(toId, 0.0, graph.robot);
+    graph.odometryEdges.emplace_back(fromId, toId, motion);
+    graph.activeKeyframeId = toId;
+  }
+
+  void applyObservation(const AssignedMeasurements& measurements) override
+  {
+    for (const auto& assigned : measurements)
+    {
+      graph.observationEdges.emplace_back(graph.activeKeyframeId, assigned.id);
+    }
+  }
+
+  std::vector<LoopClosureCandidate> findSpatialLoopClosureCandidates(
+    double,
+    int) const override
+  {
+    return candidatesToReturn;
+  }
+
+  LoopClosureValidationResult validateLoopClosureCandidate(
+    const LoopClosureCandidate& candidate) const override
+  {
+    validateCallCount += 1;
+    lastValidatedCandidate = candidate;
+    return validationToReturn;
+  }
+
+  bool commitLoopClosure(
+    const LoopClosureCandidate& candidate,
+    const LoopClosureValidationResult& validation) override
+  {
+    commitCallCount += 1;
+    lastCommittedCandidate = candidate;
+    lastCommitValidation = validation;
+    if (commitReturnValue)
+    {
+      graph.loopClosureEdges.emplace_back(
+        candidate.sourceKeyframeId,
+        candidate.targetKeyframeId,
+        validation.estimatedRelativeMotion,
+        validation.inlierCount,
+        validation.supportCount,
+        validation.inlierRatio);
+    }
+    return commitReturnValue;
+  }
+
+  GraphState getGraphState() const override
+  {
+    return graph;
+  }
+
+  void setLogger(LoggerPtr logger) override
+  {
+    loggerSet = logger;
+  }
+
+  mutable int validateCallCount = 0;
+  mutable int commitCallCount = 0;
+  mutable LoopClosureCandidate lastValidatedCandidate;
+  mutable LoopClosureCandidate lastCommittedCandidate;
+  mutable LoopClosureValidationResult lastCommitValidation;
+  std::vector<LoopClosureCandidate> candidatesToReturn;
+  LoopClosureValidationResult validationToReturn;
+  bool commitReturnValue = false;
+  GraphState graph;
+  LoggerPtr loggerSet;
+};
+
+static MotionConstraint makeMotion(const Eigen::Vector3d& delta)
+{
+  MotionConstraint motion;
+  motion.delta_position = delta;
+  motion.orientation = Eigen::Quaterniond::Identity();
+  return motion;
+}
+
+static AssignedMeasurement makeAssignedMeasurement(int id)
+{
+  AssignedMeasurement measurement;
+  measurement.id = id;
+  measurement.isNew = false;
+  measurement.hasInitializedPosition = false;
+  return measurement;
+}
+
+static AssignedMeasurement makeNewLandmarkAssignment(int id, const Eigen::Vector3d& worldPos)
+{
+  AssignedMeasurement measurement;
+  measurement.id = id;
+  measurement.isNew = true;
+  measurement.hasInitializedPosition = true;
+  measurement.position = Position(worldPos.x(), worldPos.y(), worldPos.z());
+  return measurement;
+}
+
+TEST(GraphSlamPipelineTest, ObservationTriggeredLoopClosureUsesAtomicBackendPath)
+{
+  auto association = std::make_shared<PipelineFakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+  auto optimizer = std::make_shared<PipelineFakeGraphOptimizer>();
+  auto frontend = std::make_shared<GraphSlamFrontend>(association, factory);
+  auto backend = std::make_shared<GraphSlamBackend>(optimizer);
+
+  GraphSlamPipeline pipeline(frontend, backend);
+  pipeline.initialize();
+
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(0.3, 0.0, 0.0)));
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(0.3, 0.0, 0.0)));
+
+  association->assignedToEmit = AssignedMeasurements{makeAssignedMeasurement(41)};
+  optimizer->candidatesToReturn = {LoopClosureCandidate(1, 0, 0.2, false, 0.0)};
+  optimizer->validationToReturn = LoopClosureValidationResult(true, 3, 4, "", MotionConstraint(), 0.75);
+  optimizer->commitReturnValue = true;
+
+  Observation observation(1.0, Point3D{Eigen::Vector3d(1.0, 2.0, 3.0)});
+  pipeline.processObservation(Observations{observation});
+
+  EXPECT_EQ(optimizer->validateCallCount, 1);
+  EXPECT_EQ(optimizer->commitCallCount, 1);
+  ASSERT_EQ(optimizer->graph.loopClosureEdges.size(), 1u);
+  EXPECT_EQ(optimizer->graph.loopClosureEdges.front().fromKeyframeId, 1);
+  EXPECT_EQ(optimizer->graph.loopClosureEdges.front().toKeyframeId, 0);
+}
+
+TEST(GraphSlamPipelineTest, FailedLoopValidationDoesNotMutateGraph)
+{
+  auto association = std::make_shared<PipelineFakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+  auto optimizer = std::make_shared<PipelineFakeGraphOptimizer>();
+  auto frontend = std::make_shared<GraphSlamFrontend>(association, factory);
+  auto backend = std::make_shared<GraphSlamBackend>(optimizer);
+
+  GraphSlamPipeline pipeline(frontend, backend);
+  pipeline.initialize();
+
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(0.3, 0.0, 0.0)));
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(0.3, 0.0, 0.0)));
+
+  association->assignedToEmit = AssignedMeasurements{makeAssignedMeasurement(41)};
+  optimizer->candidatesToReturn = {LoopClosureCandidate(1, 0, 0.2, false, 0.0)};
+  optimizer->validationToReturn = LoopClosureValidationResult(false, 1, 4, "rejected", MotionConstraint(), 0.25);
+  optimizer->commitReturnValue = true;
+
+  Observation observation(1.0, Point3D{Eigen::Vector3d(1.0, 2.0, 3.0)});
+  pipeline.processObservation(Observations{observation});
+
+  EXPECT_EQ(optimizer->validateCallCount, 1);
+  EXPECT_EQ(optimizer->commitCallCount, 0);
+  EXPECT_TRUE(optimizer->graph.loopClosureEdges.empty());
+}
+
+TEST(GraphSlamPipelineTest, ResetClearsLoopClosureEdgesAndGetMapSucceeds)
+{
+  auto association = std::make_shared<PipelineFakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+  auto optimizer = std::make_shared<PipelineFakeGraphOptimizer>();
+  auto frontend = std::make_shared<GraphSlamFrontend>(association, factory);
+  auto backend = std::make_shared<GraphSlamBackend>(optimizer);
+
+  GraphSlamPipeline pipeline(frontend, backend);
+  pipeline.initialize();
+
+  // Inject a committed loop closure edge directly into the fake graph.
+  optimizer->graph.loopClosureEdges.emplace_back(2, 0, MotionConstraint(), 3, 4, 0.75);
+  ASSERT_EQ(optimizer->graph.loopClosureEdges.size(), 1u);
+
+  pipeline.reset();
+
+  EXPECT_TRUE(optimizer->graph.loopClosureEdges.empty());
+  EXPECT_NO_THROW(pipeline.getMap());
+}
+
+TEST(GraphSlamPipelineTest, MotionAndObservationPathsUnaffectedByLoopClosureAdditions)
+{
+  auto association = std::make_shared<PipelineFakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+  auto optimizer = std::make_shared<PipelineFakeGraphOptimizer>();
+  auto frontend = std::make_shared<GraphSlamFrontend>(association, factory);
+  auto backend = std::make_shared<GraphSlamBackend>(optimizer);
+
+  GraphSlamPipeline pipeline(frontend, backend);
+  pipeline.initialize();
+
+  optimizer->candidatesToReturn = {};  // no loop candidates
+
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(0.6, 0.0, 0.0)));
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(0.6, 0.0, 0.0)));
+
+  association->assignedToEmit = AssignedMeasurements{makeAssignedMeasurement(55)};
+  pipeline.processObservation(Observations{Observation(1.0, Point3D{Eigen::Vector3d(1.0, 0.0, 0.0)})});
+
+  ASSERT_EQ(optimizer->graph.keyframes.size(), 3u);
+  ASSERT_EQ(optimizer->graph.odometryEdges.size(), 2u);
+  ASSERT_EQ(optimizer->graph.observationEdges.size(), 1u);
+  EXPECT_TRUE(optimizer->graph.loopClosureEdges.empty());
+  EXPECT_EQ(optimizer->validateCallCount, 0);
+}
+
+TEST(GraphSlamPipelineTest, MultipleCandidatesAreAllValidatedInSingleCycle)
+{
+  auto association = std::make_shared<PipelineFakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+  auto optimizer = std::make_shared<PipelineFakeGraphOptimizer>();
+  auto frontend = std::make_shared<GraphSlamFrontend>(association, factory);
+  auto backend = std::make_shared<GraphSlamBackend>(optimizer);
+
+  GraphSlamPipeline pipeline(frontend, backend);
+  pipeline.initialize();
+
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(0.3, 0.0, 0.0)));
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(0.3, 0.0, 0.0)));
+
+  association->assignedToEmit = AssignedMeasurements{makeAssignedMeasurement(70)};
+  optimizer->candidatesToReturn = {
+    LoopClosureCandidate(2, 0, 0.1, false, 0.0),
+    LoopClosureCandidate(2, 1, 0.2, false, 0.0)};
+  optimizer->validationToReturn =
+    LoopClosureValidationResult(true, 3, 4, "", MotionConstraint(), 0.75);
+  optimizer->commitReturnValue = true;
+
+  pipeline.processObservation(
+    Observations{Observation(1.0, Point3D{Eigen::Vector3d(1.0, 0.0, 0.0)})});
+
+  EXPECT_EQ(optimizer->validateCallCount, 2);
+  EXPECT_EQ(optimizer->commitCallCount, 2);
+}
+
+TEST(GraphSlamPipelineTest, EndToEndWithRealOptimizerCommitsLoopClosure)
+{
+  auto association = std::make_shared<PipelineFakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+  auto optimizer = std::make_shared<InternalGraphOptimizer>();
+  auto frontend = std::make_shared<GraphSlamFrontend>(association, factory);
+  auto backend = std::make_shared<GraphSlamBackend>(optimizer);
+
+  GraphSlamPipeline pipeline(frontend, backend);
+  pipeline.initialize();
+
+  const Observation dummyObs(1.0, Point3D{Eigen::Vector3d(0.1, 0.3, 0.0)});
+
+  // kf1 at (1.0, 0, 0): introduce three shared landmarks.
+  association->assignedToEmit = AssignedMeasurements{
+    makeNewLandmarkAssignment(301, Eigen::Vector3d(0.1, 0.3, 0.0)),
+    makeNewLandmarkAssignment(302, Eigen::Vector3d(-0.2, 0.4, 0.0)),
+    makeNewLandmarkAssignment(303, Eigen::Vector3d(0.3, -0.1, 0.0))};
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));
+  pipeline.processObservation(Observations{dummyObs});
+
+  // kf2 at (2.0, 0, 0): revisit landmarks.
+  association->assignedToEmit = AssignedMeasurements{
+    makeAssignedMeasurement(301),
+    makeAssignedMeasurement(302),
+    makeAssignedMeasurement(303)};
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));
+  pipeline.processObservation(Observations{dummyObs});
+
+  // kf3 at (3.0, 0, 0): revisit landmarks.
+  association->assignedToEmit = AssignedMeasurements{
+    makeAssignedMeasurement(301),
+    makeAssignedMeasurement(302),
+    makeAssignedMeasurement(303)};
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));
+  pipeline.processObservation(Observations{dummyObs});
+
+  // kf4 at (1.1, 0, 0): revisit landmarks.
+  // kf4 is 0.1 m from kf1, separation = 3 — spatial candidate expected.
+  association->assignedToEmit = AssignedMeasurements{
+    makeAssignedMeasurement(301),
+    makeAssignedMeasurement(302),
+    makeAssignedMeasurement(303)};
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(-1.9, 0.0, 0.0)));
+  pipeline.processObservation(Observations{dummyObs});
+
+  const GraphState graph = optimizer->getGraphState();
+  ASSERT_FALSE(graph.loopClosureEdges.empty())
+    << "Expected pipeline to commit a loop closure between kf4 and kf1";
+  EXPECT_EQ(graph.loopClosureEdges.front().fromKeyframeId, 4);
+  EXPECT_EQ(graph.loopClosureEdges.front().toKeyframeId, 1);
+  EXPECT_GE(graph.loopClosureEdges.front().inlierRatio, 0.6);
+}
+
+}  // namespace slam

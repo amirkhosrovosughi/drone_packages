@@ -32,6 +32,7 @@ public:
   void setLogger(LoggerPtr logger) override;
 
 private:
+  void processLoopClosureCandidates();
   void onFrontendMotionConstraint(const MotionConstraint& motion);
   void onFrontendAssociatedMeasurements(const AssignedMeasurements& meas);
 

@@ -150,6 +150,25 @@ private:
   double getMaxTriangulationMeanRayResidual() const override { return 0.75; }
 };
 
+static CameraInfo makeTestCameraInfo()
+{
+  CameraInfo cam;
+  cam.extrinsics = Eigen::Matrix4d::Identity();
+  cam.intrinsic = CameraIntrinsic(640, 480, 320.0, 320.0, 320.0, 240.0);
+  return cam;
+}
+
+static Bearing makeBearingFromWorldLandmark(
+  const Eigen::Vector3d& robotPosition,
+  const Eigen::Vector3d& landmarkWorld)
+{
+  const Eigen::Vector3d rel = landmarkWorld - robotPosition;
+  Bearing bearing;
+  bearing.yaw = std::atan(rel.x() / rel.z());
+  bearing.pitch = std::atan(rel.y() / rel.z());
+  return bearing;
+}
+
 TEST(EkfSlamPipelineTest, InitializeThrowsWhenDependenciesMissing)
 {
   auto motion = std::make_shared<PositionOnlyMotionModel>();
@@ -290,23 +309,25 @@ TEST(EkfSlamPipelineTest, EndToEndBearingObservationCreatesLandmarkWithStrategy)
   auto assoc = std::make_shared<PipelineTestNearestNeighborAssociation>(
     std::make_shared<EkfBearingInitializationStrategy>());
   auto factory = std::make_shared<MeasurementFactory>();
+  factory->setCameraInfo(makeTestCameraInfo());
 
   EkfSlamPipeline pipeline(ekf, assoc, factory);
   pipeline.setLogger(std::make_shared<MockSlamLogger>());
   pipeline.initialize();
 
-  MotionConstraint motionConstraint;
-  motionConstraint.delta_position = Eigen::Vector3d::Zero();
-  motionConstraint.orientation = Eigen::Quaterniond::Identity();
-  pipeline.processMotion(motionConstraint);
+  const Eigen::Vector3d landmarkWorld(4.0, 0.8, 4.5);
+  Eigen::Vector3d robotPosition = Eigen::Vector3d::Zero();
 
-  Bearing bearing;
-  bearing.yaw = 0.1;
-  bearing.pitch = -0.05;
-  Observation obs(0.0, bearing);
-
-  for (int i = 0; i < 5; ++i)
+  for (int i = 0; i < 12; ++i)
   {
+    MotionConstraint motionConstraint;
+    motionConstraint.delta_position = Eigen::Vector3d(0.06, 0.03, 0.0);
+    motionConstraint.orientation = Eigen::Quaterniond::Identity();
+    pipeline.processMotion(motionConstraint);
+    robotPosition += motionConstraint.delta_position;
+
+    const Bearing bearing = makeBearingFromWorldLandmark(robotPosition, landmarkWorld);
+    Observation obs(0.0, bearing);
     pipeline.processObservation(Observations{obs});
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
@@ -333,32 +354,41 @@ TEST(EkfSlamPipelineTest, NoisyBearingObservationsStillConfirmTentativeLandmark)
   auto assoc = std::make_shared<PipelineTestNearestNeighborAssociation>(
     std::make_shared<EkfBearingInitializationStrategy>());
   auto factory = std::make_shared<MeasurementFactory>();
+  factory->setCameraInfo(makeTestCameraInfo());
 
   EkfSlamPipeline pipeline(ekf, assoc, factory);
   pipeline.setLogger(std::make_shared<MockSlamLogger>());
   pipeline.initialize();
 
-  MotionConstraint motionConstraint;
-  motionConstraint.delta_position = Eigen::Vector3d::Zero();
-  motionConstraint.orientation = Eigen::Quaterniond::Identity();
-  pipeline.processMotion(motionConstraint);
-
-  const std::vector<std::pair<double, double>> jitteredBearings = {
-    {0.10, -0.05},
-    {0.12, -0.04},
-    {0.09, -0.06},
-    {0.11, -0.05},
-    {0.13, -0.03},
-    {0.10, -0.04},
-    {0.08, -0.05},
-    {0.12, -0.06}
+  const Eigen::Vector3d landmarkWorld(4.2, 1.0, 4.8);
+  Eigen::Vector3d robotPosition = Eigen::Vector3d::Zero();
+  const std::vector<std::pair<double, double>> noise = {
+    {0.00, 0.00},
+    {0.01, -0.01},
+    {-0.01, 0.00},
+    {0.00, 0.01},
+    {0.01, 0.01},
+    {-0.01, -0.01},
+    {0.00, -0.01},
+    {-0.01, 0.01},
+    {0.005, -0.005},
+    {-0.005, 0.005},
+    {0.008, 0.0},
+    {0.0, -0.008}
   };
 
-  for (const auto& sample : jitteredBearings)
+  for (const auto& sample : noise)
   {
+    MotionConstraint motionConstraint;
+    motionConstraint.delta_position = Eigen::Vector3d(0.05, 0.025, 0.0);
+    motionConstraint.orientation = Eigen::Quaterniond::Identity();
+    pipeline.processMotion(motionConstraint);
+    robotPosition += motionConstraint.delta_position;
+
+    const Bearing ideal = makeBearingFromWorldLandmark(robotPosition, landmarkWorld);
     Bearing bearing;
-    bearing.yaw = sample.first;
-    bearing.pitch = sample.second;
+    bearing.yaw = ideal.yaw + sample.first;
+    bearing.pitch = ideal.pitch + sample.second;
     Observation obs(0.0, bearing);
     pipeline.processObservation(Observations{obs});
     std::this_thread::sleep_for(std::chrono::milliseconds(12));

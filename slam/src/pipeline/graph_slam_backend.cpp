@@ -37,6 +37,42 @@ void GraphSlamBackend::applyObservationConstraint(const AssignedMeasurements& me
   _optimizer->applyObservation(measurements);
 }
 
+std::vector<LoopClosureCandidate> GraphSlamBackend::findSpatialLoopClosureCandidates(
+  double maxDistanceMeters,
+  int minKeyframeSeparation) const
+{
+  std::lock_guard<std::mutex> lock(_mutex);
+  return _optimizer->findSpatialLoopClosureCandidates(maxDistanceMeters, minKeyframeSeparation);
+}
+
+LoopClosureValidationResult GraphSlamBackend::validateLoopClosureCandidate(
+  const LoopClosureCandidate& candidate) const
+{
+  std::lock_guard<std::mutex> lock(_mutex);
+  return _optimizer->validateLoopClosureCandidate(candidate);
+}
+
+bool GraphSlamBackend::validateAndCommitLoopClosure(
+  const LoopClosureCandidate& candidate,
+  LoopClosureValidationResult* validationOut)
+{
+  std::lock_guard<std::mutex> lock(_mutex);
+
+  const LoopClosureValidationResult validation =
+    _optimizer->validateLoopClosureCandidate(candidate);
+  if (validationOut)
+  {
+    *validationOut = validation;
+  }
+
+  if (!validation.accepted)
+  {
+    return false;
+  }
+
+  return _optimizer->commitLoopClosure(candidate, validation);
+}
+
 MapSummary GraphSlamBackend::getMap() const
 {
   std::lock_guard<std::mutex> lock(_mutex);
