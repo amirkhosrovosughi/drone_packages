@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <memory>
+#include <thread>
 
 #include <Eigen/Geometry>
 
@@ -138,8 +139,27 @@ public:
     loggerSet = logger;
   }
 
+    void refineActiveKeyframe(const OptimizationConfig& config = OptimizationConfig()) override
+    {
+      // Stub: do nothing
+    }
+
+    bool optimizeGraph(
+      const OptimizationConfig& config,
+      OptimizationResult* resultOut = nullptr) override
+    {
+      ++optimizeCallCount;
+      if (resultOut)
+      {
+        resultOut->success = false;
+        resultOut->failureReason = "Test stub";
+      }
+      return false;
+    }
+
   mutable int validateCallCount = 0;
   mutable int commitCallCount = 0;
+  int optimizeCallCount = 0;
   mutable LoopClosureCandidate lastValidatedCandidate;
   mutable LoopClosureCandidate lastCommittedCandidate;
   mutable LoopClosureValidationResult lastCommitValidation;
@@ -361,6 +381,32 @@ TEST(GraphSlamPipelineTest, EndToEndWithRealOptimizerCommitsLoopClosure)
   EXPECT_EQ(graph.loopClosureEdges.front().fromKeyframeId, 4);
   EXPECT_EQ(graph.loopClosureEdges.front().toKeyframeId, 1);
   EXPECT_GE(graph.loopClosureEdges.front().inlierRatio, 0.6);
+}
+
+TEST(GraphSlamPipelineTest, WatchdogMetricsRecordedWhenOptimizationFires)
+{
+  // Use a fallback-every-1-keyframe policy so optimization fires on every
+  // keyframe processed, making it easy to verify watchdog is wired in.
+  auto association = std::make_shared<PipelineFakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+  auto optimizer = std::make_shared<PipelineFakeGraphOptimizer>();
+  auto frontend = std::make_shared<GraphSlamFrontend>(association, factory);
+  auto backend = std::make_shared<GraphSlamBackend>(optimizer);
+
+  GraphSlamPipeline pipeline(frontend, backend);
+  pipeline.initialize();
+
+  // kOptimizationFallbackEveryNKeyframes is 5.  Drive 5 keyframes to fire it.
+  for (int i = 0; i < 5; ++i)
+  {
+    pipeline.processMotion(makeMotion(Eigen::Vector3d(0.6, 0.0, 0.0)));
+  }
+
+  const OptimizationMetrics m = pipeline.watchdogMetrics();
+  EXPECT_GE(m.totalSolves, 1);
+  // Fake optimizer returns immediately — no timeouts expected.
+  EXPECT_EQ(m.timedOutSolves, 0);
+  EXPECT_GE(optimizer->optimizeCallCount, 1);
 }
 
 }  // namespace slam

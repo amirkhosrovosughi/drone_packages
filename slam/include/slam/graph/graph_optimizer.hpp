@@ -33,6 +33,22 @@ public:
     const LoopClosureValidationResult& validation) = 0;
   virtual GraphState getGraphState() const = 0;
 
+  /**
+   * @brief Lightweight per-keyframe pose refinement using recent constraints.
+   * Called after each keyframe is accepted to incrementally improve pose estimate.
+   * Uses strategy specified in config (Gauss-Newton or closed-form).
+   */
+  virtual void refineActiveKeyframe(const OptimizationConfig& config = OptimizationConfig()) = 0;
+
+  /**
+   * @brief Global graph optimization/solve.
+   * Triggered on loop closure acceptance or fallback after N keyframes.
+   * Returns false if solve was skipped or failed (e.g., timeout).
+   */
+  virtual bool optimizeGraph(
+    const OptimizationConfig& config,
+    OptimizationResult* resultOut = nullptr) = 0;
+
   MapSummary getMap() const
   {
     return graphStateToMapSummary(getGraphState());

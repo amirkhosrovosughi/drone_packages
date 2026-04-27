@@ -7,11 +7,15 @@
 namespace
 {
 constexpr int kMinSequentialOdometrySupportEdges = 2;
-constexpr int kMinLoopSupportCorrespondences = 3;
+constexpr int kMaxLocalRefinementSupportEdges = 5;
+constexpr int kMinLoopSupportCorrespondences = 2;
 constexpr int kMinLoopInlierCount = 2;
 constexpr double kMinLoopInlierRatio = 0.6;
 constexpr double kMaxLoopTranslationResidualMeters = 0.35;
 constexpr double kMaxLandmarkCorrespondenceResidualMeters = 0.5;
+constexpr double kOdometryConstraintWeight = 1.0;
+constexpr double kObservationConstraintWeight = 0.08;
+constexpr double kMaxLocalRefinementStepMeters = 0.15;
 
 Eigen::Quaterniond poseQuaternionToEigen(const Pose& pose)
 {
@@ -32,6 +36,7 @@ void InternalGraphOptimizer::initialize()
   _graph = GraphState();
   _graph.activeKeyframeId = 0;
   _graph.keyframes.emplace_back(_graph.activeKeyframeId, 0.0, _graph.robot);
+  _lastRefinementTime = std::chrono::steady_clock::now();
 }
 
 void InternalGraphOptimizer::reset()
@@ -40,6 +45,7 @@ void InternalGraphOptimizer::reset()
   _graph = GraphState();
   _graph.activeKeyframeId = 0;
   _graph.keyframes.emplace_back(_graph.activeKeyframeId, 0.0, _graph.robot);
+  _lastRefinementTime = std::chrono::steady_clock::now();
 }
 
 void InternalGraphOptimizer::applyMotion(const MotionConstraint& motion)
@@ -172,6 +178,270 @@ std::vector<LoopClosureCandidate> InternalGraphOptimizer::findSpatialLoopClosure
   return candidates;
 }
 
+
+    void InternalGraphOptimizer::refineActiveKeyframe(const OptimizationConfig& config)
+    {
+      std::lock_guard<std::mutex> lock(_mutex);
+
+      if (_graph.keyframes.empty())
+      {
+        if (_logger) _logger->logWarn("refineActiveKeyframe: No keyframes in graph");
+        return;
+      }
+
+      // Dispatch based on refinement strategy
+      if (config.strategy == RefinementStrategy::GaussNewton)
+      {
+        refineActiveKeyframeGaussNewton(config);
+      }
+      else if (config.strategy == RefinementStrategy::ClosedForm)
+      {
+        refineActiveKeyframeClosedForm(config);
+      }
+      else
+      {
+        if (_logger) _logger->logWarn("refineActiveKeyframe: Unknown refinement strategy");
+      }
+    }
+
+void InternalGraphOptimizer::refineActiveKeyframeGaussNewton(const OptimizationConfig& config)
+    {
+      // Find active keyframe (mutable)
+      auto* activeKf = findKeyframeByIdMutable(_graph.activeKeyframeId);
+      if (!activeKf)
+      {
+        if (_logger) _logger->logWarn("refineActiveKeyframe: Active keyframe not found");
+        return;
+      }
+
+      std::vector<GraphObservationEdge> observations;
+      for (const auto& edge : _graph.observationEdges)
+      {
+        if (edge.keyframeId == _graph.activeKeyframeId)
+        {
+          observations.push_back(edge);
+        }
+      }
+
+      if (observations.empty())
+      {
+        if (_logger)
+          _logger->logDebug("refineActiveKeyframe: No observations for active keyframe; skipping refinement");
+        return;
+      }
+
+      Eigen::VectorXd accumulatedDelta = Eigen::VectorXd::Zero(6);
+      for (int iter = 0; iter < config.maxIterations; ++iter)
+      {
+        Eigen::VectorXd delta = computeLocalPoseRefinement(_graph.activeKeyframeId);
+        if (delta.size() != 6)
+        {
+          break;
+        }
+
+        if (!delta.allFinite())
+        {
+          if (_logger)
+          {
+            _logger->logWarn("refineActiveKeyframe: Non-finite delta detected; aborting iteration");
+          }
+          break;
+        }
+
+        if (delta.norm() < config.convergeThreshold)
+        {
+          if (_logger)
+          {
+            _logger->logDebug("refineActiveKeyframe: Converged at iteration " +
+                           std::to_string(iter) + ", delta_norm=" + std::to_string(delta.norm()));
+          }
+          break;
+        }
+
+        accumulatedDelta += delta;
+
+        // Update active keyframe translation after each local step.
+        activeKf->robot.pose.position.x += delta(0);
+        activeKf->robot.pose.position.y += delta(1);
+        activeKf->robot.pose.position.z += delta(2);
+
+        // Keep graph.robot synchronized with active keyframe state.
+        _graph.robot = activeKf->robot;
+      }
+
+      // Apply refinement: orientation update (small-angle approximation)
+      Eigen::Vector3d angleAxis(accumulatedDelta(3), accumulatedDelta(4), accumulatedDelta(5));
+      if (angleAxis.norm() > 1e-10)  // Avoid singular case
+      {
+        Eigen::Quaterniond deltaQuat(Eigen::AngleAxisd(angleAxis.norm(), angleAxis.normalized()));
+        Eigen::Quaterniond currentQuat(activeKf->robot.pose.quaternion.w,
+                                       activeKf->robot.pose.quaternion.x,
+                                       activeKf->robot.pose.quaternion.y,
+                                       activeKf->robot.pose.quaternion.z);
+        Eigen::Quaterniond refinedQuat = deltaQuat * currentQuat;
+        refinedQuat.normalize();
+
+        activeKf->robot.pose.quaternion = Quaternion(refinedQuat.w(), refinedQuat.x(),
+                                                     refinedQuat.y(), refinedQuat.z());
+        _graph.robot.pose.quaternion = activeKf->robot.pose.quaternion;
+      }
+
+      _lastRefinementTime = std::chrono::steady_clock::now();
+
+      if (_logger)
+      {
+        _logger->logDebug("refineActiveKeyframe: Gauss-Newton complete, delta_norm=" +
+                       std::to_string(accumulatedDelta.norm()));
+      }
+    }
+
+    void InternalGraphOptimizer::refineActiveKeyframeClosedForm(const OptimizationConfig& config)
+    {
+      // Placeholder for closed-form refinement
+      // Currently just logs that it's not implemented
+      (void)config;  // Silence unused parameter warning
+      if (_logger)
+      {
+        _logger->logDebug("refineActiveKeyframe: Closed-form strategy not yet implemented; skipping");
+      }
+    }
+
+Eigen::VectorXd InternalGraphOptimizer::computeLocalPoseRefinement(int keyframeId)
+    {
+      Eigen::VectorXd delta = Eigen::VectorXd::Zero(6);
+      GraphKeyframeNode* activeKf = findKeyframeByIdMutable(keyframeId);
+      if (!activeKf)
+      {
+        return delta;
+      }
+
+      const Eigen::Vector3d activePosition = activeKf->robot.pose.position.getPositionVector();
+
+      // Build local normal equations in translation only (3x3).
+      Eigen::Matrix3d hessian = Eigen::Matrix3d::Identity() * 1e-6;
+      Eigen::Vector3d rhs = Eigen::Vector3d::Zero();
+
+      // Odometry anchors from recent predecessors to active keyframe.
+      int supportUsed = 0;
+      for (auto keyframeIt = _graph.keyframes.rbegin();
+        keyframeIt != _graph.keyframes.rend() && supportUsed < kMaxLocalRefinementSupportEdges;
+        ++keyframeIt)
+      {
+        const int anchorId = keyframeIt->id;
+        if (anchorId == keyframeId)
+        {
+          continue;
+        }
+
+        Eigen::Vector3d cumulativeDelta = Eigen::Vector3d::Zero();
+        int edgeCount = 0;
+        if (!accumulateSequentialOdometryDelta(anchorId, keyframeId, &cumulativeDelta, &edgeCount))
+        {
+          continue;
+        }
+
+        const GraphKeyframeNode* anchor = findKeyframeById(anchorId);
+        if (!anchor)
+        {
+          continue;
+        }
+
+        const Eigen::Vector3d predictedActive =
+          anchor->robot.pose.position.getPositionVector() + cumulativeDelta;
+        const Eigen::Vector3d residual = activePosition - predictedActive;
+
+        hessian += kOdometryConstraintWeight * Eigen::Matrix3d::Identity();
+        rhs += kOdometryConstraintWeight * residual;
+        ++supportUsed;
+      }
+
+      // Observation anchors from landmarks observed at this keyframe.
+      int observationSupport = 0;
+      for (const auto& observation : _graph.observationEdges)
+      {
+        if (observation.keyframeId != keyframeId)
+        {
+          continue;
+        }
+
+        const GraphLandmarkNode* landmark = findLandmarkById(observation.landmarkId);
+        if (!landmark)
+        {
+          continue;
+        }
+
+        const Eigen::Vector3d landmarkPos = landmark->position.getPositionVector();
+        const Eigen::Vector3d residual = activePosition - landmarkPos;
+
+        hessian += kObservationConstraintWeight * Eigen::Matrix3d::Identity();
+        rhs += kObservationConstraintWeight * residual;
+        ++observationSupport;
+      }
+
+      if (supportUsed == 0 && observationSupport == 0)
+      {
+        return delta;
+      }
+
+      Eigen::Vector3d translationStep =
+        -hessian.ldlt().solve(rhs);
+
+      if (!translationStep.allFinite())
+      {
+        return delta;
+      }
+
+      // Clamp local translation step for stability.
+      const double stepNorm = translationStep.norm();
+      if (stepNorm > kMaxLocalRefinementStepMeters)
+      {
+        translationStep = translationStep * (kMaxLocalRefinementStepMeters / stepNorm);
+      }
+
+      delta(0) = translationStep.x();
+      delta(1) = translationStep.y();
+      delta(2) = translationStep.z();
+      return delta;
+    }
+
+    GraphKeyframeNode* InternalGraphOptimizer::findKeyframeByIdMutable(int keyframeId)
+    {
+      auto it = std::find_if(
+        _graph.keyframes.begin(),
+        _graph.keyframes.end(),
+        [keyframeId](const GraphKeyframeNode& keyframe)
+        {
+          return keyframe.id == keyframeId;
+        });
+      return it != _graph.keyframes.end() ? &(*it) : nullptr;
+    }
+
+    bool InternalGraphOptimizer::optimizeGraph(
+      const OptimizationConfig& config,
+      OptimizationResult* resultOut)
+    {
+      std::lock_guard<std::mutex> lock(_mutex);
+      (void)config;  // Silence unused parameter warning
+
+      // Stub implementation: global solver not yet integrated
+      OptimizationResult result;
+      result.success = false;
+      result.failureReason = "Global optimization not yet implemented; using constraint-only mode";
+      result.solveTimeMs = 0;
+      result.numPosesRefined = 0;
+
+      if (_logger)
+      {
+        _logger->logDebug("optimizeGraph: " + result.failureReason);
+      }
+
+      if (resultOut)
+      {
+        *resultOut = result;
+      }
+
+      return false;
+    }
 LoopClosureValidationResult InternalGraphOptimizer::validateLoopClosureCandidate(
   const LoopClosureCandidate& candidate) const
 {

@@ -7,7 +7,7 @@ option(SLAM_GRAPH "Build with Graph SLAM" OFF)
 option(SLAM_FAST_SLAM "Build with FastSLAM SLAM (future)" OFF)
 
 # Default pipeline used when no explicit SLAM_* option is enabled.
-set(SLAM_DEFAULT_PIPELINE "EKF")
+set(SLAM_DEFAULT_PIPELINE "GRAPH")
 
 set(_slam_pipeline_count 0)
 if(SLAM_EKF)
@@ -84,6 +84,8 @@ set(SOURCES
   src/pipeline/graph_slam_backend.cpp
   src/pipeline/graph_slam_frontend.cpp
   src/pipeline/graph_slam_pipeline.cpp
+  src/pipeline/optimization_scheduler.cpp
+  src/pipeline/optimization_watchdog.cpp
   src/filter/extended_kalman_filter.cpp
   src/graph/internal_graph_optimizer.cpp
   src/map/slam_map.cpp
@@ -257,11 +259,25 @@ if(BUILD_TESTING)
       src/pipeline/graph_slam_pipeline.cpp
       src/pipeline/graph_slam_backend.cpp
       src/pipeline/graph_slam_frontend.cpp
+      src/pipeline/optimization_scheduler.cpp
+      src/pipeline/optimization_watchdog.cpp
       src/graph/internal_graph_optimizer.cpp
       src/measurement/measurement_factory.cpp
       src/measurement/point3d_measurement_model.cpp
       src/measurement/bbox_measurement_model.cpp
       src/measurement/bearing_measurement_model.cpp
+  )
+
+  add_slam_gtest(test_optimization_scheduler
+    SOURCES
+      test/pipeline/test_optimization_scheduler.cpp
+      src/pipeline/optimization_scheduler.cpp
+  )
+
+  add_slam_gtest(test_optimization_watchdog
+    SOURCES
+      test/pipeline/test_optimization_watchdog.cpp
+      src/pipeline/optimization_watchdog.cpp
   )
 
   add_slam_gtest(test_internal_graph_optimizer

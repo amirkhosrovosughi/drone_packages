@@ -47,7 +47,6 @@ void Feature2DTo3DTransfer::detectionCallback(const vision_msgs::msg::Detection3
     {
       RCLCPP_DEBUG(this->get_logger(), "get %ld feature 2D coordinate(s)", bboxArray.detections.size());
     }
-    rclcpp::Time sampleTime = rclcpp::Clock().now();
 
     drone_msgs::msg::PointList pointListCamera;
     drone_msgs::msg::PointList pointListBase;

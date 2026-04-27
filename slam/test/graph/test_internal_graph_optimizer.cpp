@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <cmath>
 #include <Eigen/Geometry>
 
 #include "graph/internal_graph_optimizer.hpp"
@@ -238,34 +239,32 @@ TEST(InternalGraphOptimizerTest, ExistingLoopEdgeIsSuppressedFromNewCandidates)
 
 TEST(InternalGraphOptimizerTest, RejectsWhenSharedCorrespondenceSupportTooLow)
 {
+  constexpr int kMinRequiredCorrespondences = 2;
+
   InternalGraphOptimizer optimizer;
   optimizer.initialize();
 
   optimizer.applyObservation(AssignedMeasurements{
-    makeNewLandmarkMeasurement(201, Eigen::Vector3d(0.1, 0.1, 0.0)),
-    makeNewLandmarkMeasurement(202, Eigen::Vector3d(-0.2, 0.4, 0.0))});
+    makeNewLandmarkMeasurement(201, Eigen::Vector3d(0.1, 0.1, 0.0))});
 
   optimizer.applyMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));  // kf 1
   optimizer.applyObservation(AssignedMeasurements{
-    makeRevisitMeasurement(201),
-    makeRevisitMeasurement(202)});
+    makeRevisitMeasurement(201)});
 
   optimizer.applyMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));  // kf 2
   optimizer.applyObservation(AssignedMeasurements{
-    makeRevisitMeasurement(201),
-    makeRevisitMeasurement(202)});
+    makeRevisitMeasurement(201)});
 
   optimizer.applyMotion(makeMotion(Eigen::Vector3d(-1.9, 0.0, 0.0))); // kf 3
   optimizer.applyObservation(AssignedMeasurements{
-    makeRevisitMeasurement(201),
-    makeRevisitMeasurement(202)});
+    makeRevisitMeasurement(201)});
 
   const auto candidates = optimizer.findSpatialLoopClosureCandidates(0.5, 2);
   ASSERT_EQ(candidates.size(), 1u);
 
   const auto validation = optimizer.validateLoopClosureCandidate(candidates.front());
   EXPECT_FALSE(validation.accepted);
-  EXPECT_LT(validation.supportCount, 3);
+  EXPECT_LT(validation.supportCount, kMinRequiredCorrespondences);
   EXPECT_EQ(validation.reason, "Insufficient shared landmark correspondences");
 }
 
@@ -340,6 +339,79 @@ TEST(InternalGraphOptimizerTest, CommittedEdgeFieldsMatchValidationResult)
   EXPECT_EQ(edge.inlierCount, validation.inlierCount);
   EXPECT_EQ(edge.supportCount, validation.supportCount);
   EXPECT_DOUBLE_EQ(edge.inlierRatio, validation.inlierRatio);
+}
+
+TEST(InternalGraphOptimizerTest, RefineActiveKeyframeMovesPoseAfterObservation)
+{
+  InternalGraphOptimizer optimizer;
+  optimizer.initialize();
+
+  optimizer.applyMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));  // kf 1
+  optimizer.applyObservation(AssignedMeasurements{
+    makeNewLandmarkMeasurement(301, Eigen::Vector3d(5.0, 1.0, 0.0)),
+    makeNewLandmarkMeasurement(302, Eigen::Vector3d(4.5, -1.0, 0.0))});
+
+  const GraphState before = optimizer.getGraphState();
+  const GraphKeyframeNode beforeActive = before.keyframes.back();
+
+  OptimizationConfig config;
+  config.strategy = RefinementStrategy::GaussNewton;
+  config.maxIterations = 3;
+  config.convergeThreshold = 1e-6;
+
+  optimizer.refineActiveKeyframe(config);
+
+  const GraphState after = optimizer.getGraphState();
+  const GraphKeyframeNode afterActive = after.keyframes.back();
+
+  const double dx = afterActive.robot.pose.position.x - beforeActive.robot.pose.position.x;
+  const double dy = afterActive.robot.pose.position.y - beforeActive.robot.pose.position.y;
+  const double dz = afterActive.robot.pose.position.z - beforeActive.robot.pose.position.z;
+  const double deltaNorm = std::sqrt(dx * dx + dy * dy + dz * dz);
+
+  EXPECT_GT(deltaNorm, 1e-9);
+}
+
+TEST(InternalGraphOptimizerTest, RefineActiveKeyframeDeltaIsFiniteAndBounded)
+{
+  constexpr double kMaxLocalRefinementStepMeters = 0.15;
+
+  InternalGraphOptimizer optimizer;
+  optimizer.initialize();
+
+  optimizer.applyMotion(makeMotion(Eigen::Vector3d(0.5, 0.0, 0.0)));  // kf 1
+  optimizer.applyObservation(AssignedMeasurements{
+    makeNewLandmarkMeasurement(401, Eigen::Vector3d(6.0, 0.0, 0.0)),
+    makeNewLandmarkMeasurement(402, Eigen::Vector3d(5.5, 0.5, 0.0)),
+    makeNewLandmarkMeasurement(403, Eigen::Vector3d(5.5, -0.5, 0.0))});
+
+  const GraphState before = optimizer.getGraphState();
+  const GraphKeyframeNode beforeActive = before.keyframes.back();
+
+  OptimizationConfig config;
+  config.strategy = RefinementStrategy::GaussNewton;
+  config.maxIterations = 4;
+  config.convergeThreshold = 1e-8;
+
+  optimizer.refineActiveKeyframe(config);
+
+  const GraphState after = optimizer.getGraphState();
+  const GraphKeyframeNode afterActive = after.keyframes.back();
+
+  const double dx = afterActive.robot.pose.position.x - beforeActive.robot.pose.position.x;
+  const double dy = afterActive.robot.pose.position.y - beforeActive.robot.pose.position.y;
+  const double dz = afterActive.robot.pose.position.z - beforeActive.robot.pose.position.z;
+  const double deltaNorm = std::sqrt(dx * dx + dy * dy + dz * dz);
+
+  EXPECT_TRUE(std::isfinite(dx));
+  EXPECT_TRUE(std::isfinite(dy));
+  EXPECT_TRUE(std::isfinite(dz));
+  EXPECT_TRUE(std::isfinite(deltaNorm));
+
+  // Overall refinement is bounded by per-iteration clamp * iteration count.
+  const double maxExpectedNorm =
+    static_cast<double>(config.maxIterations) * kMaxLocalRefinementStepMeters + 1e-9;
+  EXPECT_LE(deltaNorm, maxExpectedNorm);
 }
 
 }  // namespace slam

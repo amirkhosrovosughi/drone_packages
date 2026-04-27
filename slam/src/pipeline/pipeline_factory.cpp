@@ -12,6 +12,8 @@
 #include "pipeline/graph_slam_backend.hpp"
 #include "pipeline/graph_slam_frontend.hpp"
 #include "pipeline/graph_slam_pipeline.hpp"
+#include "pipeline/optimization_scheduler.hpp"
+#include "pipeline/optimization_watchdog.hpp"
 #include "graph/internal_graph_optimizer.hpp"
 #endif
 
@@ -46,7 +48,18 @@ namespace slam
         auto frontend = std::make_shared<GraphSlamFrontend>(association, measurementFactory);
         auto backend = std::make_shared<GraphSlamBackend>(optimizer);
 
-        return std::make_shared<GraphSlamPipeline>(frontend, backend);
+        auto pipeline = std::make_shared<GraphSlamPipeline>(frontend, backend);
+
+        auto scheduler = std::make_shared<OptimizationScheduler>(
+            OptimizationPolicy::Hybrid,
+            /*fallbackInterval=*/5);
+        auto watchdog = std::make_shared<OptimizationWatchdog>();
+        watchdog->setLogger(logger);
+
+        pipeline->setScheduler(scheduler);
+        pipeline->setWatchdog(watchdog);
+
+        return pipeline;
 #elif defined(FAST_SLAM)
         throw std::runtime_error(
             "FAST_SLAM pipeline selected at compile time, but pipeline factory path is not implemented yet.");

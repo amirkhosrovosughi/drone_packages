@@ -85,4 +85,18 @@ void GraphSlamBackend::setLogger(LoggerPtr logger)
   _optimizer->setLogger(logger);
 }
 
+void GraphSlamBackend::refineActiveKeyframe(const OptimizationConfig& config)
+{
+  std::lock_guard<std::mutex> lock(_mutex);
+  _optimizer->refineActiveKeyframe(config);
+}
+
+bool GraphSlamBackend::optimizeGraph(
+  const OptimizationConfig& config,
+  OptimizationResult* resultOut)
+{
+  std::lock_guard<std::mutex> lock(_mutex);
+  return _optimizer->optimizeGraph(config, resultOut);
+}
+
 }  // namespace slam

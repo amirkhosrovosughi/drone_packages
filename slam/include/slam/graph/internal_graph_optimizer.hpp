@@ -1,6 +1,7 @@
 #ifndef SLAM__GRAPH__INTERNAL_GRAPH_OPTIMIZER_HPP_
 #define SLAM__GRAPH__INTERNAL_GRAPH_OPTIMIZER_HPP_
 
+#include <chrono>
 #include <mutex>
 #include <unordered_set>
 #include <vector>
@@ -15,6 +16,12 @@ namespace slam
  *
  * This class intentionally keeps behavior simple while the graph pipeline
  * pipeline is being integrated.
+ *
+ * Features:
+ * - Spatial loop closure detection via keyframe proximity
+ * - Geometric loop closure validation via landmark correspondences
+ * - Per-keyframe incremental refinement (Gauss-Newton strategy)
+ * - Global optimization interface (stub; real solver tbd)
  */
 class InternalGraphOptimizer : public GraphOptimizer
 {
@@ -32,11 +39,23 @@ public:
     const LoopClosureCandidate& candidate,
     const LoopClosureValidationResult& validation) override;
   GraphState getGraphState() const override;
+  void refineActiveKeyframe(const OptimizationConfig& config = OptimizationConfig()) override;
+  bool optimizeGraph(
+    const OptimizationConfig& config,
+    OptimizationResult* resultOut = nullptr) override;
   void setLogger(LoggerPtr logger) override;
 
 private:
+  // Refinement strategy implementations
+  void refineActiveKeyframeGaussNewton(const OptimizationConfig& config);
+  void refineActiveKeyframeClosedForm(const OptimizationConfig& config);
+
+  // Returns a 6D local pose delta [dx, dy, dz, droll, dpitch, dyaw].
+  Eigen::VectorXd computeLocalPoseRefinement(int keyframeId);
+
   bool keyframeIdExists(int keyframeId) const;
   const GraphKeyframeNode* findKeyframeById(int keyframeId) const;
+  GraphKeyframeNode* findKeyframeByIdMutable(int keyframeId);
   bool loopClosureExists(int keyframeAId, int keyframeBId) const;
   bool accumulateSequentialOdometryDelta(
     int fromKeyframeId,
@@ -49,6 +68,7 @@ private:
     int keyframeBId) const;
 
   GraphState _graph;
+  std::chrono::steady_clock::time_point _lastRefinementTime;
   LoggerPtr _logger;
   mutable std::mutex _mutex;
 };

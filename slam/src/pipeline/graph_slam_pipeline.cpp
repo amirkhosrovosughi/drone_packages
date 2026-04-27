@@ -7,12 +7,18 @@ namespace slam
 
 constexpr double kLoopClosureCandidateDistanceMeters = 0.5;
 constexpr int kLoopClosureMinKeyframeSeparation = 2;
+constexpr int kOptimizationFallbackEveryNKeyframes = 5;
+constexpr Milliseconds kPipelineWatchdogTimeBudgetMs{150};
 
 GraphSlamPipeline::GraphSlamPipeline(
   std::shared_ptr<GraphSlamFrontend> frontend,
   std::shared_ptr<GraphSlamBackend> backend)
   : _frontend(std::move(frontend))
   , _backend(std::move(backend))
+  , _scheduler(std::make_shared<OptimizationScheduler>(
+      OptimizationPolicy::Hybrid,
+      kOptimizationFallbackEveryNKeyframes))
+  , _watchdog(std::make_shared<OptimizationWatchdog>(kPipelineWatchdogTimeBudgetMs))
 {
 }
 
@@ -45,6 +51,11 @@ void GraphSlamPipeline::reset()
 {
   _backend->reset();
   _frontend->reset();
+  _keyframeCount = 0;
+  if (_scheduler)
+  {
+    _scheduler->recordOptimization();
+  }
   _frontend->updateMap(_backend->getMap());
 }
 
@@ -68,27 +79,65 @@ void GraphSlamPipeline::setLogger(LoggerPtr logger)
   _logger = logger;
   _frontend->setLogger(logger);
   _backend->setLogger(logger);
+  if (_watchdog)
+  {
+    _watchdog->setLogger(logger);
+  }
+}
+
+void GraphSlamPipeline::setScheduler(std::shared_ptr<OptimizationScheduler> scheduler)
+{
+  if (scheduler)
+  {
+    _scheduler = std::move(scheduler);
+  }
+}
+
+void GraphSlamPipeline::setWatchdog(std::shared_ptr<OptimizationWatchdog> watchdog)
+{
+  if (watchdog)
+  {
+    _watchdog = std::move(watchdog);
+    if (_logger)
+    {
+      _watchdog->setLogger(_logger);
+    }
+  }
 }
 
 void GraphSlamPipeline::onFrontendMotionConstraint(const MotionConstraint& motion)
 {
   _backend->applyMotionConstraint(motion);
+
+  ++_keyframeCount;
+  if (_scheduler)
+  {
+    _scheduler->recordKeyframeAccepted();
+    checkAndExecuteOptimization(false);
+  }
+
   _frontend->updateMap(_backend->getMap());
 }
 
 void GraphSlamPipeline::onFrontendAssociatedMeasurements(const AssignedMeasurements& measurements)
 {
   _backend->applyObservationConstraint(measurements);
-  processLoopClosureCandidates();
+  _backend->refineActiveKeyframe();
+
+  const bool loopClosureAccepted = processLoopClosureCandidates();
+  checkAndExecuteOptimization(loopClosureAccepted);
+
   _frontend->updateMap(_backend->getMap());
 }
 
-void GraphSlamPipeline::processLoopClosureCandidates()
+bool GraphSlamPipeline::processLoopClosureCandidates()
 {
   const std::vector<LoopClosureCandidate> candidates =
     _backend->findSpatialLoopClosureCandidates(
       kLoopClosureCandidateDistanceMeters,
       kLoopClosureMinKeyframeSeparation);
+
+  bool loopClosureAccepted = false;
 
   // TODO(Step 5): Merge appearance-cue candidates as an optional secondary source.
   // Query an appearance index (e.g. DBoW / NetVLAD descriptor store) for the active
@@ -98,8 +147,99 @@ void GraphSlamPipeline::processLoopClosureCandidates()
 
   for (const LoopClosureCandidate& candidate : candidates)
   {
-    _backend->validateAndCommitLoopClosure(candidate);
+    LoopClosureValidationResult validation;
+    if (_backend->validateAndCommitLoopClosure(candidate, &validation))
+    {
+      loopClosureAccepted = true;
+      if (_logger)
+      {
+        _logger->logInfo(
+          "Loop closure committed source=",
+          candidate.sourceKeyframeId,
+          ", target=",
+          candidate.targetKeyframeId,
+          ", supportCount=",
+          validation.supportCount,
+          ", inlierCount=",
+          validation.inlierCount,
+          ", inlierRatio=",
+          validation.inlierRatio);
+      }
+    }
+    else if (_logger)
+    {
+      _logger->logDebug(
+        "Loop closure rejected source=",
+        candidate.sourceKeyframeId,
+        ", target=",
+        candidate.targetKeyframeId,
+        ", reason=",
+        validation.reason.empty() ? "unknown" : validation.reason,
+        ", supportCount=",
+        validation.supportCount,
+        ", inlierCount=",
+        validation.inlierCount,
+        ", inlierRatio=",
+        validation.inlierRatio);
+    }
   }
+
+  return loopClosureAccepted;
+}
+
+OptimizationMetrics GraphSlamPipeline::watchdogMetrics() const
+{
+  if (_watchdog)
+  {
+    return _watchdog->metrics();
+  }
+  return OptimizationMetrics{};
+}
+
+void GraphSlamPipeline::checkAndExecuteOptimization(bool loopClosureAccepted)
+{
+  if (!_scheduler)
+  {
+    return;
+  }
+
+  bool shouldOptimize = false;
+
+  if (_scheduler->shouldOptimizeOnLoopClosure(loopClosureAccepted))
+  {
+    shouldOptimize = true;
+  }
+  else if (_scheduler->shouldOptimizeOnKeyframe())
+  {
+    shouldOptimize = true;
+  }
+
+  if (!shouldOptimize)
+  {
+    return;
+  }
+
+  const OptimizationResult result = _watchdog
+    ? _watchdog->executeWithTimeBudget(
+        [this]() -> OptimizationResult
+        {
+          OptimizationResult r;
+          _backend->optimizeGraph(OptimizationConfig(), &r);
+          return r;
+        })
+    : [this]() -> OptimizationResult
+      {
+        OptimizationResult r;
+        _backend->optimizeGraph(OptimizationConfig(), &r);
+        return r;
+      }();
+
+  if (!result.success && !result.failureReason.empty() && _logger)
+  {
+    _logger->logWarn("Optimization did not converge: ", result.failureReason);
+  }
+
+  _scheduler->recordOptimization();
 }
 
 }  // namespace slam

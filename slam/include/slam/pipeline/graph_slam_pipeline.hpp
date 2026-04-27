@@ -6,6 +6,8 @@
 
 #include "pipeline/graph_slam_backend.hpp"
 #include "pipeline/graph_slam_frontend.hpp"
+#include "pipeline/optimization_scheduler.hpp"
+#include "pipeline/optimization_watchdog.hpp"
 #include "pipeline/slam_pipeline.hpp"
 
 namespace slam
@@ -30,14 +32,21 @@ public:
   void processObservation(const Observations& o) override;
   MapSummary getMap() const override;
   void setLogger(LoggerPtr logger) override;
+  void setScheduler(std::shared_ptr<OptimizationScheduler> scheduler);
+  void setWatchdog(std::shared_ptr<OptimizationWatchdog> watchdog);
+  OptimizationMetrics watchdogMetrics() const;
 
 private:
-  void processLoopClosureCandidates();
+  bool processLoopClosureCandidates();
+  void checkAndExecuteOptimization(bool loopClosureAccepted);
   void onFrontendMotionConstraint(const MotionConstraint& motion);
   void onFrontendAssociatedMeasurements(const AssignedMeasurements& meas);
 
   std::shared_ptr<GraphSlamFrontend> _frontend;
   std::shared_ptr<GraphSlamBackend> _backend;
+  std::shared_ptr<OptimizationScheduler> _scheduler;
+  std::shared_ptr<OptimizationWatchdog> _watchdog;
+  int _keyframeCount = 0;
   LoggerPtr _logger;
   mutable std::mutex _mutex;
 };

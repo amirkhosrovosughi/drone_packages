@@ -118,6 +118,23 @@ public:
     loggerSet = logger;
   }
 
+    void refineActiveKeyframe(const OptimizationConfig& config = OptimizationConfig()) override
+    {
+      // Stub: do nothing
+    }
+
+    bool optimizeGraph(
+      const OptimizationConfig& config,
+      OptimizationResult* resultOut = nullptr) override
+    {
+      if (resultOut)
+      {
+        resultOut->success = false;
+        resultOut->failureReason = "Test stub";
+      }
+      return false;
+    }
+
   bool initializeCalled = false;
   bool resetCalled = false;
   bool applyMotionCalled = false;

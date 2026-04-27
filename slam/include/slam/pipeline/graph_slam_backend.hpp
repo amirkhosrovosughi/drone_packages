@@ -35,6 +35,20 @@ public:
   MapSummary getMap() const;
   void setLogger(LoggerPtr logger);
 
+    /**
+     * @brief Lightweight per-keyframe pose refinement.
+     * Called after each keyframe observation to incrementally improve estimates.
+     */
+    void refineActiveKeyframe(const OptimizationConfig& config = OptimizationConfig());
+
+    /**
+     * @brief Global graph optimization/solve.
+     * Triggered on loop closure acceptance or fallback after N keyframes.
+     */
+    bool optimizeGraph(
+      const OptimizationConfig& config,
+      OptimizationResult* resultOut = nullptr);
+
 private:
   std::shared_ptr<GraphOptimizer> _optimizer;
   LoggerPtr _logger;
