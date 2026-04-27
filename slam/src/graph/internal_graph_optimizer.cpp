@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace
@@ -16,6 +17,8 @@ constexpr double kMaxLandmarkCorrespondenceResidualMeters = 0.5;
 constexpr double kOdometryConstraintWeight = 1.0;
 constexpr double kObservationConstraintWeight = 0.08;
 constexpr double kMaxLocalRefinementStepMeters = 0.15;
+constexpr double kGlobalAnchorWeight = 100.0;
+constexpr double kGlobalLoopClosureBaseWeight = 3.0;
 
 Eigen::Quaterniond poseQuaternionToEigen(const Pose& pose)
 {
@@ -416,32 +419,266 @@ Eigen::VectorXd InternalGraphOptimizer::computeLocalPoseRefinement(int keyframeI
       return it != _graph.keyframes.end() ? &(*it) : nullptr;
     }
 
-    bool InternalGraphOptimizer::optimizeGraph(
-      const OptimizationConfig& config,
-      OptimizationResult* resultOut)
+// ---------------------------------------------------------------------------
+// Global optimisation helpers (all called while _mutex is already held)
+// ---------------------------------------------------------------------------
+
+double InternalGraphOptimizer::computeMaxNodeStep(
+  const Eigen::VectorXd& delta, int numKeyframes)
+{
+  double maxStep = 0.0;
+  for (int i = 0; i < numKeyframes; ++i)
+  {
+    maxStep = std::max(maxStep, delta.segment<3>(i * 3).norm());
+  }
+  return maxStep;
+}
+
+std::unordered_map<int, int> InternalGraphOptimizer::buildKeyframeIdToIndex() const
+{
+  std::unordered_map<int, int> idToIndex;
+  idToIndex.reserve(_graph.keyframes.size());
+  for (int i = 0; i < static_cast<int>(_graph.keyframes.size()); ++i)
+  {
+    idToIndex[_graph.keyframes[i].id] = i;
+  }
+  return idToIndex;
+}
+
+void InternalGraphOptimizer::buildSystemMatrices(
+  const std::unordered_map<int, int>& idToIndex,
+  const Eigen::Vector3d& anchorPosition,
+  Eigen::MatrixXd& hessian,
+  Eigen::VectorXd& gradient,
+  int& constraintCount) const
+{
+  // Gauge-freedom anchor: pin the first keyframe to its initial pose.
+  {
+    const Eigen::Vector3d currentAnchor =
+      _graph.keyframes.front().robot.pose.position.getPositionVector();
+    const Eigen::Vector3d residual = currentAnchor - anchorPosition;
+    hessian.block<3, 3>(0, 0).diagonal().array() += kGlobalAnchorWeight;
+    gradient.segment<3>(0) += kGlobalAnchorWeight * residual;
+    ++constraintCount;
+  }
+
+  // Odometry constraints.
+  for (const auto& edge : _graph.odometryEdges)
+  {
+    const auto fromIt = idToIndex.find(edge.fromKeyframeId);
+    const auto toIt   = idToIndex.find(edge.toKeyframeId);
+    if (fromIt == idToIndex.end() || toIt == idToIndex.end())
     {
-      std::lock_guard<std::mutex> lock(_mutex);
-      (void)config;  // Silence unused parameter warning
-
-      // Stub implementation: global solver not yet integrated
-      OptimizationResult result;
-      result.success = false;
-      result.failureReason = "Global optimization not yet implemented; using constraint-only mode";
-      result.solveTimeMs = 0;
-      result.numPosesRefined = 0;
-
-      if (_logger)
-      {
-        _logger->logDebug("optimizeGraph: " + result.failureReason);
-      }
-
-      if (resultOut)
-      {
-        *resultOut = result;
-      }
-
-      return false;
+      continue;
     }
+
+    const int fromRow = fromIt->second * 3;
+    const int toRow   = toIt->second * 3;
+
+    const Eigen::Vector3d fromPos =
+      _graph.keyframes[fromIt->second].robot.pose.position.getPositionVector();
+    const Eigen::Vector3d toPos =
+      _graph.keyframes[toIt->second].robot.pose.position.getPositionVector();
+    const Eigen::Vector3d residual = (toPos - fromPos) - edge.motion.delta_position;
+
+    hessian.block<3, 3>(fromRow, fromRow).diagonal().array() += kOdometryConstraintWeight;
+    hessian.block<3, 3>(toRow,   toRow  ).diagonal().array() += kOdometryConstraintWeight;
+    hessian.block<3, 3>(fromRow, toRow  ).diagonal().array() -= kOdometryConstraintWeight;
+    hessian.block<3, 3>(toRow,   fromRow).diagonal().array() -= kOdometryConstraintWeight;
+
+    gradient.segment<3>(fromRow) += -kOdometryConstraintWeight * residual;
+    gradient.segment<3>(toRow)   +=  kOdometryConstraintWeight * residual;
+    ++constraintCount;
+  }
+
+  // Loop-closure constraints (weighted by inlier quality).
+  for (const auto& edge : _graph.loopClosureEdges)
+  {
+    const auto fromIt = idToIndex.find(edge.fromKeyframeId);
+    const auto toIt   = idToIndex.find(edge.toKeyframeId);
+    if (fromIt == idToIndex.end() || toIt == idToIndex.end())
+    {
+      continue;
+    }
+
+    const int fromRow = fromIt->second * 3;
+    const int toRow   = toIt->second * 3;
+
+    const Eigen::Vector3d fromPos =
+      _graph.keyframes[fromIt->second].robot.pose.position.getPositionVector();
+    const Eigen::Vector3d toPos =
+      _graph.keyframes[toIt->second].robot.pose.position.getPositionVector();
+    const Eigen::Vector3d residual =
+      (toPos - fromPos) - edge.relativeMotion.delta_position;
+
+    const double supportScale =
+      std::min(1.0, std::max(0.0, static_cast<double>(edge.supportCount) / 5.0));
+    const double ratioScale = std::max(0.1, edge.inlierRatio);
+    const double loopWeight = kGlobalLoopClosureBaseWeight * supportScale * ratioScale;
+
+    hessian.block<3, 3>(fromRow, fromRow).diagonal().array() += loopWeight;
+    hessian.block<3, 3>(toRow,   toRow  ).diagonal().array() += loopWeight;
+    hessian.block<3, 3>(fromRow, toRow  ).diagonal().array() -= loopWeight;
+    hessian.block<3, 3>(toRow,   fromRow).diagonal().array() -= loopWeight;
+
+    gradient.segment<3>(fromRow) += -loopWeight * residual;
+    gradient.segment<3>(toRow)   +=  loopWeight * residual;
+    ++constraintCount;
+  }
+}
+
+void InternalGraphOptimizer::applyKeyframeDelta(const Eigen::VectorXd& delta)
+{
+  const int numKeyframes = static_cast<int>(_graph.keyframes.size());
+  for (int i = 0; i < numKeyframes; ++i)
+  {
+    const int row = i * 3;
+    _graph.keyframes[i].robot.pose.position.x += delta(row + 0);
+    _graph.keyframes[i].robot.pose.position.y += delta(row + 1);
+    _graph.keyframes[i].robot.pose.position.z += delta(row + 2);
+  }
+}
+
+double InternalGraphOptimizer::computeWeightedResidual(
+  const std::unordered_map<int, int>& idToIndex) const
+{
+  double totalError = 0.0;
+
+  for (const auto& edge : _graph.odometryEdges)
+  {
+    const auto fromIt = idToIndex.find(edge.fromKeyframeId);
+    const auto toIt   = idToIndex.find(edge.toKeyframeId);
+    if (fromIt == idToIndex.end() || toIt == idToIndex.end())
+    {
+      continue;
+    }
+    const Eigen::Vector3d fromPos =
+      _graph.keyframes[fromIt->second].robot.pose.position.getPositionVector();
+    const Eigen::Vector3d toPos =
+      _graph.keyframes[toIt->second].robot.pose.position.getPositionVector();
+    totalError +=
+      kOdometryConstraintWeight * ((toPos - fromPos) - edge.motion.delta_position).squaredNorm();
+  }
+
+  for (const auto& edge : _graph.loopClosureEdges)
+  {
+    const auto fromIt = idToIndex.find(edge.fromKeyframeId);
+    const auto toIt   = idToIndex.find(edge.toKeyframeId);
+    if (fromIt == idToIndex.end() || toIt == idToIndex.end())
+    {
+      continue;
+    }
+    const Eigen::Vector3d fromPos =
+      _graph.keyframes[fromIt->second].robot.pose.position.getPositionVector();
+    const Eigen::Vector3d toPos =
+      _graph.keyframes[toIt->second].robot.pose.position.getPositionVector();
+    const double supportScale =
+      std::min(1.0, std::max(0.0, static_cast<double>(edge.supportCount) / 5.0));
+    const double loopWeight =
+      kGlobalLoopClosureBaseWeight * supportScale * std::max(0.1, edge.inlierRatio);
+    totalError +=
+      loopWeight * ((toPos - fromPos) - edge.relativeMotion.delta_position).squaredNorm();
+  }
+
+  return totalError;
+}
+
+bool InternalGraphOptimizer::optimizeGraph(
+  const OptimizationConfig& config,
+  OptimizationResult* resultOut)
+{
+  std::lock_guard<std::mutex> lock(_mutex);
+  const auto solveStart = std::chrono::steady_clock::now();
+  OptimizationResult result;
+
+  const int numKeyframes = static_cast<int>(_graph.keyframes.size());
+  if (numKeyframes < 2)
+  {
+    result.failureReason = "Insufficient keyframes for global optimization";
+    result.numPosesRefined = numKeyframes;
+    if (_logger) _logger->logDebug("optimizeGraph: " + result.failureReason);
+    if (resultOut) *resultOut = result;
+    return false;
+  }
+
+  const auto idToIndex       = buildKeyframeIdToIndex();
+  const int dof              = numKeyframes * 3;
+  const Eigen::Vector3d anchorPosition =
+    _graph.keyframes.front().robot.pose.position.getPositionVector();
+
+  bool solved = false;
+  int  performedIterations = 0;
+
+  for (int iter = 0; iter < std::max(1, config.maxIterations); ++iter)
+  {
+    Eigen::MatrixXd hessian  = Eigen::MatrixXd::Zero(dof, dof);
+    Eigen::VectorXd gradient = Eigen::VectorXd::Zero(dof);
+    int constraintCount = 0;
+
+    buildSystemMatrices(idToIndex, anchorPosition, hessian, gradient, constraintCount);
+
+    if (constraintCount <= 1)
+    {
+      result.failureReason = "Insufficient graph constraints for global optimization";
+      result.numIterations = iter;
+      break;
+    }
+
+    const Eigen::VectorXd delta = hessian.ldlt().solve(-gradient);
+    if (!delta.allFinite())
+    {
+      result.failureReason = "Global solver produced non-finite update";
+      result.numIterations = iter;
+      break;
+    }
+
+    applyKeyframeDelta(delta);
+    solved               = true;
+    performedIterations  = iter + 1;
+
+    if (computeMaxNodeStep(delta, numKeyframes) < config.convergeThreshold)
+    {
+      break;
+    }
+  }
+
+  if (solved)
+  {
+    const auto activeIt = idToIndex.find(_graph.activeKeyframeId);
+    if (activeIt != idToIndex.end())
+    {
+      _graph.robot = _graph.keyframes[activeIt->second].robot;
+    }
+
+    result.success        = true;
+    result.numIterations  = performedIterations;
+    result.numPosesRefined = numKeyframes;
+    result.finalError     = computeWeightedResidual(idToIndex);
+  }
+
+  const auto solveEnd = std::chrono::steady_clock::now();
+  result.solveTimeMs = static_cast<int>(
+    std::chrono::duration_cast<std::chrono::milliseconds>(solveEnd - solveStart).count());
+
+  if (_logger)
+  {
+    if (result.success)
+    {
+      _logger->logDebug(
+        "optimizeGraph: success=true posesRefined=" + std::to_string(result.numPosesRefined) +
+        " iterations=" + std::to_string(result.numIterations) +
+        " finalError=" + std::to_string(result.finalError));
+    }
+    else
+    {
+      _logger->logDebug("optimizeGraph: " + result.failureReason);
+    }
+  }
+
+  if (resultOut) *resultOut = result;
+  return result.success;
+}
+
 LoopClosureValidationResult InternalGraphOptimizer::validateLoopClosureCandidate(
   const LoopClosureCandidate& candidate) const
 {

@@ -414,4 +414,279 @@ TEST(InternalGraphOptimizerTest, RefineActiveKeyframeDeltaIsFiniteAndBounded)
   EXPECT_LE(deltaNorm, maxExpectedNorm);
 }
 
+TEST(InternalGraphOptimizerTest, OptimizeGraphAdjustsGlobalKeyframePoses)
+{
+  InternalGraphOptimizer optimizer;
+  optimizer.initialize();
+
+  optimizer.applyMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));  // kf 1
+  optimizer.applyMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));  // kf 2
+  optimizer.applyMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));  // kf 3
+
+  const GraphState before = optimizer.getGraphState();
+  ASSERT_EQ(before.keyframes.size(), 4u);
+
+  LoopClosureCandidate closureCandidate(3, 0, 0.0, false, 0.0);
+  MotionConstraint closureMotion;
+  closureMotion.delta_position = Eigen::Vector3d::Zero();
+  closureMotion.orientation = Eigen::Quaterniond::Identity();
+  LoopClosureValidationResult closureValidation(
+    true, 4, 4, "", closureMotion, 1.0);
+  ASSERT_TRUE(optimizer.commitLoopClosure(closureCandidate, closureValidation));
+
+  OptimizationConfig config;
+  config.maxIterations = 10;
+  config.convergeThreshold = 1e-6;
+
+  OptimizationResult result;
+  const bool optimizeOk = optimizer.optimizeGraph(config, &result);
+  EXPECT_TRUE(optimizeOk);
+  EXPECT_TRUE(result.success);
+  EXPECT_GT(result.numPosesRefined, 0);
+
+  const GraphState after = optimizer.getGraphState();
+  ASSERT_EQ(after.keyframes.size(), before.keyframes.size());
+
+  const double beforeLoopGap = std::abs(
+    before.keyframes[3].robot.pose.position.x - before.keyframes[0].robot.pose.position.x);
+  const double afterLoopGap = std::abs(
+    after.keyframes[3].robot.pose.position.x - after.keyframes[0].robot.pose.position.x);
+
+  EXPECT_LT(afterLoopGap, beforeLoopGap);
+}
+
+// --- optimizeGraph unit tests ---
+
+TEST(InternalGraphOptimizerTest, OptimizeGraphReturnsFalseWithSingleKeyframe)
+{
+  InternalGraphOptimizer optimizer;
+  optimizer.initialize();  // only kf0, no motion applied
+
+  OptimizationResult result;
+  const bool ok = optimizer.optimizeGraph(OptimizationConfig{}, &result);
+
+  EXPECT_FALSE(ok);
+  EXPECT_FALSE(result.success);
+  EXPECT_FALSE(result.failureReason.empty());
+}
+
+TEST(InternalGraphOptimizerTest, OptimizeGraphSucceedsWithMinimalConsistentGraph)
+{
+  // 2 keyframes, 1 odometry edge, no tension → should converge to success.
+  InternalGraphOptimizer optimizer;
+  optimizer.initialize();
+  optimizer.applyMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));  // kf 1
+
+  OptimizationConfig config;
+  config.maxIterations = 5;
+  config.convergeThreshold = 1e-6;
+
+  OptimizationResult result;
+  const bool ok = optimizer.optimizeGraph(config, &result);
+
+  EXPECT_TRUE(ok);
+  EXPECT_TRUE(result.success);
+  EXPECT_EQ(result.numPosesRefined, 2);
+}
+
+TEST(InternalGraphOptimizerTest, OptimizeGraphResultFieldsArePopulatedOnSuccess)
+{
+  InternalGraphOptimizer optimizer;
+  optimizer.initialize();
+  optimizer.applyMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));
+  optimizer.applyMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));
+
+  OptimizationConfig config;
+  config.maxIterations = 5;
+
+  OptimizationResult result;
+  optimizer.optimizeGraph(config, &result);
+
+  EXPECT_GT(result.numPosesRefined, 0);
+  EXPECT_GT(result.numIterations, 0);
+  EXPECT_GE(result.solveTimeMs, 0);
+  EXPECT_GE(result.finalError, 0.0);
+}
+
+TEST(InternalGraphOptimizerTest, OptimizeGraphNumPosesRefinedMatchesKeyframeCount)
+{
+  InternalGraphOptimizer optimizer;
+  optimizer.initialize();
+  for (int i = 0; i < 4; ++i)
+  {
+    optimizer.applyMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));
+  }
+  // 5 keyframes total (kf0 … kf4)
+  OptimizationResult result;
+  optimizer.optimizeGraph(OptimizationConfig{}, &result);
+
+  EXPECT_EQ(result.numPosesRefined, 5);
+}
+
+TEST(InternalGraphOptimizerTest, OptimizeGraphAnchorKeyframeIsPreservedUnderLoopTension)
+{
+  InternalGraphOptimizer optimizer;
+  optimizer.initialize();
+
+  optimizer.applyMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));  // kf 1
+  optimizer.applyMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));  // kf 2
+  optimizer.applyMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));  // kf 3
+
+  const double anchorX = optimizer.getGraphState().keyframes.front().robot.pose.position.x;
+
+  MotionConstraint loopMotion;
+  loopMotion.delta_position = Eigen::Vector3d::Zero();
+  loopMotion.orientation = Eigen::Quaterniond::Identity();
+  ASSERT_TRUE(optimizer.commitLoopClosure(
+    LoopClosureCandidate(3, 0, 0.0, false, 0.0),
+    LoopClosureValidationResult(true, 5, 5, "", loopMotion, 1.0)));
+
+  OptimizationConfig config;
+  config.maxIterations = 20;
+  config.convergeThreshold = 1e-8;
+  optimizer.optimizeGraph(config, nullptr);
+
+  const double anchorXAfter =
+    optimizer.getGraphState().keyframes.front().robot.pose.position.x;
+
+  // The first keyframe should barely drift compared to the 3-meter loop closure correction.
+  EXPECT_NEAR(anchorXAfter, anchorX, 0.1);
+}
+
+TEST(InternalGraphOptimizerTest, OptimizeGraphActiveRobotStateSyncedAfterSolve)
+{
+  InternalGraphOptimizer optimizer;
+  optimizer.initialize();
+  optimizer.applyMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));
+  optimizer.applyMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));
+
+  optimizer.optimizeGraph(OptimizationConfig{}, nullptr);
+
+  const GraphState state = optimizer.getGraphState();
+  const GraphKeyframeNode* activeKf =
+    [&]() -> const GraphKeyframeNode*
+    {
+      for (const auto& kf : state.keyframes)
+      {
+        if (kf.id == state.activeKeyframeId)
+        {
+          return &kf;
+        }
+      }
+      return nullptr;
+    }();
+
+  ASSERT_NE(activeKf, nullptr);
+  EXPECT_DOUBLE_EQ(state.robot.pose.position.x, activeKf->robot.pose.position.x);
+  EXPECT_DOUBLE_EQ(state.robot.pose.position.y, activeKf->robot.pose.position.y);
+  EXPECT_DOUBLE_EQ(state.robot.pose.position.z, activeKf->robot.pose.position.z);
+}
+
+TEST(InternalGraphOptimizerTest, OptimizeGraphLoopClosureReducesWeightedResidual)
+{
+  InternalGraphOptimizer optimizer;
+  optimizer.initialize();
+  optimizer.applyMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));
+  optimizer.applyMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));
+  optimizer.applyMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));
+
+  MotionConstraint loopMotion;
+  loopMotion.delta_position = Eigen::Vector3d::Zero();
+  loopMotion.orientation = Eigen::Quaterniond::Identity();
+  ASSERT_TRUE(optimizer.commitLoopClosure(
+    LoopClosureCandidate(3, 0, 0.0, false, 0.0),
+    LoopClosureValidationResult(true, 5, 5, "", loopMotion, 1.0)));
+
+  // First pass: one iteration gives us post-solve residual.
+  OptimizationConfig singleIter;
+  singleIter.maxIterations = 1;
+  OptimizationResult firstResult;
+  ASSERT_TRUE(optimizer.optimizeGraph(singleIter, &firstResult));
+
+  // Second full solve: should converge to a lower residual.
+  OptimizationConfig fullConfig;
+  fullConfig.maxIterations = 20;
+  fullConfig.convergeThreshold = 1e-8;
+  OptimizationResult fullResult;
+  ASSERT_TRUE(optimizer.optimizeGraph(fullConfig, &fullResult));
+
+  EXPECT_LE(fullResult.finalError, firstResult.finalError + 1e-9);
+}
+
+TEST(InternalGraphOptimizerTest, OptimizeGraphSymmetricCorrectionDistributedAcrossChain)
+{
+  // 4 kf at x = 0,1,2,3.  Loop closure kf3→kf0 with zero relative motion
+  // should compress the chain so intermediate poses move toward the anchor.
+  InternalGraphOptimizer optimizer;
+  optimizer.initialize();
+  optimizer.applyMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));  // kf 1
+  optimizer.applyMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));  // kf 2
+  optimizer.applyMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));  // kf 3
+
+  MotionConstraint loopMotion;
+  loopMotion.delta_position = Eigen::Vector3d::Zero();
+  loopMotion.orientation = Eigen::Quaterniond::Identity();
+  ASSERT_TRUE(optimizer.commitLoopClosure(
+    LoopClosureCandidate(3, 0, 0.0, false, 0.0),
+    LoopClosureValidationResult(true, 5, 5, "", loopMotion, 1.0)));
+
+  OptimizationConfig config;
+  config.maxIterations = 50;
+  config.convergeThreshold = 1e-8;
+  ASSERT_TRUE(optimizer.optimizeGraph(config, nullptr));
+
+  const auto& kfs = optimizer.getGraphState().keyframes;
+  ASSERT_EQ(kfs.size(), 4u);
+
+  // kf1 and kf2 should have shifted from their original odometry positions.
+  EXPECT_LT(kfs[1].robot.pose.position.x, 1.0);
+  EXPECT_LT(kfs[2].robot.pose.position.x, 2.0);
+  // All poses remain finite.
+  for (const auto& kf : kfs)
+  {
+    EXPECT_TRUE(std::isfinite(kf.robot.pose.position.x));
+    EXPECT_TRUE(std::isfinite(kf.robot.pose.position.y));
+    EXPECT_TRUE(std::isfinite(kf.robot.pose.position.z));
+  }
+}
+
+TEST(InternalGraphOptimizerTest, OptimizeGraphSingleIterationStillSucceeds)
+{
+  InternalGraphOptimizer optimizer;
+  optimizer.initialize();
+  optimizer.applyMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));
+  optimizer.applyMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));
+
+  OptimizationConfig config;
+  config.maxIterations = 1;
+
+  OptimizationResult result;
+  const bool ok = optimizer.optimizeGraph(config, &result);
+
+  EXPECT_TRUE(ok);
+  EXPECT_EQ(result.numIterations, 1);
+}
+
+TEST(InternalGraphOptimizerTest, OptimizeGraphSecondCallOnConvergedGraphChangesNothingSignificant)
+{
+  InternalGraphOptimizer optimizer;
+  optimizer.initialize();
+  optimizer.applyMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));
+  optimizer.applyMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));
+
+  OptimizationConfig config;
+  config.maxIterations = 20;
+  config.convergeThreshold = 1e-8;
+
+  OptimizationResult first, second;
+  ASSERT_TRUE(optimizer.optimizeGraph(config, &first));
+
+  const double x1 = optimizer.getGraphState().keyframes.back().robot.pose.position.x;
+  ASSERT_TRUE(optimizer.optimizeGraph(config, &second));
+  const double x2 = optimizer.getGraphState().keyframes.back().robot.pose.position.x;
+
+  EXPECT_NEAR(x1, x2, 1e-6);
+  EXPECT_TRUE(second.success);
+}
+
 }  // namespace slam

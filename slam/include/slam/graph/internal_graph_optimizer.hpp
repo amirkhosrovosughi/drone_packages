@@ -3,6 +3,7 @@
 
 #include <chrono>
 #include <mutex>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -66,6 +67,30 @@ private:
   std::vector<int> collectCommonObservedLandmarkIds(
     int keyframeAId,
     int keyframeBId) const;
+
+  // --- Global optimization helpers (called only while _mutex is held) ---
+
+  // Build a keyframe-id → vector-index lookup for the current graph.
+  std::unordered_map<int, int> buildKeyframeIdToIndex() const;
+
+  // Returns the largest per-node step norm in a packed 3N delta vector.
+  static double computeMaxNodeStep(const Eigen::VectorXd& delta, int numKeyframes);
+
+  // Assemble the Gauss-Newton Hessian and gradient vectors from anchor,
+  // odometry, and loop-closure constraints.
+  void buildSystemMatrices(
+    const std::unordered_map<int, int>& idToIndex,
+    const Eigen::Vector3d& anchorPosition,
+    Eigen::MatrixXd& hessian,
+    Eigen::VectorXd& gradient,
+    int& constraintCount) const;
+
+  // Apply a packed 3N-DOF pose-delta vector to all keyframes in-place.
+  void applyKeyframeDelta(const Eigen::VectorXd& delta);
+
+  // Compute total weighted edge residual squared-norm for convergence checks.
+  double computeWeightedResidual(
+    const std::unordered_map<int, int>& idToIndex) const;
 
   GraphState _graph;
   std::chrono::steady_clock::time_point _lastRefinementTime;
