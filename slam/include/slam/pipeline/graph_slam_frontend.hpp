@@ -45,6 +45,8 @@ public:
 
   FrontendHealthMetrics healthMetrics() const;
   void recordLoopClosureCycle(std::size_t totalCandidates, std::size_t rejectedByValidation);
+  bool isLoopClosureEnabled() const;
+  void onKeyframeAccepted();
 
   void setMotionConstraintCallback(
     std::function<void(const MotionConstraint&)> callback);

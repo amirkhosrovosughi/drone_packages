@@ -108,6 +108,7 @@ void GraphSlamPipeline::setWatchdog(std::shared_ptr<OptimizationWatchdog> watchd
 void GraphSlamPipeline::onFrontendMotionConstraint(const MotionConstraint& motion)
 {
   _backend->applyMotionConstraint(motion);
+  _frontend->onKeyframeAccepted();
 
   ++_keyframeCount;
   if (_scheduler)
@@ -132,6 +133,11 @@ void GraphSlamPipeline::onFrontendAssociatedMeasurements(const AssignedMeasureme
 
 bool GraphSlamPipeline::processLoopClosureCandidates()
 {
+  if (!_frontend->isLoopClosureEnabled())
+  {
+    return false;
+  }
+
   const std::vector<LoopClosureCandidate> candidates =
     _backend->findSpatialLoopClosureCandidates(
       kLoopClosureCandidateDistanceMeters,

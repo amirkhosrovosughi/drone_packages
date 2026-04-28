@@ -25,6 +25,8 @@ struct FrontendHealthMetrics
 
   std::uint64_t rejectionSpikeCount = 0;
   bool rejectionSpikeInLastCycle = false;
+
+  int loopClosureCooldownRemaining = 0;
 };
 
 /**
@@ -57,12 +59,19 @@ public:
    */
   void recordLoopClosureCycle(std::size_t totalCandidates, std::size_t rejectedByValidation);
 
+  /** @brief Decrement loop-closure cooldown after a keyframe is accepted. */
+  void onKeyframeAccepted();
+
+  /** @brief Returns false while the loop-closure cooldown is active. */
+  bool isLoopClosureEnabled() const;
+
   FrontendHealthMetrics metrics() const;
   void reset();
 
 private:
   FrontendHealthMetrics _metrics;
   std::deque<double> _recentLoopRejectRatios;
+  int _loopClosureCooldownRemaining = 0;
   LoggerPtr _logger;
   mutable std::mutex _mutex;
 };

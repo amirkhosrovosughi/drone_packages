@@ -9,6 +9,7 @@ constexpr std::size_t kLoopRejectRollingWindowSize = 8;
 constexpr std::size_t kLoopRejectSpikeMinCandidates = 4;
 constexpr double kLoopRejectSpikeAbsoluteRatio = 0.80;
 constexpr double kLoopRejectSpikeRelativeJump = 0.35;
+constexpr int kLoopClosureCooldownKeyframes = 5;
 
 namespace
 {
@@ -130,6 +131,8 @@ void FrontendHealthMonitor::recordLoopClosureCycle(
     {
       _metrics.rejectionSpikeCount++;
       _metrics.rejectionSpikeInLastCycle = true;
+      _loopClosureCooldownRemaining = kLoopClosureCooldownKeyframes;
+      _metrics.loopClosureCooldownRemaining = kLoopClosureCooldownKeyframes;
     }
 
     localMetrics = _metrics;
@@ -152,11 +155,37 @@ FrontendHealthMetrics FrontendHealthMonitor::metrics() const
   return _metrics;
 }
 
+void FrontendHealthMonitor::onKeyframeAccepted()
+{
+  bool cooldownExpired = false;
+  {
+    std::lock_guard<std::mutex> lock(_mutex);
+    if (_loopClosureCooldownRemaining > 0)
+    {
+      --_loopClosureCooldownRemaining;
+      _metrics.loopClosureCooldownRemaining = _loopClosureCooldownRemaining;
+      cooldownExpired = (_loopClosureCooldownRemaining == 0);
+    }
+  }
+
+  if (_logger && cooldownExpired)
+  {
+    _logger->logInfo("Loop closure cooldown expired — re-enabling loop closures.");
+  }
+}
+
+bool FrontendHealthMonitor::isLoopClosureEnabled() const
+{
+  std::lock_guard<std::mutex> lock(_mutex);
+  return _loopClosureCooldownRemaining == 0;
+}
+
 void FrontendHealthMonitor::reset()
 {
   std::lock_guard<std::mutex> lock(_mutex);
   _metrics = FrontendHealthMetrics();
   _recentLoopRejectRatios.clear();
+  _loopClosureCooldownRemaining = 0;
 }
 
 }  // namespace slam

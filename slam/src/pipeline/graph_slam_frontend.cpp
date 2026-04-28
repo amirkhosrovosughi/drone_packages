@@ -205,6 +205,16 @@ void GraphSlamFrontend::recordLoopClosureCycle(
   _healthMonitor->recordLoopClosureCycle(totalCandidates, rejectedByValidation);
 }
 
+bool GraphSlamFrontend::isLoopClosureEnabled() const
+{
+  return _healthMonitor->isLoopClosureEnabled();
+}
+
+void GraphSlamFrontend::onKeyframeAccepted()
+{
+  _healthMonitor->onKeyframeAccepted();
+}
+
 double GraphSlamFrontend::computeRotationDeltaRad(
   const Eigen::Quaterniond& a,
   const Eigen::Quaterniond& b) const

@@ -529,4 +529,145 @@ TEST(GraphSlamPipelineTest, WatchdogMetricsRecordedWhenOptimizationFires)
   EXPECT_GE(optimizer->optimizeCallCount, 1);
 }
 
+// Helper: drive enough rejected-candidate cycles to trigger a rejection spike.
+// The spike detector requires >=4 candidates, >=80% rejected, and a relative
+// jump of >=0.35 above the rolling baseline.  We seed one accepted cycle to
+// establish the baseline, then fire one fully-rejected cycle with 4 candidates.
+static void triggerRejectionSpike(
+  GraphSlamPipeline& pipeline,
+  PipelineFakeAssociation* association,
+  PipelineFakeGraphOptimizer* optimizer)
+{
+  const std::vector<LoopClosureCandidate> candidates = {
+    LoopClosureCandidate(2, 0, 0.1, false, 0.0),
+    LoopClosureCandidate(2, 1, 0.1, false, 0.0),
+    LoopClosureCandidate(3, 0, 0.1, false, 0.0),
+    LoopClosureCandidate(3, 1, 0.1, false, 0.0)};
+
+  // Seed cycle: all accepted — establishes rolling baseline near 0.
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(0.6, 0.0, 0.0)));
+  association->assignedToEmit = AssignedMeasurements{makeAssignedMeasurement(201)};
+  optimizer->candidatesToReturn = candidates;
+  optimizer->validationToReturn =
+    LoopClosureValidationResult(true, 3, 4, "", MotionConstraint(), 0.75);
+  optimizer->commitReturnValue = true;
+  pipeline.processObservation(
+    Observations{Observation(1.0, Point3D{Eigen::Vector3d(0.0, 0.0, 1.0)})});
+
+  // Spike cycle: all rejected — ratio 1.0 against baseline ~0.0.
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(0.6, 0.0, 0.0)));
+  association->assignedToEmit = AssignedMeasurements{makeAssignedMeasurement(202)};
+  optimizer->candidatesToReturn = candidates;
+  optimizer->validationToReturn =
+    LoopClosureValidationResult(false, 0, 4, "rejected", MotionConstraint(), 0.0);
+  optimizer->commitReturnValue = false;
+  pipeline.processObservation(
+    Observations{Observation(2.0, Point3D{Eigen::Vector3d(0.0, 0.0, 1.2)})});
+}
+
+TEST(GraphSlamPipelineTest, LoopClosureCooldownEngagesAfterRejectionSpike)
+{
+  auto association = std::make_shared<PipelineFakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+  auto optimizer = std::make_shared<PipelineFakeGraphOptimizer>();
+  auto frontend = std::make_shared<GraphSlamFrontend>(association, factory);
+  auto backend = std::make_shared<GraphSlamBackend>(optimizer);
+
+  GraphSlamPipeline pipeline(frontend, backend);
+  pipeline.initialize();
+
+  triggerRejectionSpike(pipeline, association.get(), optimizer.get());
+
+  ASSERT_TRUE(pipeline.frontendHealthMetrics().rejectionSpikeInLastCycle)
+    << "Spike must have fired before testing cooldown";
+  EXPECT_GT(pipeline.frontendHealthMetrics().loopClosureCooldownRemaining, 0);
+
+  // Reset call count and fire another observation cycle immediately after spike.
+  const int validateBefore = optimizer->validateCallCount;
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(0.6, 0.0, 0.0)));
+  association->assignedToEmit = AssignedMeasurements{makeAssignedMeasurement(203)};
+  optimizer->candidatesToReturn = {LoopClosureCandidate(3, 0, 0.1, false, 0.0)};
+  optimizer->validationToReturn =
+    LoopClosureValidationResult(true, 3, 4, "", MotionConstraint(), 0.75);
+  optimizer->commitReturnValue = true;
+  pipeline.processObservation(
+    Observations{Observation(3.0, Point3D{Eigen::Vector3d(0.0, 0.0, 1.5)})});
+
+  EXPECT_EQ(optimizer->validateCallCount, validateBefore)
+    << "No loop closure validation should occur while cooldown is active";
+}
+
+TEST(GraphSlamPipelineTest, LoopClosureCooldownExpiresAfterNKeyframes)
+{
+  // kLoopClosureCooldownKeyframes == 5 (internal constant in frontend_health_monitor.cpp)
+  constexpr int COOLDOWN_KEYFRAMES = 5;
+
+  auto association = std::make_shared<PipelineFakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+  auto optimizer = std::make_shared<PipelineFakeGraphOptimizer>();
+  auto frontend = std::make_shared<GraphSlamFrontend>(association, factory);
+  auto backend = std::make_shared<GraphSlamBackend>(optimizer);
+
+  GraphSlamPipeline pipeline(frontend, backend);
+  pipeline.initialize();
+
+  triggerRejectionSpike(pipeline, association.get(), optimizer.get());
+
+  ASSERT_GT(pipeline.frontendHealthMetrics().loopClosureCooldownRemaining, 0);
+
+  // Drive exactly COOLDOWN_KEYFRAMES motions — no observations needed.
+  for (int i = 0; i < COOLDOWN_KEYFRAMES; ++i)
+  {
+    pipeline.processMotion(makeMotion(Eigen::Vector3d(0.6, 0.0, 0.0)));
+  }
+
+  EXPECT_EQ(pipeline.frontendHealthMetrics().loopClosureCooldownRemaining, 0);
+
+  // A subsequent observation cycle should now attempt loop closures again.
+  const int validateBefore = optimizer->validateCallCount;
+  association->assignedToEmit = AssignedMeasurements{makeAssignedMeasurement(210)};
+  optimizer->candidatesToReturn = {LoopClosureCandidate(5, 0, 0.1, false, 0.0)};
+  optimizer->validationToReturn =
+    LoopClosureValidationResult(true, 3, 4, "", MotionConstraint(), 0.75);
+  optimizer->commitReturnValue = true;
+  pipeline.processObservation(
+    Observations{Observation(10.0, Point3D{Eigen::Vector3d(0.0, 0.0, 2.0)})});
+
+  EXPECT_GT(optimizer->validateCallCount, validateBefore)
+    << "Loop closure validation should resume after cooldown expires";
+}
+
+TEST(GraphSlamPipelineTest, OdometryAndRefinementContinueDuringCooldown)
+{
+  auto association = std::make_shared<PipelineFakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+  auto optimizer = std::make_shared<PipelineFakeGraphOptimizer>();
+  auto frontend = std::make_shared<GraphSlamFrontend>(association, factory);
+  auto backend = std::make_shared<GraphSlamBackend>(optimizer);
+
+  GraphSlamPipeline pipeline(frontend, backend);
+  pipeline.initialize();
+
+  triggerRejectionSpike(pipeline, association.get(), optimizer.get());
+
+  ASSERT_GT(pipeline.frontendHealthMetrics().loopClosureCooldownRemaining, 0);
+
+  const std::size_t keyframesBefore = optimizer->graph.keyframes.size();
+  const std::size_t odometryEdgesBefore = optimizer->graph.odometryEdges.size();
+  const std::size_t loopEdgesBefore = optimizer->graph.loopClosureEdges.size();
+
+  // Drive 3 more keyframes while in cooldown.
+  for (int i = 0; i < 3; ++i)
+  {
+    pipeline.processMotion(makeMotion(Eigen::Vector3d(0.6, 0.0, 0.0)));
+  }
+
+  EXPECT_EQ(optimizer->graph.keyframes.size(), keyframesBefore + 3)
+    << "Keyframes must continue to be committed during cooldown";
+  EXPECT_EQ(optimizer->graph.odometryEdges.size(), odometryEdgesBefore + 3)
+    << "Odometry edges must continue to be added during cooldown";
+  EXPECT_EQ(optimizer->graph.loopClosureEdges.size(), loopEdgesBefore)
+    << "No additional loop closures should be committed during cooldown";
+}
+
 }  // namespace slam
