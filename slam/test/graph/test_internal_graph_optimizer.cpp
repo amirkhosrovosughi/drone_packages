@@ -689,4 +689,119 @@ TEST(InternalGraphOptimizerTest, OptimizeGraphSecondCallOnConvergedGraphChangesN
   EXPECT_TRUE(second.success);
 }
 
+// --- Backend safety clamp tests ---
+
+TEST(InternalGraphOptimizerTest, PoseJumpClampRevertsOnLargeJump)
+{
+  // Build a long odometry chain (30 m) and inject a loop closure back to kf0
+  // by constructing the candidate and validation manually. The optimizer must
+  // pull the active keyframe ~15 m back, which exceeds kMaxPoseJumpAfterOptimizeMeters.
+  InternalGraphOptimizer optimizer;
+  optimizer.initialize();
+
+  constexpr int kSteps = 15;
+  constexpr double kStepSize = 2.0;
+  for (int i = 0; i < kSteps; ++i)
+  {
+    optimizer.applyMotion(makeMotion(Eigen::Vector3d(kStepSize, 0.0, 0.0)));
+  }
+
+  const int activeId = optimizer.getGraphState().activeKeyframeId;
+  ASSERT_GT(activeId, 0);
+
+  // Manually construct a valid-looking loop closure candidate and accepted result.
+  LoopClosureCandidate candidate(activeId, 0, 30.0);
+  LoopClosureValidationResult validation(
+    true, 1, 1, "forced", MotionConstraint(), 1.0);
+
+  ASSERT_TRUE(optimizer.commitLoopClosure(candidate, validation));
+
+  const Eigen::Vector3d poseBefore =
+    optimizer.getGraphState().robot.pose.position.getPositionVector();
+
+  OptimizationConfig config;
+  config.maxIterations = 20;
+  OptimizationResult result;
+  const bool ok = optimizer.optimizeGraph(config, &result);
+
+  EXPECT_FALSE(ok);
+  EXPECT_FALSE(result.success);
+  EXPECT_GT(result.poseJumpMeters, 5.0);
+  EXPECT_NE(result.failureReason.find("Pose jump"), std::string::npos);
+
+  // Graph must have been reverted — robot position unchanged.
+  const Eigen::Vector3d poseAfter =
+    optimizer.getGraphState().robot.pose.position.getPositionVector();
+  EXPECT_NEAR((poseAfter - poseBefore).norm(), 0.0, 1e-6);
+}
+
+TEST(InternalGraphOptimizerTest, ResidualClampRevertsOnHighResidual)
+{
+  // Build a 3-keyframe chain and inject a loop closure whose relative motion
+  // wildly contradicts the odometry. With only 1 solver iteration the system
+  // cannot satisfy the huge contradictory constraint, so finalError exceeds
+  // kMaxResidualAfterOptimize (5.0). The test asserts the result is marked
+  // failed and poseJumpMeters is a valid finite value.
+  InternalGraphOptimizer optimizer;
+  optimizer.initialize();
+
+  optimizer.applyMotion(makeMotion(Eigen::Vector3d(0.5, 0.0, 0.0)));  // kf1
+  optimizer.applyMotion(makeMotion(Eigen::Vector3d(0.5, 0.0, 0.0)));  // kf2
+  optimizer.applyMotion(makeMotion(Eigen::Vector3d(0.5, 0.0, 0.0)));  // kf3
+
+  const int activeId = optimizer.getGraphState().activeKeyframeId;  // = 3
+
+  // Inject a contradictory loop closure: odometry says kf3 is at x=1.5,
+  // but this edge claims the relative motion to kf0 is 50 m.
+  MotionConstraint contradictory;
+  contradictory.delta_position = Eigen::Vector3d(50.0, 0.0, 0.0);
+  contradictory.orientation = Eigen::Quaterniond::Identity();
+
+  LoopClosureCandidate cand(activeId, 0, 0.5);
+  LoopClosureValidationResult val(true, 1, 1, "forced", contradictory, 1.0);
+  ASSERT_TRUE(optimizer.commitLoopClosure(cand, val));
+
+  OptimizationConfig config;
+  config.maxIterations = 1;  // single iteration — leaves high residual
+  OptimizationResult result;
+  optimizer.optimizeGraph(config, &result);
+
+  // The clamp (pose-jump or residual) or solver failure must be reported.
+  EXPECT_FALSE(result.success);
+  EXPECT_FALSE(result.failureReason.empty());
+  // poseJumpMeters must always be a finite non-negative value.
+  EXPECT_GE(result.poseJumpMeters, 0.0);
+  EXPECT_TRUE(std::isfinite(result.poseJumpMeters));
+}
+
+TEST(InternalGraphOptimizerTest, ClampPassesThroughOnHealthySolve)
+{
+  // A well-formed small graph with a consistent loop closure should pass both
+  // clamps: pose jump < 2 m, final residual < 5.0.
+  InternalGraphOptimizer optimizer;
+  optimizer.initialize();
+
+  seedSharedLandmarks(&optimizer);
+
+  const auto candidates = optimizer.findSpatialLoopClosureCandidates(3.0, 1);
+  ASSERT_FALSE(candidates.empty());
+
+  const LoopClosureValidationResult validation =
+    optimizer.validateLoopClosureCandidate(candidates.front());
+  ASSERT_TRUE(optimizer.commitLoopClosure(candidates.front(), validation));
+
+  OptimizationConfig config;
+  config.maxIterations = 20;
+  config.convergeThreshold = 1e-6;
+  OptimizationResult result;
+  const bool ok = optimizer.optimizeGraph(config, &result);
+
+  EXPECT_TRUE(ok);
+  EXPECT_TRUE(result.success);
+  EXPECT_LT(result.poseJumpMeters, 2.0);
+  EXPECT_LT(result.finalError, 5.0);
+  EXPECT_GE(result.poseJumpMeters, 0.0);
+  EXPECT_TRUE(result.failureReason.empty());
+}
+
 }  // namespace slam

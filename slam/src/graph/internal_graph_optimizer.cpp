@@ -14,6 +14,8 @@ constexpr int kMinLoopInlierCount = 2;
 constexpr double kMinLoopInlierRatio = 0.6;
 constexpr double kMaxLoopTranslationResidualMeters = 0.35;
 constexpr double kMaxLandmarkCorrespondenceResidualMeters = 0.5;
+constexpr double kMaxPoseJumpAfterOptimizeMeters = 5.0;
+constexpr double kMaxResidualAfterOptimize = 5.0;
 constexpr double kOdometryConstraintWeight = 1.0;
 constexpr double kObservationConstraintWeight = 0.08;
 constexpr double kMaxLocalRefinementStepMeters = 0.15;
@@ -601,6 +603,11 @@ bool InternalGraphOptimizer::optimizeGraph(
     return false;
   }
 
+  // Snapshot pre-solve state for revert if either safety clamp fires.
+  const Eigen::Vector3d preSolveRobotPosition =
+    _graph.robot.pose.position.getPositionVector();
+  const std::vector<GraphKeyframeNode> preSolveKeyframes = _graph.keyframes;
+
   const auto idToIndex       = buildKeyframeIdToIndex();
   const int dof              = numKeyframes * 3;
   const Eigen::Vector3d anchorPosition =
@@ -650,10 +657,35 @@ bool InternalGraphOptimizer::optimizeGraph(
       _graph.robot = _graph.keyframes[activeIt->second].robot;
     }
 
-    result.success        = true;
-    result.numIterations  = performedIterations;
-    result.numPosesRefined = numKeyframes;
+    const Eigen::Vector3d postSolveRobotPosition =
+      _graph.robot.pose.position.getPositionVector();
+    const double poseJump = (postSolveRobotPosition - preSolveRobotPosition).norm();
+
+    result.poseJumpMeters = poseJump;
     result.finalError     = computeWeightedResidual(idToIndex);
+
+    if (poseJump > kMaxPoseJumpAfterOptimizeMeters)
+    {
+      _graph.keyframes = preSolveKeyframes;
+      _graph.robot.pose = preSolveKeyframes.back().robot.pose;
+      result.success = false;
+      result.failureReason =
+        "Pose jump too large after optimize: " + std::to_string(poseJump) + "m";
+    }
+    else if (result.finalError > kMaxResidualAfterOptimize)
+    {
+      _graph.keyframes = preSolveKeyframes;
+      _graph.robot.pose = preSolveKeyframes.back().robot.pose;
+      result.success = false;
+      result.failureReason =
+        "Residual too high after optimize: " + std::to_string(result.finalError);
+    }
+    else
+    {
+      result.success        = true;
+      result.numIterations  = performedIterations;
+      result.numPosesRefined = numKeyframes;
+    }
   }
 
   const auto solveEnd = std::chrono::steady_clock::now();
@@ -667,7 +699,13 @@ bool InternalGraphOptimizer::optimizeGraph(
       _logger->logDebug(
         "optimizeGraph: success=true posesRefined=" + std::to_string(result.numPosesRefined) +
         " iterations=" + std::to_string(result.numIterations) +
-        " finalError=" + std::to_string(result.finalError));
+        " finalError=" + std::to_string(result.finalError) +
+        " poseJump=" + std::to_string(result.poseJumpMeters) + "m");
+    }
+    else if (result.poseJumpMeters > kMaxPoseJumpAfterOptimizeMeters ||
+             result.finalError > kMaxResidualAfterOptimize)
+    {
+      _logger->logWarn("optimizeGraph: safety clamp triggered - " + result.failureReason);
     }
     else
     {

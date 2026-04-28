@@ -356,6 +356,7 @@ struct OptimizationResult {
   bool success = false;                   // Whether optimization succeeded
   int solveTimeMs = 0;                    // Actual time taken (ms)
   double finalError = 0.0;                // Final residual error
+  double poseJumpMeters = 0.0;            // Active-pose jump distance after optimize
   int numPosesRefined = 0;                // Number of poses updated
   int numIterations = 0;                  // Actual iterations run
   std::string failureReason = "";         // Reason if success=false
