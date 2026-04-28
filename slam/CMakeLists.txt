@@ -84,6 +84,7 @@ set(SOURCES
   src/pipeline/graph_slam_backend.cpp
   src/pipeline/graph_slam_frontend.cpp
   src/pipeline/graph_slam_pipeline.cpp
+  src/pipeline/frontend_health_monitor.cpp
   src/pipeline/optimization_scheduler.cpp
   src/pipeline/optimization_watchdog.cpp
   src/filter/extended_kalman_filter.cpp
@@ -241,6 +242,7 @@ if(BUILD_TESTING)
     SOURCES
       test/pipeline/test_graph_slam_frontend.cpp
       src/pipeline/graph_slam_frontend.cpp
+      src/pipeline/frontend_health_monitor.cpp
       src/measurement/measurement_factory.cpp
       src/measurement/point3d_measurement_model.cpp
       src/measurement/bbox_measurement_model.cpp
@@ -257,6 +259,7 @@ if(BUILD_TESTING)
     SOURCES
       test/pipeline/test_graph_slam_pipeline.cpp
       src/pipeline/graph_slam_pipeline.cpp
+      src/pipeline/frontend_health_monitor.cpp
       src/pipeline/graph_slam_backend.cpp
       src/pipeline/graph_slam_frontend.cpp
       src/pipeline/optimization_scheduler.cpp

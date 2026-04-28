@@ -383,6 +383,126 @@ TEST(GraphSlamPipelineTest, EndToEndWithRealOptimizerCommitsLoopClosure)
   EXPECT_GE(graph.loopClosureEdges.front().inlierRatio, 0.6);
 }
 
+TEST(GraphSlamPipelineTest, FrontendHealthMetricsTrackAssociationAcceptanceAndDrop)
+{
+  auto association = std::make_shared<PipelineFakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+  auto optimizer = std::make_shared<PipelineFakeGraphOptimizer>();
+  auto frontend = std::make_shared<GraphSlamFrontend>(association, factory);
+  auto backend = std::make_shared<GraphSlamBackend>(optimizer);
+
+  GraphSlamPipeline pipeline(frontend, backend);
+  pipeline.initialize();
+
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(0.6, 0.0, 0.0)));
+
+  association->assignedToEmit = {};
+  pipeline.processObservation(
+    Observations{Observation(1.0, Point3D{Eigen::Vector3d(1.0, 0.0, 0.0)})});
+
+  FrontendHealthMetrics first = pipeline.frontendHealthMetrics();
+  EXPECT_EQ(first.totalMeasurementAttempts, 1u);
+  EXPECT_EQ(first.totalAssociatedMeasurements, 0u);
+  EXPECT_EQ(first.totalDroppedMeasurements, 1u);
+  EXPECT_DOUBLE_EQ(first.associationAcceptanceRate, 0.0);
+  EXPECT_DOUBLE_EQ(first.associationDropRate, 1.0);
+
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(0.6, 0.0, 0.0)));
+
+  association->assignedToEmit = AssignedMeasurements{makeAssignedMeasurement(77)};
+  pipeline.processObservation(
+    Observations{Observation(2.0, Point3D{Eigen::Vector3d(1.2, 0.1, 0.0)})});
+
+  FrontendHealthMetrics second = pipeline.frontendHealthMetrics();
+  EXPECT_EQ(second.totalMeasurementAttempts, 2u);
+  EXPECT_EQ(second.totalAssociatedMeasurements, 1u);
+  EXPECT_EQ(second.totalDroppedMeasurements, 1u);
+  EXPECT_DOUBLE_EQ(second.associationAcceptanceRate, 0.5);
+  EXPECT_DOUBLE_EQ(second.associationDropRate, 0.5);
+}
+
+TEST(GraphSlamPipelineTest, RejectedLoopConstraintSpikeDetectedOnSuddenBurst)
+{
+  auto association = std::make_shared<PipelineFakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+  auto optimizer = std::make_shared<PipelineFakeGraphOptimizer>();
+  auto frontend = std::make_shared<GraphSlamFrontend>(association, factory);
+  auto backend = std::make_shared<GraphSlamBackend>(optimizer);
+
+  GraphSlamPipeline pipeline(frontend, backend);
+  pipeline.initialize();
+
+  std::vector<LoopClosureCandidate> batch = {
+    LoopClosureCandidate(2, 0, 0.1, false, 0.0),
+    LoopClosureCandidate(2, 1, 0.1, false, 0.0),
+    LoopClosureCandidate(3, 0, 0.1, false, 0.0),
+    LoopClosureCandidate(3, 1, 0.1, false, 0.0)};
+
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(0.6, 0.0, 0.0)));
+  association->assignedToEmit = AssignedMeasurements{makeAssignedMeasurement(91)};
+  optimizer->candidatesToReturn = batch;
+  optimizer->validationToReturn =
+    LoopClosureValidationResult(true, 3, 4, "", MotionConstraint(), 0.75);
+  optimizer->commitReturnValue = true;
+  pipeline.processObservation(
+    Observations{Observation(1.0, Point3D{Eigen::Vector3d(0.0, 0.0, 1.0)})});
+
+  FrontendHealthMetrics baseline = pipeline.frontendHealthMetrics();
+  EXPECT_EQ(baseline.rejectionSpikeCount, 0u);
+  EXPECT_FALSE(baseline.rejectionSpikeInLastCycle);
+
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(0.6, 0.0, 0.0)));
+  association->assignedToEmit = AssignedMeasurements{makeAssignedMeasurement(92)};
+  optimizer->candidatesToReturn = batch;
+  optimizer->validationToReturn =
+    LoopClosureValidationResult(false, 0, 4, "rejected", MotionConstraint(), 0.0);
+  pipeline.processObservation(
+    Observations{Observation(2.0, Point3D{Eigen::Vector3d(0.0, 0.0, 1.2)})});
+
+  FrontendHealthMetrics burst = pipeline.frontendHealthMetrics();
+  EXPECT_EQ(burst.totalLoopCandidates, 8u);
+  EXPECT_EQ(burst.totalRejectedLoopCandidates, 4u);
+  EXPECT_DOUBLE_EQ(burst.loopConstraintRejectRate, 0.5);
+  EXPECT_EQ(burst.rejectionSpikeCount, 1u);
+  EXPECT_TRUE(burst.rejectionSpikeInLastCycle);
+}
+
+TEST(GraphSlamPipelineTest, RejectedLoopConstraintSpikeIgnoredWhenCandidateCountTooLow)
+{
+  auto association = std::make_shared<PipelineFakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+  auto optimizer = std::make_shared<PipelineFakeGraphOptimizer>();
+  auto frontend = std::make_shared<GraphSlamFrontend>(association, factory);
+  auto backend = std::make_shared<GraphSlamBackend>(optimizer);
+
+  GraphSlamPipeline pipeline(frontend, backend);
+  pipeline.initialize();
+
+  std::vector<LoopClosureCandidate> smallBatch = {
+    LoopClosureCandidate(2, 0, 0.1, false, 0.0)};
+
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(0.6, 0.0, 0.0)));
+  association->assignedToEmit = AssignedMeasurements{makeAssignedMeasurement(101)};
+  optimizer->candidatesToReturn = smallBatch;
+  optimizer->validationToReturn =
+    LoopClosureValidationResult(true, 3, 4, "", MotionConstraint(), 0.75);
+  optimizer->commitReturnValue = true;
+  pipeline.processObservation(
+    Observations{Observation(1.0, Point3D{Eigen::Vector3d(0.0, 0.0, 1.0)})});
+
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(0.6, 0.0, 0.0)));
+  association->assignedToEmit = AssignedMeasurements{makeAssignedMeasurement(102)};
+  optimizer->candidatesToReturn = smallBatch;
+  optimizer->validationToReturn =
+    LoopClosureValidationResult(false, 0, 4, "rejected", MotionConstraint(), 0.0);
+  pipeline.processObservation(
+    Observations{Observation(2.0, Point3D{Eigen::Vector3d(0.0, 0.0, 1.2)})});
+
+  FrontendHealthMetrics metrics = pipeline.frontendHealthMetrics();
+  EXPECT_EQ(metrics.rejectionSpikeCount, 0u);
+  EXPECT_FALSE(metrics.rejectionSpikeInLastCycle);
+}
+
 TEST(GraphSlamPipelineTest, WatchdogMetricsRecordedWhenOptimizationFires)
 {
   // Use a fallback-every-1-keyframe policy so optimization fires on every

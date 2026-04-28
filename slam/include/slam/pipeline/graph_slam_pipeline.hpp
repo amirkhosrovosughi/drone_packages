@@ -2,7 +2,6 @@
 #define SLAM__GRAPH_SLAM_BACKEND_HPP_
 
 #include <memory>
-#include <mutex>
 
 #include "pipeline/graph_slam_backend.hpp"
 #include "pipeline/graph_slam_frontend.hpp"
@@ -35,6 +34,7 @@ public:
   void setScheduler(std::shared_ptr<OptimizationScheduler> scheduler);
   void setWatchdog(std::shared_ptr<OptimizationWatchdog> watchdog);
   OptimizationMetrics watchdogMetrics() const;
+  FrontendHealthMetrics frontendHealthMetrics() const;
 
 private:
   bool processLoopClosureCandidates();
@@ -48,7 +48,6 @@ private:
   std::shared_ptr<OptimizationWatchdog> _watchdog;
   int _keyframeCount = 0;
   LoggerPtr _logger;
-  mutable std::mutex _mutex;
 };
 
 }  // namespace slam

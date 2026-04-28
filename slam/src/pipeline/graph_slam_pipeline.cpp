@@ -138,6 +138,7 @@ bool GraphSlamPipeline::processLoopClosureCandidates()
       kLoopClosureMinKeyframeSeparation);
 
   bool loopClosureAccepted = false;
+  std::size_t rejectedByValidationCount = 0;
 
   // TODO(Step 5): Merge appearance-cue candidates as an optional secondary source.
   // Query an appearance index (e.g. DBoW / NetVLAD descriptor store) for the active
@@ -166,23 +167,33 @@ bool GraphSlamPipeline::processLoopClosureCandidates()
           validation.inlierRatio);
       }
     }
-    else if (_logger)
+    else
     {
-      _logger->logDebug(
-        "Loop closure rejected source=",
-        candidate.sourceKeyframeId,
-        ", target=",
-        candidate.targetKeyframeId,
-        ", reason=",
-        validation.reason.empty() ? "unknown" : validation.reason,
-        ", supportCount=",
-        validation.supportCount,
-        ", inlierCount=",
-        validation.inlierCount,
-        ", inlierRatio=",
-        validation.inlierRatio);
+      if (!validation.accepted)
+      {
+        ++rejectedByValidationCount;
+      }
+
+      if (_logger)
+      {
+        _logger->logDebug(
+          "Loop closure rejected source=",
+          candidate.sourceKeyframeId,
+          ", target=",
+          candidate.targetKeyframeId,
+          ", reason=",
+          validation.reason.empty() ? "unknown" : validation.reason,
+          ", supportCount=",
+          validation.supportCount,
+          ", inlierCount=",
+          validation.inlierCount,
+          ", inlierRatio=",
+          validation.inlierRatio);
+      }
     }
   }
+
+  _frontend->recordLoopClosureCycle(candidates.size(), rejectedByValidationCount);
 
   return loopClosureAccepted;
 }
@@ -194,6 +205,11 @@ OptimizationMetrics GraphSlamPipeline::watchdogMetrics() const
     return _watchdog->metrics();
   }
   return OptimizationMetrics{};
+}
+
+FrontendHealthMetrics GraphSlamPipeline::frontendHealthMetrics() const
+{
+  return _frontend->healthMetrics();
 }
 
 void GraphSlamPipeline::checkAndExecuteOptimization(bool loopClosureAccepted)

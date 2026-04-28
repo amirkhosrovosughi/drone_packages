@@ -1,6 +1,8 @@
 #ifndef SLAM__PIPELINE__GRAPH_SLAM_FRONTEND_HPP_
 #define SLAM__PIPELINE__GRAPH_SLAM_FRONTEND_HPP_
 
+#include <atomic>
+#include <cstddef>
 #include <functional>
 #include <chrono>
 #include <memory>
@@ -12,6 +14,7 @@
 #include "common/slam_logger.hpp"
 #include "measurement/measurement_factory.hpp"
 #include "observation/observation.hpp"
+#include "pipeline/frontend_health_monitor.hpp"
 
 namespace slam
 {
@@ -39,6 +42,9 @@ public:
 
   void updateMap(const MapSummary& map);
   void setLogger(LoggerPtr logger);
+
+  FrontendHealthMetrics healthMetrics() const;
+  void recordLoopClosureCycle(std::size_t totalCandidates, std::size_t rejectedByValidation);
 
   void setMotionConstraintCallback(
     std::function<void(const MotionConstraint&)> callback);
@@ -68,6 +74,9 @@ private:
 
   std::function<void(const MotionConstraint&)> _motionConstraintCallback;
   std::function<void(const AssignedMeasurements&)> _assignedMeasurementsCallback;
+
+  std::unique_ptr<FrontendHealthMonitor> _healthMonitor;
+  std::atomic<std::size_t> _pendingMeasurementAttemptCount{0};
 
   Eigen::Vector3d _accumulatedTranslation = Eigen::Vector3d::Zero();
   Eigen::Quaterniond _lastKeyframeOrientation = Eigen::Quaterniond::Identity();

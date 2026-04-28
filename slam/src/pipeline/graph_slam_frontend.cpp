@@ -19,6 +19,7 @@ GraphSlamFrontend::GraphSlamFrontend(
   std::shared_ptr<MeasurementFactory> measurementFactory)
   : _association(std::move(association))
   , _measurementFactory(std::move(measurementFactory))
+  , _healthMonitor(std::make_unique<FrontendHealthMonitor>())
 {
 }
 
@@ -32,6 +33,10 @@ void GraphSlamFrontend::initialize()
   _association->registerCallback(
     [this](AssignedMeasurements measurements)
     {
+      const std::size_t attempted = _pendingMeasurementAttemptCount.exchange(0);
+      _healthMonitor->recordMeasurementBatch(
+        std::max(attempted, measurements.size()), measurements.size());
+
       auto callback = _assignedMeasurementsCallback;
       if (callback)
       {
@@ -46,7 +51,9 @@ void GraphSlamFrontend::reset()
   _accumulatedTranslation = Eigen::Vector3d::Zero();
   _lastKeyframeOrientation = Eigen::Quaterniond::Identity();
   _hasOrientationReference = false;
+  _pendingMeasurementAttemptCount.store(0);
   closeObservationWindow();
+  _healthMonitor->reset();
 }
 
 void GraphSlamFrontend::onMotion(const MotionConstraint& motion)
@@ -159,6 +166,7 @@ void GraphSlamFrontend::onObservation(const Observations& observations)
   }
 
   Measurements measurements = _measurementFactory->build(filtered);
+  _pendingMeasurementAttemptCount.store(measurements.size());
   _association->onReceiveMeasurement(measurements);
 }
 
@@ -171,6 +179,7 @@ void GraphSlamFrontend::setLogger(LoggerPtr logger)
 {
   _logger = logger;
   _association->setLogger(logger);
+  _healthMonitor->setLogger(logger);
 }
 
 void GraphSlamFrontend::setMotionConstraintCallback(
@@ -183,6 +192,17 @@ void GraphSlamFrontend::setAssignedMeasurementsCallback(
   std::function<void(const AssignedMeasurements&)> callback)
 {
   _assignedMeasurementsCallback = std::move(callback);
+}
+
+FrontendHealthMetrics GraphSlamFrontend::healthMetrics() const
+{
+  return _healthMonitor->metrics();
+}
+
+void GraphSlamFrontend::recordLoopClosureCycle(
+  std::size_t totalCandidates, std::size_t rejectedByValidation)
+{
+  _healthMonitor->recordLoopClosureCycle(totalCandidates, rejectedByValidation);
 }
 
 double GraphSlamFrontend::computeRotationDeltaRad(
