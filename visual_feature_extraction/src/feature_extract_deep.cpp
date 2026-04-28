@@ -169,7 +169,7 @@ std::vector<Detection> FeatureExtractDeep::postprocess(
         confidences.emplace_back(conf);    
     }
 
-    RCLCPP_INFO(rclcpp::get_logger("visual_feature_extraction"), "number of detected boxes: %d", boxes.size());
+    RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "number of detected boxes: %d", boxes.size());
 
     // NMS
     std::vector<int> indices;
@@ -241,7 +241,7 @@ std::vector<Detection> FeatureExtractDeep::extract(const cv::Mat& inputImage)
 
     auto detections = postprocess(inputImage, outputVec, rows, cols);
 
-    RCLCPP_INFO(rclcpp::get_logger("visual_feature_extraction"), "Number of detection poles  %ld", detections.size());
+    RCLCPP_DEBUG(rclcpp::get_logger("visual_feature_extraction"), "Number of detection poles  %ld", detections.size());
 
     #ifdef DEBUG_FEATURE
     // visualize Results
