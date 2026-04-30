@@ -2,7 +2,7 @@
 #define SLAM__ASSOCIATION_HPP_
 
 #include <functional>
-#include "common/def_slam.hpp"
+#include "common/def_slam_core.hpp"
 #include "measurement/measurement.hpp"
 #include "common/slam_logger.hpp"
 

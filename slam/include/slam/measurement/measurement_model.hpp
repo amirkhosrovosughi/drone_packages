@@ -4,7 +4,7 @@
 #include <Eigen/Dense>
 #include <optional>
 #include <memory>
-#include "common/def_slam.hpp"
+#include "common/def_slam_core.hpp"
 #include "observation/observation.hpp"
 #include "measurement/measurement.hpp"
 

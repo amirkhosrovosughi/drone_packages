@@ -10,7 +10,7 @@
 #include <unordered_set>
 
 #include "association/base_association.hpp"
-#include "common/def_slam.hpp"
+#include "common/def_slam_core.hpp"
 #include "common/slam_logger.hpp"
 #include "measurement/measurement_factory.hpp"
 #include "observation/observation.hpp"

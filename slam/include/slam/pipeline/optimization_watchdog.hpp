@@ -4,7 +4,7 @@
 #include <functional>
 #include <mutex>
 
-#include "common/def_slam.hpp"
+#include "common/def_slam_optimization.hpp"
 #include "common/slam_logger.hpp"
 #include "pipeline/optimization_scheduler.hpp"  // for Milliseconds alias
 

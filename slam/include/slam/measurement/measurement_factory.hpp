@@ -10,7 +10,7 @@
 #include "measurement/bbox_measurement_model.hpp"
 #include "measurement/bearing_measurement_model.hpp"
 
-#include "common/def_slam.hpp"
+#include "common/def_slam_ekf.hpp"
 
 class MeasurementFactory {
 public:

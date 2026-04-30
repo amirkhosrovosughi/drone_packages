@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "measurement/bearing_measurement_model.hpp"
-#include "common/def_slam.hpp"
+#include "common/def_slam_ekf.hpp"
 
 TEST(BearingMeasurementModelTest, PredictFrontLandmark)
 {

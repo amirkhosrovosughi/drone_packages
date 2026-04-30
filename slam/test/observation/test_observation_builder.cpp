@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "observation/observation_builder.hpp"
-#include "common/def_slam.hpp"
+#include "common/def_slam_ekf.hpp"
 
 #include <drone_msgs/msg/point_list.hpp>
 #include <geometry_msgs/msg/point.hpp>

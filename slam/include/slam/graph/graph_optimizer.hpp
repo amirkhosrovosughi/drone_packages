@@ -1,7 +1,7 @@
 #ifndef SLAM__GRAPH__GRAPH_OPTIMIZER_HPP_
 #define SLAM__GRAPH__GRAPH_OPTIMIZER_HPP_
 
-#include "common/def_slam.hpp"
+#include "common/def_slam_graph.hpp"
 #include "common/slam_logger.hpp"
 #include "measurement/measurement.hpp"
 

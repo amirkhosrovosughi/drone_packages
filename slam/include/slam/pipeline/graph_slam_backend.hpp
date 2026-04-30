@@ -4,7 +4,7 @@
 #include <memory>
 #include <mutex>
 
-#include "common/def_slam.hpp"
+#include "common/def_slam_graph.hpp"
 #include "common/slam_logger.hpp"
 #include "graph/graph_optimizer.hpp"
 #include "measurement/measurement.hpp"

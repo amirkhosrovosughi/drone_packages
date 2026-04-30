@@ -3,7 +3,8 @@
 
 #include <functional>
 #include <Eigen/Dense>
-#include "common/def_slam.hpp"
+#include "common/def_slam_core.hpp"
+#include "common/def_slam_ekf.hpp"
 #include "common/slam_logger.hpp"
 #include "measurement/measurement.hpp"
 

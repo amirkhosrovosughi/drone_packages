@@ -7,6 +7,7 @@
 #include "observation/observation.hpp"
 #include "map/slam_map.hpp"
 #include "motion/motion_model.hpp"
+#include "common/def_slam_core.hpp"
 #include "common/slam_logger.hpp"
 
 namespace slam

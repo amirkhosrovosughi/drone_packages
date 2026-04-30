@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "measurement/point3d_measurement_model.hpp"
-#include "common/def_slam.hpp"
+#include "common/def_slam_core.hpp"
 #include <Eigen/Geometry>
 #include <cmath>
 

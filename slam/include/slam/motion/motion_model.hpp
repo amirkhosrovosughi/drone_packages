@@ -2,7 +2,6 @@
 #define SLAM_MOTION_MODEL_HPP_
 
 #include <Eigen/Dense>
-#include "common/def_slam.hpp"
 
 /**
  * @brief Abstract base class for robot motion models.

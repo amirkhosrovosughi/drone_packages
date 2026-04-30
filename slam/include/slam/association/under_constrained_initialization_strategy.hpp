@@ -3,7 +3,7 @@
 
 #include <optional>
 
-#include "common/def_slam.hpp"
+#include "common/def_slam_core.hpp"
 #include "measurement/measurement.hpp"
 
 /**

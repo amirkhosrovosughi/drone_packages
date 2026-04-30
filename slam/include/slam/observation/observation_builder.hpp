@@ -5,7 +5,7 @@
 #include "drone_msgs/msg/point_list.hpp"
 #include "drone_msgs/msg/bounding_boxes.hpp"
 #include <vision_msgs/msg/detection3_d_array.hpp>
-#include "common/def_slam.hpp"
+#include "common/def_slam_ekf.hpp"
 
 #include <vector>
 #include <optional>
