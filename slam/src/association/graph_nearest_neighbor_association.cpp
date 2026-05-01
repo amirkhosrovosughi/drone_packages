@@ -74,6 +74,7 @@ void GraphNearestNeighborAssociation::processPointMeasurement(
     }
 
     double shortestDistance = std::numeric_limits<double>::infinity();
+    double secondShortestDistance = std::numeric_limits<double>::infinity();
     bool foundComparableLandmark = false;
     std::size_t nearestIndex = startingLandmarkIndex;
     for (std::size_t i = startingLandmarkIndex; i < _landmarks.size(); ++i)
@@ -87,13 +88,19 @@ void GraphNearestNeighborAssociation::processPointMeasurement(
         foundComparableLandmark = true;
         if (distance < shortestDistance)
         {
+            secondShortestDistance = shortestDistance;
             shortestDistance = distance;
             nearestIndex = i;
+        }
+        else if (distance < secondShortestDistance)
+        {
+            secondShortestDistance = distance;
         }
     }
 
     int landmarkId = 0;
-    if (foundComparableLandmark && shortestDistance < this->getGatingDistance())
+    if (foundComparableLandmark && shortestDistance < this->getGatingDistance()
+        && isAmbiguityMarginSufficient(shortestDistance, secondShortestDistance))
     {
         _landmarks[nearestIndex].observeRepeat++;
         landmarkId = static_cast<int>(nearestIndex);

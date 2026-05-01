@@ -62,6 +62,21 @@ NearestNeighborAssociation::NearestNeighborAssociation(
     }
 }
 
+void NearestNeighborAssociation::setAmbiguityGate(bool enabled, double minMargin)
+{
+    _ambiguityGateEnabled = enabled;
+    _ambiguityGateMinMargin = minMargin;
+}
+
+bool NearestNeighborAssociation::isAmbiguityMarginSufficient(double top1Dist, double top2Dist) const
+{
+    if (!_ambiguityGateEnabled)
+    {
+        return true;
+    }
+    return (top2Dist - top1Dist) >= _ambiguityGateMinMargin;
+}
+
 void NearestNeighborAssociation::onReceiveMeasurement(const Measurements& meas) 
 {
     #ifdef STORE_DEBUG_DATA
@@ -249,6 +264,7 @@ void NearestNeighborAssociation::processBearingMeasurement(
     }
 
     double shortestDistance = std::numeric_limits<double>::infinity();
+    double secondShortestDistance = std::numeric_limits<double>::infinity();
     bool foundComparableLandmark = false;
     std::size_t nearestIndex = startingLandmarkIndex;
     Measurement nearestPredictedMeasurement;
@@ -276,10 +292,15 @@ void NearestNeighborAssociation::processBearingMeasurement(
             foundComparableLandmark = true;
             if (distance < shortestDistance)
             {
+                secondShortestDistance = shortestDistance;
                 shortestDistance = distance;
                 nearestIndex = i;
                 nearestPredictedMeasurement = predicted;
                 hasNearestPredictedMeasurement = true;
+            }
+            else if (distance < secondShortestDistance)
+            {
+                secondShortestDistance = distance;
             }
         }
         catch (const std::runtime_error&)
@@ -289,14 +310,18 @@ void NearestNeighborAssociation::processBearingMeasurement(
     }
 
     int landmarkId = 0;
-    const bool strictAssociationMatch = foundComparableLandmark && shortestDistance < this->getBearingGatingDistance();
+    const bool marginOk = isAmbiguityMarginSufficient(shortestDistance, secondShortestDistance);
+    const bool strictAssociationMatch = foundComparableLandmark
+        && shortestDistance < this->getBearingGatingDistance()
+        && marginOk;
     
     const double fallbackDistanceThreshold = this->getBearingRelaxedFallbackDistance();
     
     const bool relaxedBearingFallbackMatch =
         foundComparableLandmark &&
         shortestDistance >= this->getBearingGatingDistance() &&
-        shortestDistance < fallbackDistanceThreshold;
+        shortestDistance < fallbackDistanceThreshold &&
+        marginOk;
     if (strictAssociationMatch || relaxedBearingFallbackMatch)
     {
         _landmarks[nearestIndex].observeRepeat++;

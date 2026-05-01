@@ -298,6 +298,18 @@ private:
     virtual double getMinTriangulationBaselineMeters() const = 0;
     virtual double getMaxTriangulationMeanRayResidual() const = 0;
 
+public:
+    /**
+     * @brief Enable or disable the ambiguity defer gate and set its minimum margin.
+     */
+    void setAmbiguityGate(bool enabled, double minMargin);
+
+protected:
+    /**
+     * @brief Returns true when the top1/top2 distance margin is wide enough to accept.
+     */
+    bool isAmbiguityMarginSufficient(double top1Dist, double top2Dist) const;
+
 protected:
     // Shared state intended for child-class specialization logic.
     std::function<void(AssignedMeasurements)> _callback;
@@ -311,6 +323,8 @@ protected:
     LoggerPtr _logger;
     double _quaternionRate = 0.0;
     UnderConstrainedInitializationStrategyPtr _underConstrainedInitializationStrategy;
+    bool _ambiguityGateEnabled = false;
+    double _ambiguityGateMinMargin = 0.3;
 };
 
 #endif  // SLAM__NEAREST_NEIGHBOR_ASSOCIATION_HPP_

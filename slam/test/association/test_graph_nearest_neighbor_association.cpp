@@ -159,3 +159,145 @@ TEST(GraphNearestNeighborAssociationTest, BearingCandidateSelectsMinimumAngle)
             << "Query outside the angular gate should return -1 (no match)";
     }
 }
+
+// ─── Ambiguity gate tests ─────────────────────────────────────────────────────
+
+// Helper: build a Point3D measurement at position (x, y, z).
+static Measurement makePoint3DMeasurement(double x, double y, double z)
+{
+    Measurement m;
+    m.payload = Eigen::VectorXd(3);
+    m.payload << x, y, z;
+    m.model = std::make_shared<Point3DMeasurementModel>();
+    return m;
+}
+
+// Helper: send measurements repeatedly until the association confirms a landmark
+// (returns non-empty with isNew=true) or we give up after maxRounds.
+// Returns the confirmed assigned measurement, or empty if none arrived.
+static AssignedMeasurements seedConfirmedLandmark(
+    TestGraphNearestNeighborAssociation& assoc,
+    const Measurements& meas,
+    int maxRounds = 10)
+{
+    for (int i = 0; i < maxRounds; ++i)
+    {
+        std::promise<AssignedMeasurements> prom;
+        auto fut = prom.get_future();
+        assoc.registerCallback([&prom](AssignedMeasurements am) {
+            try { prom.set_value(am); } catch (...) {}
+        });
+        assoc.onReceiveMeasurement(meas);
+        if (fut.wait_for(std::chrono::seconds(2)) == std::future_status::ready)
+        {
+            auto result = fut.get();
+            if (!result.empty() && result[0].isNew)
+            {
+                return result;
+            }
+        }
+    }
+    return {};
+}
+
+// Gate disabled (default): even when two landmarks are at equal distances the
+// best match is still accepted unconditionally.
+TEST(GraphNearestNeighborAssociationTest, AmbiguityGateDisabledAlwaysAccepts)
+{
+    TestGraphNearestNeighborAssociation assoc;
+    assoc.setLogger(std::make_shared<MockSlamLogger>());
+    // Gate is disabled by default — do not call setAmbiguityGate.
+
+    // Landmarks are 0.8 m apart (> gating distance 0.6) so each seed
+    // measurement is outside the gate of the other confirmed landmark.
+    ASSERT_FALSE(seedConfirmedLandmark(assoc, {makePoint3DMeasurement(-0.4, 0.0, 5.0)}).empty());
+    ASSERT_FALSE(seedConfirmedLandmark(assoc, {makePoint3DMeasurement( 0.4, 0.0, 5.0)}).empty());
+
+    // A query exactly at the midpoint is equidistant (0.4 m) from both landmarks,
+    // each within the gate. Gate is off → should accept the nearest.
+    std::promise<AssignedMeasurements> prom;
+    auto fut = prom.get_future();
+    assoc.registerCallback([&prom](AssignedMeasurements am) {
+        try { prom.set_value(am); } catch (...) {}
+    });
+    assoc.onReceiveMeasurement({makePoint3DMeasurement(0.0, 0.0, 5.0)});
+    ASSERT_EQ(fut.wait_for(std::chrono::seconds(2)), std::future_status::ready);
+    const auto result = fut.get();
+    EXPECT_FALSE(result.empty()) << "Gate disabled: ambiguous measurement should still be accepted";
+}
+
+// Gate enabled, single candidate: no top2 exists, so the match must be
+// accepted unconditionally regardless of the configured margin.
+TEST(GraphNearestNeighborAssociationTest, AmbiguityGateSingleCandidateAlwaysAccepts)
+{
+    TestGraphNearestNeighborAssociation assoc;
+    assoc.setLogger(std::make_shared<MockSlamLogger>());
+    assoc.setAmbiguityGate(true, 0.5);  // strict margin
+
+    // Seed exactly one confirmed landmark.
+    ASSERT_FALSE(seedConfirmedLandmark(assoc, {makePoint3DMeasurement(0.0, 0.0, 5.0)}).empty());
+
+    // Query close to that single landmark — must match.
+    std::promise<AssignedMeasurements> prom;
+    auto fut = prom.get_future();
+    assoc.registerCallback([&prom](AssignedMeasurements am) {
+        try { prom.set_value(am); } catch (...) {}
+    });
+    assoc.onReceiveMeasurement({makePoint3DMeasurement(0.05, 0.0, 5.0)});
+    ASSERT_EQ(fut.wait_for(std::chrono::seconds(2)), std::future_status::ready);
+    const auto result = fut.get();
+    EXPECT_FALSE(result.empty()) << "Single candidate should always be accepted";
+}
+
+// Gate enabled, margin too small (ambiguous): measurement must be deferred.
+TEST(GraphNearestNeighborAssociationTest, AmbiguityGateDefearsAmbiguousMatch)
+{
+    // Margin large enough that the equal-distance case fails the gate.
+    static constexpr double kMargin = 0.3;
+
+    TestGraphNearestNeighborAssociation assoc;
+    assoc.setLogger(std::make_shared<MockSlamLogger>());
+    assoc.setAmbiguityGate(true, kMargin);
+
+    // Landmarks are 0.8 m apart (> gating distance 0.6) so seeding succeeds
+    // without the gate interfering (single candidate per seed round).
+    ASSERT_FALSE(seedConfirmedLandmark(assoc, {makePoint3DMeasurement(-0.4, 0.0, 5.0)}).empty());
+    ASSERT_FALSE(seedConfirmedLandmark(assoc, {makePoint3DMeasurement( 0.4, 0.0, 5.0)}).empty());
+
+    // Query exactly at the midpoint → top1 = top2 = 0.4 m →
+    // margin = 0 < kMargin (0.3) → should defer.
+    std::promise<AssignedMeasurements> prom;
+    auto fut = prom.get_future();
+    assoc.registerCallback([&prom](AssignedMeasurements am) {
+        try { prom.set_value(am); } catch (...) {}
+    });
+    assoc.onReceiveMeasurement({makePoint3DMeasurement(0.0, 0.0, 5.0)});
+    ASSERT_EQ(fut.wait_for(std::chrono::seconds(2)), std::future_status::ready);
+    const auto result = fut.get();
+    EXPECT_TRUE(result.empty()) << "Ambiguous match (margin below threshold) should be deferred";
+}
+
+// Gate enabled, margin clearly sufficient: unambiguous best match is accepted.
+TEST(GraphNearestNeighborAssociationTest, AmbiguityGateAcceptsClearMatch)
+{
+    static constexpr double kMargin = 0.05;  // small margin, easily satisfied
+
+    TestGraphNearestNeighborAssociation assoc;
+    assoc.setLogger(std::make_shared<MockSlamLogger>());
+    assoc.setAmbiguityGate(true, kMargin);
+
+    // Seed two landmarks: one very close to our future query, one far away.
+    ASSERT_FALSE(seedConfirmedLandmark(assoc, {makePoint3DMeasurement(0.0, 0.0, 5.0)}).empty());
+    ASSERT_FALSE(seedConfirmedLandmark(assoc, {makePoint3DMeasurement(3.0, 0.0, 5.0)}).empty());
+
+    // Query close to landmark 1 → top1 much smaller than top2 → margin wide → accept.
+    std::promise<AssignedMeasurements> prom;
+    auto fut = prom.get_future();
+    assoc.registerCallback([&prom](AssignedMeasurements am) {
+        try { prom.set_value(am); } catch (...) {}
+    });
+    assoc.onReceiveMeasurement({makePoint3DMeasurement(0.05, 0.0, 5.0)});
+    ASSERT_EQ(fut.wait_for(std::chrono::seconds(2)), std::future_status::ready);
+    const auto result = fut.get();
+    EXPECT_FALSE(result.empty()) << "Clear unambiguous match should be accepted";
+}
