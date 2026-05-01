@@ -28,7 +28,7 @@ static const double EKF_MIN_TRIANGULATION_PARALLAX_RADIANS = 0.08;
 static const double EKF_MIN_TRIANGULATION_BASELINE_METERS = 0.20;
 static const double EKF_MAX_TRIANGULATION_MEAN_RAY_RESIDUAL = 0.75;
 static const double EKF_POINT_DUPLICATE_SUPPRESS_GATE = 0.08;
-static const double EKF_BEARING_TENTATIVE_DIRECTION_GATING_RADIANS = 0.12;
+static const double EKF_BEARING_TENTATIVE_DIRECTION_GATING_RADIANS = 0.14;
 static const double EKF_BEARING_TRIANGULATED_RAY_DISTANCE_GATING_METERS = 0.35;
 
 static const LogLevel EKF_HIGH_LEVEL = LogLevel::INFO;
@@ -39,6 +39,12 @@ namespace {
 constexpr double kEkfUnderConstrainedGatingDistance = 2.0;
 constexpr double kEkfVarianceEpsilon = 1e-6;
 }  // namespace
+
+EkfNearestNeighborAssociation::EkfNearestNeighborAssociation()
+    : NearestNeighborAssociation(std::make_shared<EkfBearingInitializationStrategy>())
+{
+    setAmbiguityGate(true, 0.08);
+}
 
 void EkfNearestNeighborAssociation::processPointMeasurement(
     const Measurement& measurement,

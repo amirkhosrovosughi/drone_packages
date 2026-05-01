@@ -828,12 +828,18 @@ double NearestNeighborAssociation::pointToRayDistance(
 
 bool NearestNeighborAssociation::shouldConfirmTentativeLandmark(const TentativeLandmark& candidate) const
 {
-    if (candidate.consistentObservations < this->getMinConfirmationObservations())
+    const double covarianceTrace = candidate.variance.xx + candidate.variance.yy;
+
+    // Prefer bearingObservations.size() for underConstrained candidates: unlike
+    // consistentObservations, it is never reset on a missed frame.
+    const std::size_t effectiveObsCount = (candidate.isUnderConstrained && !candidate.bearingObservations.empty())
+        ? candidate.bearingObservations.size()
+        : static_cast<std::size_t>(candidate.consistentObservations);
+
+    if (effectiveObsCount < static_cast<std::size_t>(this->getMinConfirmationObservations()))
     {
         return false;
     }
-
-    const double covarianceTrace = candidate.variance.xx + candidate.variance.yy;
 
     if (candidate.isUnderConstrained)
     {

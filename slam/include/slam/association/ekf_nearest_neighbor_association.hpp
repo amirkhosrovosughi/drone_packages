@@ -6,9 +6,7 @@
 
 class EkfNearestNeighborAssociation : public NearestNeighborAssociation {
 public:
-    EkfNearestNeighborAssociation()
-        : NearestNeighborAssociation(std::make_shared<EkfBearingInitializationStrategy>())
-    {}
+    EkfNearestNeighborAssociation();
 
     ~EkfNearestNeighborAssociation() override = default;
 
