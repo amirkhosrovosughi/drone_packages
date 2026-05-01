@@ -15,11 +15,11 @@ int PositionOnlyMotionModel::getStateDimension() const
 }
 
 MotionModel::State PositionOnlyMotionModel::propagate(
-    const State& current_state,
+    const State& currentState,
     const Eigen::VectorXd& motionDisplacement) const
 {
     // Simple additive model: x_{k+1} = x_k + delta
-    MotionModel::State next = current_state;
+    MotionModel::State next = currentState;
     if (next.size() == 0) {
         next = MotionModel::State::Zero(3);
     }

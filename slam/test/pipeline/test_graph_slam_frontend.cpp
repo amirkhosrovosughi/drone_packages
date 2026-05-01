@@ -61,7 +61,7 @@ static MotionConstraint makeMotion(
   const Eigen::Quaterniond& orientation)
 {
   MotionConstraint m;
-  m.delta_position = delta;
+  m.deltaPosition = delta;
   m.orientation = orientation;
   return m;
 }
@@ -136,7 +136,7 @@ TEST(GraphSlamFrontendTest, TranslationOverThresholdEmitsKeyframe)
   frontend.onMotion(makeMotion(Eigen::Vector3d(secondStepM, 0.0, 0.0), Eigen::Quaterniond::Identity()));
 
   EXPECT_EQ(motionCallbackCount, 1);
-  EXPECT_NEAR(emittedMotion.delta_position.norm(), kTranslationThresholdM + kTranslationEpsilonM, 1e-9);
+  EXPECT_NEAR(emittedMotion.deltaPosition.norm(), kTranslationThresholdM + kTranslationEpsilonM, 1e-9);
 }
 
 TEST(GraphSlamFrontendTest, RotationAtThresholdDoesNotEmitKeyframe)

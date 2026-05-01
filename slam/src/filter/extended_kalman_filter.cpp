@@ -56,9 +56,9 @@ void ExtendedKalmanFilter::processPrediction(const PredictionInput& predictionIn
         std::map<std::string, double> mapLog;
         #endif
 
-        Eigen::VectorXd robot_state = _slamMap->getRobotMean();
-        Eigen::VectorXd updatedRobotMean = _motionModel->propagate(robot_state, predictionInput.delta_position);
-        _logger->log(LOW_LEVEL, LOG_SUBSECTION, "delta position is: ", "\n", predictionInput.delta_position);
+        Eigen::VectorXd robotState = _slamMap->getRobotMean();
+        Eigen::VectorXd updatedRobotMean = _motionModel->propagate(robotState, predictionInput.deltaPosition);
+        _logger->log(LOW_LEVEL, LOG_SUBSECTION, "delta position is: ", "\n", predictionInput.deltaPosition);
         _logger->log(HIGH_LEVEL, LOG_SUBSECTION, "updatedRobotMean is: ", "\n", updatedRobotMean);
 
         _slamMap->setRobotMean(updatedRobotMean);
@@ -69,7 +69,7 @@ void ExtendedKalmanFilter::processPrediction(const PredictionInput& predictionIn
         mapLog["updatedRobotMean[2]"] = updatedRobotMean[2];
         #endif
 
-        Eigen::MatrixXd F = _motionModel->computeStateJacobian(robot_state, predictionInput.delta_position);
+        Eigen::MatrixXd F = _motionModel->computeStateJacobian(robotState, predictionInput.deltaPosition);
         Eigen::MatrixXd Q = _motionModel->getProcessNoise();
         Eigen::MatrixXd updatedRobotCorrelation = F * _slamMap->getRobotCorrelation() * F.transpose() + Q;
         _slamMap->setRobotCorrelation(updatedRobotCorrelation);
@@ -100,11 +100,11 @@ void ExtendedKalmanFilter::processPrediction(const PredictionInput& predictionIn
     }
 }
 
-void ExtendedKalmanFilter::processCorrection(const AssignedMeasurements& assigned_measurements)
+void ExtendedKalmanFilter::processCorrection(const AssignedMeasurements& assignedMeasurements)
 {
     {
         std::lock_guard<std::mutex> lock(_mutex);
-        for (const AssignedMeasurement& meas : assigned_measurements)
+        for (const AssignedMeasurement& meas : assignedMeasurements)
         {
             if (meas.isNew)
             {

@@ -1,5 +1,5 @@
-#ifndef SLAM__EKF_SLAM_BACKEND_HPP_
-#define SLAM__EKF_SLAM_BACKEND_HPP_
+#ifndef SLAM__PIPELINE__EKF_SLAM_PIPELINE_HPP_
+#define SLAM__PIPELINE__EKF_SLAM_PIPELINE_HPP_
 
 #include <memory>
 #include <mutex>
@@ -30,9 +30,6 @@ class EkfSlamPipeline : public SlamPipeline
 public:
   /**
    * @brief Construct EKF SLAM pipeline.
-   * @param filter EKF filter instance
-   * @param association Data association strategy
-   * @param measurementFactory Measurement factory instance
    */
   EkfSlamPipeline(
     std::shared_ptr<ExtendedKalmanFilter> filter,
@@ -70,4 +67,4 @@ private:
 
 } // namespace slam
 
-#endif  // SLAM__EKF_SLAM_BACKEND_HPP_
+#endif  // SLAM__PIPELINE__EKF_SLAM_PIPELINE_HPP_

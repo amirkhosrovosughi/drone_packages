@@ -23,8 +23,8 @@ void BearingMeasurementModel::assertCameraInfoAvailable() const
 }
 
 Measurement BearingMeasurementModel::predict(
-    const Pose& robot_pose,
-    const Position& landmark_position)
+    const Pose& robotPose,
+    const Position& landmarkPosition)
 {
     assertCameraInfoAvailable();
 
@@ -36,24 +36,24 @@ Measurement BearingMeasurementModel::predict(
      * World -> Robot -> Camera
      * ------------------------------- */
 
-    Eigen::Vector4d p_w;
-    p_w << landmark_position.x,
-           landmark_position.y,
-           landmark_position.z,
-           1.0;
+    Eigen::Vector4d pWorld;
+    pWorld << landmarkPosition.x,
+              landmarkPosition.y,
+              landmarkPosition.z,
+              1.0;
 
     // World -> Robot
-    Eigen::Matrix4d T_wr = robot_pose.getTransformationMatrix();
+    Eigen::Matrix4d tWorldRobot = robotPose.getTransformationMatrix();
 
     // Robot -> Camera (extrinsics)
-    const Eigen::Matrix4d& T_rc = cam.extrinsics;
+    const Eigen::Matrix4d& tRobotCamera = cam.extrinsics;
 
     // World -> Camera
-    Eigen::Vector4d p_c = T_rc.inverse() * T_wr.inverse() * p_w;
+    Eigen::Vector4d pCamera = tRobotCamera.inverse() * tWorldRobot.inverse() * pWorld;
 
-    double X = p_c.x();
-    double Y = p_c.y();
-    double Z = p_c.z();
+    double X = pCamera.x();
+    double Y = pCamera.y();
+    double Z = pCamera.z();
 
     if (Z <= 0.0)
     {
@@ -64,11 +64,11 @@ Measurement BearingMeasurementModel::predict(
      * Camera projection -> bearings
      * ------------------------------- */
 
-    double u_n = X / Z;
-    double v_n = Y / Z;
+    double uNorm = X / Z;
+    double vNorm = Y / Z;
 
-    double yaw   = std::atan(u_n);
-    double pitch = std::atan(v_n);
+    double yaw   = std::atan(uNorm);
+    double pitch = std::atan(vNorm);
 
     z_hat.payload = Eigen::VectorXd(2);
     z_hat.payload << yaw, pitch;
@@ -102,7 +102,7 @@ Eigen::MatrixXd BearingMeasurementModel::measurementNoise() const
 }
 
 std::optional<Position> BearingMeasurementModel::inverse(
-    const Pose& robot_pose, const Measurement& m) const
+    const Pose& robotPose, const Measurement& m) const
 {
     assertCameraInfoAvailable();
 
@@ -116,17 +116,17 @@ std::optional<Position> BearingMeasurementModel::inverse(
 
     Eigen::Vector3d rayOriginWorld;
     Eigen::Vector3d rayDirectionWorld;
-    if (!worldRayFromMeasurement(robot_pose, m, rayOriginWorld, rayDirectionWorld))
+    if (!worldRayFromMeasurement(robotPose, m, rayOriginWorld, rayDirectionWorld))
     {
         return std::nullopt;
     }
 
-    const Eigen::Vector3d p_w = rayOriginWorld + kDefaultDepthMeters * rayDirectionWorld;
-    return Position(p_w);
+    const Eigen::Vector3d pWorld = rayOriginWorld + kDefaultDepthMeters * rayDirectionWorld;
+    return Position(pWorld);
 }
 
 bool BearingMeasurementModel::worldRayFromMeasurement(
-    const Pose& robot_pose,
+    const Pose& robotPose,
     const Measurement& m,
     Eigen::Vector3d& rayOriginWorld,
     Eigen::Vector3d& rayDirectionWorld) const
@@ -141,21 +141,21 @@ bool BearingMeasurementModel::worldRayFromMeasurement(
     const double yaw = m.payload(0);
     const double pitch = m.payload(1);
 
-    Eigen::Vector3d dir_camera(std::tan(yaw), std::tan(pitch), 1.0);
-    const double norm = dir_camera.norm();
+    Eigen::Vector3d dirCamera(std::tan(yaw), std::tan(pitch), 1.0);
+    const double norm = dirCamera.norm();
     if (norm <= 1e-9)
     {
         return false;
     }
-    dir_camera /= norm;
+    dirCamera /= norm;
 
     const auto& cam = _cameraInfo.value();
-    const Eigen::Matrix4d T_wr = robot_pose.getTransformationMatrix();
-    const Eigen::Matrix4d& T_rc = cam.extrinsics;
-    const Eigen::Matrix4d T_wc = T_wr * T_rc;
+    const Eigen::Matrix4d tWorldRobot = robotPose.getTransformationMatrix();
+    const Eigen::Matrix4d& tRobotCamera = cam.extrinsics;
+    const Eigen::Matrix4d tWorldCamera = tWorldRobot * tRobotCamera;
 
-    rayOriginWorld = T_wc.block<3, 1>(0, 3);
-    rayDirectionWorld = T_wc.block<3, 3>(0, 0) * dir_camera;
+    rayOriginWorld = tWorldCamera.block<3, 1>(0, 3);
+    rayDirectionWorld = tWorldCamera.block<3, 3>(0, 0) * dirCamera;
 
     const double directionNorm = rayDirectionWorld.norm();
     if (directionNorm <= 1e-9)

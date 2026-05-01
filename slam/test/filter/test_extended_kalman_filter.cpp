@@ -22,7 +22,7 @@ TEST(ExtendedKalmanFilterTest, PredictionUpdatesRobotPose)
             });
 
     PredictionInput p;
-    p.delta_position = Eigen::Vector3d(1.0, 2.0, -0.5);
+    p.deltaPosition = Eigen::Vector3d(1.0, 2.0, -0.5);
     p.orientation = Eigen::Quaterniond::Identity();
 
     ekf.prediction(p);

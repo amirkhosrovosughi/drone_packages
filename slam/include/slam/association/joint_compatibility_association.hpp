@@ -1,5 +1,5 @@
-#ifndef SLAM__JOINT_COMPATIBILITY_ASSOCIATION_HPP_
-#define SLAM__JOINT_COMPATIBILITY_ASSOCIATION_HPP_
+#ifndef SLAM__ASSOCIATION__JOINT_COMPATIBILITY_ASSOCIATION_HPP_
+#define SLAM__ASSOCIATION__JOINT_COMPATIBILITY_ASSOCIATION_HPP_
 
 #include "base_association.hpp"
 
@@ -19,29 +19,16 @@ public:
 
     /**
      * @brief Handle incoming sensor measurements.
-     *
-     * This is the public entry point for delivering raw measurements to the
-     * association module.
-     *
-     * @param meas Incoming measurements vector.
-     */    
+     */
     void onReceiveMeasurement(const Measurements& meas) override;
 
     /**
      * @brief Handle map updates from the SLAM manager.
-     *
-     * Update internal landmark list and robot pose from the given map summary.
-     *
-     * @param map Current map summary.
      */
     void handleUpdate(const MapSummary& map) override;
 
     /**
      * @brief Register a callback invoked when measurements are associated.
-     *
-     * The provided callback will be called with associated measurements.
-     *
-     * @param callback Function to call with associated measurements.
      */
     void registerCallback(std::function<void(AssignedMeasurements)> callback) override
     {
@@ -50,18 +37,12 @@ public:
 
     /**
      * @brief Set the logger instance used by this component.
-     *
-     * @param logger Shared pointer to logger instance.
      */
     void setLogger(LoggerPtr logger) override {}
 
 private:
     /**
      * @brief Internal processing of measurements (implementation detail).
-     *
-     * Subclasses implement the actual association algorithm here.
-     *
-     * @param meas Measurements to process.
      */
     void processMeasurement(const Measurements& meas) override;
 
@@ -69,4 +50,4 @@ private:
     std::function<void(AssignedMeasurements)> _callback;  ///< Callback invoked with associated measurements
 };
 
-#endif  // SLAM__JOINT_COMPATIBILITY_ASSOCIATION_HPP_
+#endif  // SLAM__ASSOCIATION__JOINT_COMPATIBILITY_ASSOCIATION_HPP_

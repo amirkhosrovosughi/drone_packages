@@ -72,9 +72,9 @@ public:
   void applyMotion(const MotionConstraint& motion) override
   {
     const int fromId = graph.activeKeyframeId;
-    graph.robot.pose.position.x += motion.delta_position.x();
-    graph.robot.pose.position.y += motion.delta_position.y();
-    graph.robot.pose.position.z += motion.delta_position.z();
+    graph.robot.pose.position.x += motion.deltaPosition.x();
+    graph.robot.pose.position.y += motion.deltaPosition.y();
+    graph.robot.pose.position.z += motion.deltaPosition.z();
     graph.robot.pose.quaternion.w = motion.orientation.w();
     graph.robot.pose.quaternion.x = motion.orientation.x();
     graph.robot.pose.quaternion.y = motion.orientation.y();
@@ -173,7 +173,7 @@ public:
 static MotionConstraint makeMotion(const Eigen::Vector3d& delta)
 {
   MotionConstraint motion;
-  motion.delta_position = delta;
+  motion.deltaPosition = delta;
   motion.orientation = Eigen::Quaterniond::Identity();
   return motion;
 }

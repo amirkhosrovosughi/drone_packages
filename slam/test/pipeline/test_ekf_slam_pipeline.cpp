@@ -191,13 +191,13 @@ TEST(EkfSlamPipelineTest, ProcessMotionForwardsToFilterPrediction)
   EkfSlamPipeline pipeline(ekf, assoc, factory);
 
   MotionConstraint m;
-  m.delta_position = Eigen::Vector3d(1.0, -2.0, 0.5);
+  m.deltaPosition = Eigen::Vector3d(1.0, -2.0, 0.5);
   m.orientation = Eigen::Quaterniond::Identity();
 
   pipeline.processMotion(m);
 
   EXPECT_TRUE(ekf->predictionCalled);
-  EXPECT_TRUE(ekf->lastPrediction.delta_position.isApprox(m.delta_position));
+  EXPECT_TRUE(ekf->lastPrediction.deltaPosition.isApprox(m.deltaPosition));
 }
 
 TEST(EkfSlamPipelineTest, ProcessObservationBuildsAndForwardsMeasurements)
@@ -273,7 +273,7 @@ TEST(EkfSlamPipelineTest, EndToEndObservationCreatesLandmarkAndResetClearsIt)
   pipeline.initialize();
 
   MotionConstraint motionConstraint;
-  motionConstraint.delta_position = Eigen::Vector3d::Zero();
+  motionConstraint.deltaPosition = Eigen::Vector3d::Zero();
   motionConstraint.orientation = Eigen::Quaterniond::Identity();
   pipeline.processMotion(motionConstraint);
 
@@ -321,10 +321,10 @@ TEST(EkfSlamPipelineTest, EndToEndBearingObservationCreatesLandmarkWithStrategy)
   for (int i = 0; i < 12; ++i)
   {
     MotionConstraint motionConstraint;
-    motionConstraint.delta_position = Eigen::Vector3d(0.06, 0.03, 0.0);
+    motionConstraint.deltaPosition = Eigen::Vector3d(0.06, 0.03, 0.0);
     motionConstraint.orientation = Eigen::Quaterniond::Identity();
     pipeline.processMotion(motionConstraint);
-    robotPosition += motionConstraint.delta_position;
+    robotPosition += motionConstraint.deltaPosition;
 
     const Bearing bearing = makeBearingFromWorldLandmark(robotPosition, landmarkWorld);
     Observation obs(0.0, bearing);
@@ -380,10 +380,10 @@ TEST(EkfSlamPipelineTest, NoisyBearingObservationsStillConfirmTentativeLandmark)
   for (const auto& sample : noise)
   {
     MotionConstraint motionConstraint;
-    motionConstraint.delta_position = Eigen::Vector3d(0.05, 0.025, 0.0);
+    motionConstraint.deltaPosition = Eigen::Vector3d(0.05, 0.025, 0.0);
     motionConstraint.orientation = Eigen::Quaterniond::Identity();
     pipeline.processMotion(motionConstraint);
-    robotPosition += motionConstraint.delta_position;
+    robotPosition += motionConstraint.deltaPosition;
 
     const Bearing ideal = makeBearingFromWorldLandmark(robotPosition, landmarkWorld);
     Bearing bearing;
@@ -424,7 +424,7 @@ protected:
     pipeline.initialize();
 
     MotionConstraint motionConstraint;
-    motionConstraint.delta_position = Eigen::Vector3d::Zero();
+    motionConstraint.deltaPosition = Eigen::Vector3d::Zero();
     Eigen::Quaterniond yaw(Eigen::AngleAxisd(yaw_rad, Eigen::Vector3d::UnitZ()));
     motionConstraint.orientation = yaw;
 
@@ -493,7 +493,7 @@ protected:
     for (int i = 0; i < 12; ++i)
     {
       MotionConstraint motionConstraint;
-      motionConstraint.delta_position = drift_step;
+      motionConstraint.deltaPosition = drift_step;
       motionConstraint.orientation = yaw;
       pipeline.processMotion(motionConstraint);
 

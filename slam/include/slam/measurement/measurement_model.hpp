@@ -1,5 +1,5 @@
-#ifndef MEASUREMENT_MODEL_HPP_
-#define MEASUREMENT_MODEL_HPP_
+#ifndef SLAM__MEASUREMENT__MEASUREMENT_MODEL_HPP_
+#define SLAM__MEASUREMENT__MEASUREMENT_MODEL_HPP_
 
 #include <Eigen/Dense>
 #include <optional>
@@ -29,24 +29,24 @@ public:
      * z_hat = h(x, landmark)
      */
     virtual Measurement predict(
-        const Pose& robot_pose,
-        const Position& landmark_position
+        const Pose& robotPose,
+        const Position& landmarkPosition
     ) = 0;
 
     /**
      * @brief Jacobian of measurement w.r.t robot pose.
      */
     virtual Eigen::MatrixXd jacobianWrtRobot(
-        const Pose& robot_pose,
-        const Position& landmark_position
+        const Pose& robotPose,
+        const Position& landmarkPosition
     ) const = 0;
 
     /**
      * @brief Jacobian of measurement w.r.t landmark.
      */
     virtual Eigen::MatrixXd jacobianWrtLandmark(
-        const Pose& robot_pose,
-        const Position& landmark_position
+        const Pose& robotPose,
+        const Position& landmarkPosition
     ) const = 0;
 
     /**
@@ -58,7 +58,7 @@ public:
      * @brief Given a robot pose and a raw observation,
      * estimate a landmark position in the world frame.
      */
-    virtual std::optional<Position> inverse(const Pose &robot_pose, const Measurement &m) const = 0;
+    virtual std::optional<Position> inverse(const Pose& robotPose, const Measurement& m) const = 0;
 };
 
-#endif  // MEASUREMENT_MODEL_HPP_
+#endif  // SLAM__MEASUREMENT__MEASUREMENT_MODEL_HPP_

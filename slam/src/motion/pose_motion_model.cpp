@@ -15,10 +15,10 @@ int PoseMotionModel::getStateDimension() const
 }
 
 MotionModel::State PoseMotionModel::propagate(
-    const State& current_state,
+    const State& currentState,
     const Eigen::VectorXd& motionDisplacement) const
 {
-    MotionModel::State next = current_state;
+    MotionModel::State next = currentState;
     if (next.size() == 0) {
         next = MotionModel::State::Zero(6);
     }
@@ -30,7 +30,7 @@ MotionModel::State PoseMotionModel::propagate(
 
 Eigen::MatrixXd PoseMotionModel::computeStateJacobian(
     const State& /*state*/,
-    const Eigen::VectorXd& /*delta_position*/) const
+    const Eigen::VectorXd& /*motionDisplacement*/) const
 {
     // ∂x_{k+1}/∂x_k = I
     return Eigen::MatrixXd::Identity(6, 6);

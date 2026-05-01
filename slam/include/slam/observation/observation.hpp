@@ -1,5 +1,5 @@
-#ifndef OBSERVATION_HPP_
-#define OBSERVATION_HPP_
+#ifndef SLAM__OBSERVATION__OBSERVATION_HPP_
+#define SLAM__OBSERVATION__OBSERVATION_HPP_
 
 #include <Eigen/Dense>
 #include <string>
@@ -28,7 +28,7 @@ struct BoundingBox
     float height = 0.0f;
 
     float confidence = 1.0f;
-    std::string class_label;
+    std::string classLabel;
 };
 
 /// Observation payload (constraint)
@@ -74,4 +74,4 @@ using Observations = std::vector<Observation>;
 
 } // namespace slam
 
-#endif  // OBSERVATION_HPP_
+#endif  // SLAM__OBSERVATION__OBSERVATION_HPP_

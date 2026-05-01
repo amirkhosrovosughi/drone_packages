@@ -65,9 +65,9 @@ void InternalGraphOptimizer::applyMotion(const MotionConstraint& motion)
 
   const int fromKeyframeId = _graph.activeKeyframeId;
 
-  _graph.robot.pose.position.x += motion.delta_position.x();
-  _graph.robot.pose.position.y += motion.delta_position.y();
-  _graph.robot.pose.position.z += motion.delta_position.z();
+  _graph.robot.pose.position.x += motion.deltaPosition.x();
+  _graph.robot.pose.position.y += motion.deltaPosition.y();
+  _graph.robot.pose.position.z += motion.deltaPosition.z();
   _graph.robot.pose.quaternion.w = motion.orientation.w();
   _graph.robot.pose.quaternion.x = motion.orientation.x();
   _graph.robot.pose.quaternion.y = motion.orientation.y();
@@ -481,7 +481,7 @@ void InternalGraphOptimizer::buildSystemMatrices(
       _graph.keyframes[fromIt->second].robot.pose.position.getPositionVector();
     const Eigen::Vector3d toPos =
       _graph.keyframes[toIt->second].robot.pose.position.getPositionVector();
-    const Eigen::Vector3d residual = (toPos - fromPos) - edge.motion.delta_position;
+    const Eigen::Vector3d residual = (toPos - fromPos) - edge.motion.deltaPosition;
 
     hessian.block<3, 3>(fromRow, fromRow).diagonal().array() += kOdometryConstraintWeight;
     hessian.block<3, 3>(toRow,   toRow  ).diagonal().array() += kOdometryConstraintWeight;
@@ -511,7 +511,7 @@ void InternalGraphOptimizer::buildSystemMatrices(
     const Eigen::Vector3d toPos =
       _graph.keyframes[toIt->second].robot.pose.position.getPositionVector();
     const Eigen::Vector3d residual =
-      (toPos - fromPos) - edge.relativeMotion.delta_position;
+      (toPos - fromPos) - edge.relativeMotion.deltaPosition;
 
     const double supportScale =
       std::min(1.0, std::max(0.0, static_cast<double>(edge.supportCount) / 5.0));
@@ -559,7 +559,7 @@ double InternalGraphOptimizer::computeWeightedResidual(
     const Eigen::Vector3d toPos =
       _graph.keyframes[toIt->second].robot.pose.position.getPositionVector();
     totalError +=
-      kOdometryConstraintWeight * ((toPos - fromPos) - edge.motion.delta_position).squaredNorm();
+      kOdometryConstraintWeight * ((toPos - fromPos) - edge.motion.deltaPosition).squaredNorm();
   }
 
   for (const auto& edge : _graph.loopClosureEdges)
@@ -579,7 +579,7 @@ double InternalGraphOptimizer::computeWeightedResidual(
     const double loopWeight =
       kGlobalLoopClosureBaseWeight * supportScale * std::max(0.1, edge.inlierRatio);
     totalError +=
-      loopWeight * ((toPos - fromPos) - edge.relativeMotion.delta_position).squaredNorm();
+      loopWeight * ((toPos - fromPos) - edge.relativeMotion.deltaPosition).squaredNorm();
   }
 
   return totalError;
@@ -763,7 +763,7 @@ LoopClosureValidationResult InternalGraphOptimizer::validateLoopClosureCandidate
   const double translationResidual =
     (geometricRelativeDelta - integratedOdometryDelta).norm();
   MotionConstraint estimatedRelativeMotion;
-  estimatedRelativeMotion.delta_position = geometricRelativeDelta;
+  estimatedRelativeMotion.deltaPosition = geometricRelativeDelta;
   estimatedRelativeMotion.orientation = poseQuaternionToEigen(sourceKeyframe->robot.pose);
 
   if (supportCount < kMinSequentialOdometrySupportEdges)
@@ -992,7 +992,7 @@ bool InternalGraphOptimizer::accumulateSequentialOdometryDelta(
       return false;
     }
 
-    accumulatedForward += edgeIt->motion.delta_position;
+    accumulatedForward += edgeIt->motion.deltaPosition;
     *edgeCountOut += 1;
   }
 

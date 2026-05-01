@@ -1,5 +1,5 @@
-#ifndef BBOX_MEASUREMENT_MODEL_HPP_
-#define BBOX_MEASUREMENT_MODEL_HPP_
+#ifndef SLAM__MEASUREMENT__BBOX_MEASUREMENT_MODEL_HPP_
+#define SLAM__MEASUREMENT__BBOX_MEASUREMENT_MODEL_HPP_
 
 #include <Eigen/Dense>
 #include <optional>
@@ -21,27 +21,27 @@ public:
     int measurementDimension() const override;
 
     Measurement predict(
-        const Pose& robot_pose,
-        const Position& landmark_position
+        const Pose& robotPose,
+        const Position& landmarkPosition
     ) override;
 
     Eigen::MatrixXd jacobianWrtRobot(
-        const Pose& robot_pose,
-        const Position& landmark_position
+        const Pose& robotPose,
+        const Position& landmarkPosition
     ) const override;
 
     Eigen::MatrixXd jacobianWrtLandmark(
-        const Pose& robot_pose,
-        const Position& landmark_position
+        const Pose& robotPose,
+        const Position& landmarkPosition
     ) const override;
 
     Eigen::MatrixXd measurementNoise() const override;
 
-    std::optional<Position> inverse(const Pose &robot_pose, const Measurement &m) const override;
+    std::optional<Position> inverse(const Pose& robotPose, const Measurement& m) const override;
 
 private:
     void assertCameraInfoAvailable() const;
     std::optional<CameraInfo> _cameraInfo; ///< Camera intrinsic and extrinsic information
 };
 
-#endif  // BBOX_MEASUREMENT_MODEL_HPP_
+#endif  // SLAM__MEASUREMENT__BBOX_MEASUREMENT_MODEL_HPP_

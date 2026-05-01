@@ -1,5 +1,5 @@
-#ifndef POSITION_ONLY_MOTION_MODEL_HPP_
-#define POSITION_ONLY_MOTION_MODEL_HPP_
+#ifndef SLAM__MOTION__POSITION_ONLY_MOTION_MODEL_HPP_
+#define SLAM__MOTION__POSITION_ONLY_MOTION_MODEL_HPP_
 
 #include "motion/motion_model.hpp"
 
@@ -13,7 +13,6 @@ class PositionOnlyMotionModel : public MotionModel {
 public:
     /**
      * @brief Get state dimension.
-     * @return int Dimension
      */
     int getStateDimension() const override;
 
@@ -21,7 +20,7 @@ public:
      * @brief Propagate position using delta position.
      */
     State propagate(
-        const State& current_state,
+        const State& currentState,
         const Eigen::VectorXd& motionDisplacement) const override;
 
     /**
@@ -37,4 +36,4 @@ public:
     Eigen::MatrixXd getProcessNoise() const override;
 };
 
-#endif  // POSITION_ONLY_MOTION_MODEL_HPP_
+#endif  // SLAM__MOTION__POSITION_ONLY_MOTION_MODEL_HPP_

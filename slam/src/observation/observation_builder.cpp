@@ -13,7 +13,7 @@ ObservationBuilder::fromPointList(const drone_msgs::msg::PointList& msg,
   std::vector<Observation> observations;
   observations.reserve(msg.points.size());
 
-  int temp_id = 0;
+  int tempId = 0;
 
   for (const auto& pt : msg.points)
   {
@@ -21,7 +21,7 @@ ObservationBuilder::fromPointList(const drone_msgs::msg::PointList& msg,
     point.position = Eigen::Vector3d(pt.x, pt.y, pt.z);
 
     Observation obs(timeTag, point);
-    obs.id = temp_id++;  // temporary hint; association may overwrite
+    obs.id = tempId++;  // temporary hint; association may overwrite
 
     observations.push_back(std::move(obs));
   }
@@ -37,7 +37,7 @@ ObservationBuilder::fromBoundingBoxes(
   std::vector<Observation> observations;
   observations.reserve(msg.boxes.size());
 
-  int temp_id = 0;
+  int tempId = 0;
 
   for (const auto& box : msg.boxes)
   {
@@ -47,10 +47,10 @@ ObservationBuilder::fromBoundingBoxes(
     bbox.width = box.width;
     bbox.height = box.height;
     bbox.confidence = box.probability;
-    bbox.class_label = box.class_label;
+    bbox.classLabel = box.class_label;
 
     Observation obs(timeTag, bbox);
-    obs.id = temp_id++;  // optional hint
+    obs.id = tempId++;  // optional hint
 
     observations.push_back(std::move(obs));
   }
@@ -59,11 +59,11 @@ ObservationBuilder::fromBoundingBoxes(
 }
 
 // Definition of static member declared in header
-std::optional<CameraInfo> ObservationBuilder::s_camera_info = std::nullopt;
+std::optional<CameraInfo> ObservationBuilder::sCameraInfo = std::nullopt;
 
 void ObservationBuilder::setCameraInfo(const CameraInfo& info)
 {
-  ObservationBuilder::s_camera_info = info;
+  ObservationBuilder::sCameraInfo = info;
 }
 
 std::vector<Observation>
@@ -72,37 +72,37 @@ ObservationBuilder::fromBboxArray(
     double timeTag)
 {
   std::vector<Observation> observations;
-  if (!ObservationBuilder::s_camera_info.has_value())
+  if (!ObservationBuilder::sCameraInfo.has_value())
     return observations;
 
-  const auto& cam = ObservationBuilder::s_camera_info.value();
+  const auto& cam = ObservationBuilder::sCameraInfo.value();
   observations.reserve(msg.detections.size());
 
-  int temp_id = 0;
+  int tempId = 0;
 
   for (const auto &det : msg.detections)
   {
     // Expect normalized image coordinates in bbox.center.position.x/y (0..1)
-    double cx_norm = det.bbox.center.position.x;
-    double cy_norm = det.bbox.center.position.y;
+    double cxNorm = det.bbox.center.position.x;
+    double cyNorm = det.bbox.center.position.y;
 
     // Convert normalized to pixel coordinates
-    double px = cx_norm * static_cast<double>(cam.intrinsic.width);
-    double py = cy_norm * static_cast<double>(cam.intrinsic.height);
+    double px = cxNorm * static_cast<double>(cam.intrinsic.width);
+    double py = cyNorm * static_cast<double>(cam.intrinsic.height);
 
     // Normalized image plane coordinates (camera frame)
-    double u_n = (px - cam.intrinsic.cx) / cam.intrinsic.fx;
-    double v_n = (py - cam.intrinsic.cy) / cam.intrinsic.fy;
+    double uNorm = (px - cam.intrinsic.cx) / cam.intrinsic.fx;
+    double vNorm = (py - cam.intrinsic.cy) / cam.intrinsic.fy;
 
-    double yaw = std::atan(u_n);
-    double pitch = std::atan(v_n);
+    double yaw = std::atan(uNorm);
+    double pitch = std::atan(vNorm);
 
     Bearing b;
     b.yaw = yaw;
     b.pitch = pitch;
 
     Observation obs(timeTag, b);
-    obs.id = temp_id++;
+    obs.id = tempId++;
 
     observations.push_back(std::move(obs));
   }

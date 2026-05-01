@@ -38,7 +38,7 @@ SlamManager::SlamManager()
     [this]()
     {
       auto snapshot = _slam->getMap();
-      if (!snapshot.is_valid())
+      if (!snapshot.isValid())
       {
         return;
       }
@@ -87,37 +87,37 @@ void SlamManager::odometryCallback(
   MotionConstraint motion;
 
   // Convert NED → ENU
-  Eigen::Vector3f pos_ned(
+  Eigen::Vector3f posNed(
     msg->position[0],
     msg->position[1],
     msg->position[2]);
 
-  Eigen::Vector3f pos_enu = TransformUtil::nedToEnu(pos_ned);
+  Eigen::Vector3f posEnu = TransformUtil::nedToEnu(posNed);
 
-  if (_last_position_enu == Eigen::Vector3f::Zero())
+  if (_lastPositionEnu == Eigen::Vector3f::Zero())
   {
-    _last_position_enu = pos_enu;
+    _lastPositionEnu = posEnu;
     return;
   }
-  Eigen::Vector3f pos_diff = pos_enu - _last_position_enu;
+  Eigen::Vector3f posDiff = posEnu - _lastPositionEnu;
 
-  Quaternion q_ned(
+  Quaternion qNed(
     msg->q[0],
     msg->q[1],
     msg->q[2],
     msg->q[3]);
 
-  Eigen::Vector4d q_enu_vec =
-    TransformUtil::nedToEnuQuaternion(q_ned.getVector());
+  Eigen::Vector4d qEnuVec =
+    TransformUtil::nedToEnuQuaternion(qNed.getVector());
 
-  Quaternion q_enu(q_enu_vec);
+  Quaternion qEnu(qEnuVec);
 
-  motion.delta_position = Eigen::Vector3d(pos_diff.x(), pos_diff.y(), pos_diff.z());
-  motion.orientation = Eigen::Quaterniond(q_enu.w, q_enu.x, q_enu.y, q_enu.z);
+  motion.deltaPosition = Eigen::Vector3d(posDiff.x(), posDiff.y(), posDiff.z());
+  motion.orientation = Eigen::Quaterniond(qEnu.w, qEnu.x, qEnu.y, qEnu.z);
 
   _slam->processMotion(motion);
 
-  _last_position_enu = pos_enu;
+  _lastPositionEnu = posEnu;
 }
 
 void SlamManager::feature3dPointCallback(
@@ -247,7 +247,7 @@ void SlamManager::updateCameraExtrinsic()
   }
 }
 
-void SlamManager::cameraIntrinsicCallback(const sensor_msgs::msg::CameraInfo cameraInfo)
+void SlamManager::cameraIntrinsicCallback(const sensor_msgs::msg::CameraInfo& cameraInfo)
 {
   if (!_cameraIntrinsicLoaded)
   {

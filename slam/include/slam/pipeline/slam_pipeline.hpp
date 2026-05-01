@@ -1,5 +1,5 @@
-#ifndef _SLAM_PIPELINE_HPP_
-#define _SLAM_PIPELINE_HPP_
+#ifndef SLAM__PIPELINE__SLAM_PIPELINE_HPP_
+#define SLAM__PIPELINE__SLAM_PIPELINE_HPP_
 
 #include <functional>
 #include <memory>
@@ -46,10 +46,6 @@ public:
 
   /**
    * @brief Register a callback to be invoked when the map is updated.
-   *
-   * The SlamManager typically uses this to publish map updates to ROS.
-   *
-   * @param callback Function to be called on map updates.
    */
   void setMapUpdateCallback(
     std::function<void(const SlamMap& map)> callback)
@@ -60,11 +56,6 @@ public:
 protected:
   /**
    * @brief Notify listeners that the map has been updated.
-   *
-   * Pipelines should call this method whenever a meaningful map update
-   * occurs (e.g., after an EKF update or graph optimization).
-   *
-   * @param map Current SLAM map.
    */
   void notifyMapUpdate(const SlamMap& map) const
   {
@@ -80,4 +71,4 @@ protected:
 
 }  // namespace slam
 
-#endif  // _SLAM_PIPELINE_HPP_
+#endif  // SLAM__PIPELINE__SLAM_PIPELINE_HPP_

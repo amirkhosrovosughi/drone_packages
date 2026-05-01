@@ -77,7 +77,7 @@ void GraphSlamFrontend::onMotion(const MotionConstraint& motion)
     _hasOrientationReference = true;
   }
 
-  _accumulatedTranslation += motion.delta_position;
+  _accumulatedTranslation += motion.deltaPosition;
 
   const double translationDelta = _accumulatedTranslation.norm();
   const double rotationDelta = computeRotationDeltaRad(_lastKeyframeOrientation, currentOrientation);
@@ -85,7 +85,7 @@ void GraphSlamFrontend::onMotion(const MotionConstraint& motion)
   if (translationDelta > KEYFRAME_TRANSLATION_THRESHOLD_M ||
       rotationDelta > KEYFRAME_ROTATION_THRESHOLD_RAD)
   {
-    keyframeMotion.delta_position = _accumulatedTranslation;
+    keyframeMotion.deltaPosition = _accumulatedTranslation;
     keyframeMotion.orientation = currentOrientation;
     shouldCommitKeyframe = true;
 

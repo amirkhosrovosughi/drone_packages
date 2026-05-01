@@ -1,5 +1,5 @@
-#ifndef SLAM__SLAM_MANAGER_HPP_
-#define SLAM__SLAM_MANAGER_HPP_
+#ifndef SLAM__NODE__SLAM_MANAGER_HPP_
+#define SLAM__NODE__SLAM_MANAGER_HPP_
 
 #include <rclcpp/rclcpp.hpp>
 #include <memory>
@@ -87,7 +87,7 @@ private:
    * @brief Camera info callback.
    * @param cameraInfo Camera intrinsic info.
    */
-  void cameraIntrinsicCallback(const sensor_msgs::msg::CameraInfo cameraInfo);
+  void cameraIntrinsicCallback(const sensor_msgs::msg::CameraInfo& cameraInfo);
 
   /**
    * @brief Get current time in seconds.
@@ -114,10 +114,10 @@ private:
   std::unique_ptr<tf2_ros::Buffer> _tfBuffer; ///< TF buffer
   std::shared_ptr<tf2_ros::TransformListener> _tfListener; ///< TF listener
   LoggerPtr _logger; ///< Logger instance
-  Eigen::Vector3f _last_position_enu = Eigen::Vector3f::Zero(); ///< Last position in ENU frame
+  Eigen::Vector3f _lastPositionEnu = Eigen::Vector3f::Zero(); ///< Last position in ENU frame
   CameraInfo _cameraInfo; ///< Camera intrinsic and extrinsic information
   bool _cameraIntrinsicLoaded = false; ///< Flag indicating if camera intrinsic parameters are loaded
   bool _cameraExtrinsicLoaded = false; ///< Flag indicating if camera extrinsic parameters are loaded
 };
 
-#endif  // SLAM__SLAM_MANAGER_HPP_
+#endif  // SLAM__NODE__SLAM_MANAGER_HPP_

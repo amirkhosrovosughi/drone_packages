@@ -1,5 +1,6 @@
+#ifndef SLAM__MEASUREMENT__MEASUREMENT_HPP_
+#define SLAM__MEASUREMENT__MEASUREMENT_HPP_
 // measurement.hpp
-#pragma once
 
 #include <memory>
 #include <Eigen/Dense>
@@ -33,3 +34,5 @@ struct AssignedMeasurement {
 // Vector of Measurements
 using Measurements = std::vector<Measurement>;
 using AssignedMeasurements = std::vector<AssignedMeasurement>;
+
+#endif  // SLAM__MEASUREMENT__MEASUREMENT_HPP_

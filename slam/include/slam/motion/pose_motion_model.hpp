@@ -1,5 +1,5 @@
-#ifndef POSE_MOTION_MODEL_HPP_
-#define POSE_MOTION_MODEL_HPP_
+#ifndef SLAM__MOTION__POSE_MOTION_MODEL_HPP_
+#define SLAM__MOTION__POSE_MOTION_MODEL_HPP_
 
 #include "motion/motion_model.hpp"
 
@@ -20,7 +20,7 @@ public:
      * @brief Propagate pose using velocity-based odometry.
      */
     State propagate(
-        const State& current_state,
+        const State& currentState,
         const Eigen::VectorXd& motionDisplacement) const override;
 
     /**
@@ -28,7 +28,7 @@ public:
      */
     Eigen::MatrixXd computeStateJacobian(
         const State& state,
-        const Eigen::VectorXd& delta_position) const override;
+        const Eigen::VectorXd& motionDisplacement) const override;
 
     /**
      * @brief Get motion noise covariance.
@@ -36,4 +36,4 @@ public:
     Eigen::MatrixXd getProcessNoise() const override;
 };
 
-#endif  // POSE_MOTION_MODEL_HPP_
+#endif  // SLAM__MOTION__POSE_MOTION_MODEL_HPP_

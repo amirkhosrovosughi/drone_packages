@@ -1,5 +1,5 @@
-#ifndef SLAM__BACKEND__BACKEND_FACTORY_HPP_
-#define SLAM__BACKEND__BACKEND_FACTORY_HPP_
+#ifndef SLAM__PIPELINE__PIPELINE_FACTORY_HPP_
+#define SLAM__PIPELINE__PIPELINE_FACTORY_HPP_
 
 #include <memory>
 
@@ -22,4 +22,4 @@ namespace slam
 
 } // namespace slam
 
-#endif  // SLAM__BACKEND__BACKEND_FACTORY_HPP_
+#endif  // SLAM__PIPELINE__PIPELINE_FACTORY_HPP_

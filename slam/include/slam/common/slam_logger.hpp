@@ -1,4 +1,5 @@
-#pragma once
+#ifndef SLAM__COMMON__SLAM_LOGGER_HPP_
+#define SLAM__COMMON__SLAM_LOGGER_HPP_
 
 #include <memory>
 #include <sstream>
@@ -70,3 +71,5 @@ private:
 };
 
 using LoggerPtr = std::shared_ptr<SlamLogger>;
+
+#endif  // SLAM__COMMON__SLAM_LOGGER_HPP_

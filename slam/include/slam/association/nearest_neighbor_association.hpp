@@ -1,5 +1,5 @@
-#ifndef SLAM__NEAREST_NEIGHBOR_ASSOCIATION_HPP_
-#define SLAM__NEAREST_NEIGHBOR_ASSOCIATION_HPP_
+#ifndef SLAM__ASSOCIATION__NEAREST_NEIGHBOR_ASSOCIATION_HPP_
+#define SLAM__ASSOCIATION__NEAREST_NEIGHBOR_ASSOCIATION_HPP_
 
 #include "base_association.hpp"
 #include "motion/motion_model.hpp"
@@ -327,4 +327,4 @@ protected:
     double _ambiguityGateMinMargin = 0.3;
 };
 
-#endif  // SLAM__NEAREST_NEIGHBOR_ASSOCIATION_HPP_
+#endif  // SLAM__ASSOCIATION__NEAREST_NEIGHBOR_ASSOCIATION_HPP_

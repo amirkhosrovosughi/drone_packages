@@ -1,5 +1,5 @@
-#ifndef BEARING_MEASUREMENT_MODEL_HPP_
-#define BEARING_MEASUREMENT_MODEL_HPP_
+#ifndef SLAM__MEASUREMENT__BEARING_MEASUREMENT_MODEL_HPP_
+#define SLAM__MEASUREMENT__BEARING_MEASUREMENT_MODEL_HPP_
 
 #include <Eigen/Dense>
 #include <optional>
@@ -20,35 +20,29 @@ public:
     int measurementDimension() const override;
 
     Measurement predict(
-        const Pose& robot_pose,
-        const Position& landmark_position
+        const Pose& robotPose,
+        const Position& landmarkPosition
     ) override;
 
     Eigen::MatrixXd jacobianWrtRobot(
-        const Pose& robot_pose,
-        const Position& landmark_position
+        const Pose& robotPose,
+        const Position& landmarkPosition
     ) const override;
 
     Eigen::MatrixXd jacobianWrtLandmark(
-        const Pose& robot_pose,
-        const Position& landmark_position
+        const Pose& robotPose,
+        const Position& landmarkPosition
     ) const override;
 
     Eigen::MatrixXd measurementNoise() const override;
 
-    std::optional<Position> inverse(const Pose &robot_pose, const Measurement &m) const override;
+    std::optional<Position> inverse(const Pose& robotPose, const Measurement& m) const override;
 
     /**
      * @brief Convert a bearing measurement into a world-frame camera ray.
-     *
-     * @param robot_pose Robot pose used with camera extrinsics.
-     * @param m Bearing measurement payload [yaw, pitch].
-     * @param rayOriginWorld Camera origin in world frame.
-     * @param rayDirectionWorld Unit ray direction in world frame.
-     * @return True if the ray could be computed.
      */
     bool worldRayFromMeasurement(
-        const Pose& robot_pose,
+        const Pose& robotPose,
         const Measurement& m,
         Eigen::Vector3d& rayOriginWorld,
         Eigen::Vector3d& rayDirectionWorld) const;
@@ -58,4 +52,4 @@ private:
     std::optional<CameraInfo> _cameraInfo;
 };
 
-#endif // BEARING_MEASUREMENT_MODEL_HPP_
+#endif  // SLAM__MEASUREMENT__BEARING_MEASUREMENT_MODEL_HPP_

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef SLAM__COMMON__ROS_SLAM_LOGGER_HPP_
+#define SLAM__COMMON__ROS_SLAM_LOGGER_HPP_
 
 #include <rclcpp/rclcpp.hpp>
 #include <string>
@@ -38,3 +39,5 @@ protected:
 private:
     rclcpp::Logger _logger;
 };
+
+#endif  // SLAM__COMMON__ROS_SLAM_LOGGER_HPP_

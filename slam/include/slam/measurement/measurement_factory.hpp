@@ -1,5 +1,5 @@
-#ifndef MEASUREMENT_FACTORY_HPP_
-#define MEASUREMENT_FACTORY_HPP_
+#ifndef SLAM__MEASUREMENT__MEASUREMENT_FACTORY_HPP_
+#define SLAM__MEASUREMENT__MEASUREMENT_FACTORY_HPP_
 
 #include <vector>
 #include <memory>
@@ -37,4 +37,4 @@ private:
   Measurement buildBearing(const slam::Observation& obs);
 };
 
-#endif  // MEASUREMENT_FACTORY_HPP_
+#endif  // SLAM__MEASUREMENT__MEASUREMENT_FACTORY_HPP_

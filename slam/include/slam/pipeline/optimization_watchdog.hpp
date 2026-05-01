@@ -41,11 +41,6 @@ public:
 
   /**
    * @brief Execute solveFn under a time budget.
-   *
-   * @param solveFn  Callable that returns OptimizationResult. Must be
-   *                 thread-safe with respect to any shared state it uses.
-   * @return         The result from solveFn, or a timed-out result if the
-   *                 budget is exceeded.
    */
   OptimizationResult executeWithTimeBudget(
     std::function<OptimizationResult()> solveFn);

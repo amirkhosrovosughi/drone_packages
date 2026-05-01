@@ -1,5 +1,5 @@
-#ifndef DEF_SLAM_CORE_HPP_
-#define DEF_SLAM_CORE_HPP_
+#ifndef SLAM__COMMON__DEF_SLAM_CORE_HPP_
+#define SLAM__COMMON__DEF_SLAM_CORE_HPP_
 
 #include <vector>
 
@@ -112,7 +112,7 @@ struct MapSummary {
 
     MapSummary() {}
 
-    bool is_valid() const { return true; }
+    bool isValid() const { return true; }
 };
 
 struct LinearVelocity {
@@ -142,7 +142,7 @@ struct Velocity {
 struct MotionConstraint
 {
   // Relative translation in world or local frame (meters)
-  Eigen::Vector3d delta_position = Eigen::Vector3d::Zero();
+  Eigen::Vector3d deltaPosition = Eigen::Vector3d::Zero();
 
   // Absolute orientation at the end of the motion (trusted input)
   // Used only for frame transformations, not estimated.
@@ -173,4 +173,4 @@ struct CameraInfo
     CameraInfo() : extrinsics(CameraExtrinsics::Identity()), intrinsic(CameraIntrinsic()) {}
 };
 
-#endif // DEF_SLAM_CORE_HPP_
+#endif  // SLAM__COMMON__DEF_SLAM_CORE_HPP_

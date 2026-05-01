@@ -1,5 +1,5 @@
-#ifndef SLAM__ASSOCIATION_HPP_
-#define SLAM__ASSOCIATION_HPP_
+#ifndef SLAM__ASSOCIATION__BASE_ASSOCIATION_HPP_
+#define SLAM__ASSOCIATION__BASE_ASSOCIATION_HPP_
 
 #include <functional>
 #include "common/def_slam_core.hpp"
@@ -46,4 +46,4 @@ private:
     virtual void processMeasurement(const Measurements& meas) = 0;
 };
 
-#endif  // SLAM__ASSOCIATION_HPP_
+#endif  // SLAM__ASSOCIATION__BASE_ASSOCIATION_HPP_

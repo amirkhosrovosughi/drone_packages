@@ -97,16 +97,16 @@ void NearestNeighborAssociation::handleUpdate(const MapSummary& map)
 {
     std::lock_guard<std::mutex> lock(_mutex);
     _robotPose = map.robot.pose;
-    static Quaternion preQuaternion;
+    static Quaternion prevQuaternion;
         
-    Eigen::Vector4d QuDef = _robotPose.quaternion.getVector() - preQuaternion.getVector();
-    _quaternionRate = QuDef.norm();
+    Eigen::Vector4d quaternionDelta = _robotPose.quaternion.getVector() - prevQuaternion.getVector();
+    _quaternionRate = quaternionDelta.norm();
 
     #ifdef STORE_DEBUG_DATA
     data_logging_utils::DataLogger::log("_quaternionRate", _quaternionRate);
     #endif
 
-    preQuaternion = _robotPose.quaternion;
+    prevQuaternion = _robotPose.quaternion;
 
     // Copy updated landmarks from the provided map for matching
     Landmarks updatedLandmarks = map.landmarks;

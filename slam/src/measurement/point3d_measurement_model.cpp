@@ -1,8 +1,8 @@
 #include "measurement/point3d_measurement_model.hpp"
 
 Point3DMeasurementModel::Point3DMeasurementModel(
-    const Eigen::Matrix4d& sensor_extrinsic)
-    : _T_sensor_robot(sensor_extrinsic) {}
+    const Eigen::Matrix4d& sensorExtrinsic)
+    : _tSensorRobot(sensorExtrinsic) {}
 
 int Point3DMeasurementModel::measurementDimension() const
 {
@@ -10,25 +10,25 @@ int Point3DMeasurementModel::measurementDimension() const
 }
 
 Measurement Point3DMeasurementModel::predict(
-    const Pose& robot_pose,
-    const Position& landmark_position)
+    const Pose& robotPose,
+    const Position& landmarkPosition)
 {
     Measurement z_hat;
 
-    Eigen::Vector3d p_r(robot_pose.position.x,
-                        robot_pose.position.y,
-                        robot_pose.position.z);
+    Eigen::Vector3d pRobot(robotPose.position.x,
+                           robotPose.position.y,
+                           robotPose.position.z);
 
-    Eigen::Vector3d p_l(landmark_position.x,
-                        landmark_position.y,
-                        landmark_position.z);
+    Eigen::Vector3d pLandmark(landmarkPosition.x,
+                              landmarkPosition.y,
+                              landmarkPosition.z);
 
-    Eigen::Quaterniond q_wr = normalizedRobotQuaternion(robot_pose);
+    Eigen::Quaterniond qWorldRobot = normalizedRobotQuaternion(robotPose);
 
-    Eigen::Matrix3d R_wr = q_wr.toRotationMatrix();
+    Eigen::Matrix3d rotWorldRobot = qWorldRobot.toRotationMatrix();
 
     // Relative position expressed in robot frame.
-    Eigen::Vector3d rel = R_wr.transpose() * (p_l - p_r);
+    Eigen::Vector3d rel = rotWorldRobot.transpose() * (pLandmark - pRobot);
 
     z_hat.payload = Eigen::VectorXd(3);
     z_hat.payload << rel.x(), rel.y(), rel.z();
@@ -37,23 +37,23 @@ Measurement Point3DMeasurementModel::predict(
 }
 
 Eigen::MatrixXd Point3DMeasurementModel::jacobianWrtRobot(
-    const Pose& robot_pose,
+    const Pose& robotPose,
     const Position&) const
 {
-    Eigen::Quaterniond q_wr = normalizedRobotQuaternion(robot_pose);
+    Eigen::Quaterniond qWorldRobot = normalizedRobotQuaternion(robotPose);
 
     // z = R_wr^T (p_l - p_r)  => ∂z/∂p_r = -R_wr^T
-    return -q_wr.toRotationMatrix().transpose();
+    return -qWorldRobot.toRotationMatrix().transpose();
 }
 
 Eigen::MatrixXd Point3DMeasurementModel::jacobianWrtLandmark(
-    const Pose& robot_pose,
+    const Pose& robotPose,
     const Position&) const
 {
-    Eigen::Quaterniond q_wr = normalizedRobotQuaternion(robot_pose);
+    Eigen::Quaterniond qWorldRobot = normalizedRobotQuaternion(robotPose);
 
     // z = R_wr^T (p_l - p_r)  => ∂z/∂p_l = R_wr^T
-    return q_wr.toRotationMatrix().transpose();
+    return qWorldRobot.toRotationMatrix().transpose();
 }
 
 Eigen::MatrixXd Point3DMeasurementModel::measurementNoise() const
@@ -66,26 +66,26 @@ Eigen::MatrixXd Point3DMeasurementModel::measurementNoise() const
 }
 
 std::optional<Position> Point3DMeasurementModel::inverse(
-    const Pose& robot_pose, const Measurement& m) const
+    const Pose& robotPose, const Measurement& m) const
 {
-    Eigen::Vector3d p_r(robot_pose.position.x,
-                        robot_pose.position.y,
-                        robot_pose.position.z);
+    Eigen::Vector3d pRobot(robotPose.position.x,
+                           robotPose.position.y,
+                           robotPose.position.z);
 
-    Eigen::Quaterniond q_wr = normalizedRobotQuaternion(robot_pose);
+    Eigen::Quaterniond qWorldRobot = normalizedRobotQuaternion(robotPose);
 
     Eigen::Vector3d z = m.payload;
-    Eigen::Vector3d p_world = q_wr.toRotationMatrix() * z + p_r;
+    Eigen::Vector3d pWorld = qWorldRobot.toRotationMatrix() * z + pRobot;
 
-    return Position(p_world);
+    return Position(pWorld);
 }
 
-Eigen::Quaterniond Point3DMeasurementModel::normalizedRobotQuaternion(const Pose& robot_pose)
+Eigen::Quaterniond Point3DMeasurementModel::normalizedRobotQuaternion(const Pose& robotPose)
 {
-    Eigen::Quaterniond q_wr(robot_pose.quaternion.w,
-                            robot_pose.quaternion.x,
-                            robot_pose.quaternion.y,
-                            robot_pose.quaternion.z);
-    q_wr.normalize();
-    return q_wr;
+    Eigen::Quaterniond qWorldRobot(robotPose.quaternion.w,
+                                   robotPose.quaternion.x,
+                                   robotPose.quaternion.y,
+                                   robotPose.quaternion.z);
+    qWorldRobot.normalize();
+    return qWorldRobot;
 }

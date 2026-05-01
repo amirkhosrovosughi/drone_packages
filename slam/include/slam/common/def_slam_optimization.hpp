@@ -1,5 +1,5 @@
-#ifndef DEF_SLAM_OPTIMIZATION_HPP_
-#define DEF_SLAM_OPTIMIZATION_HPP_
+#ifndef SLAM__COMMON__DEF_SLAM_OPTIMIZATION_HPP_
+#define SLAM__COMMON__DEF_SLAM_OPTIMIZATION_HPP_
 
 #include <string>
 
@@ -39,4 +39,4 @@ struct OptimizationResult {
   OptimizationResult() = default;
 };
 
-#endif // DEF_SLAM_OPTIMIZATION_HPP_
+#endif  // SLAM__COMMON__DEF_SLAM_OPTIMIZATION_HPP_

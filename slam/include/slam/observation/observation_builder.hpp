@@ -1,5 +1,5 @@
-#ifndef OBSERVATION_BUILDER_HPP_
-#define OBSERVATION_BUILDER_HPP_
+#ifndef SLAM__OBSERVATION__OBSERVATION_BUILDER_HPP_
+#define SLAM__OBSERVATION__OBSERVATION_BUILDER_HPP_
 
 #include "observation/observation.hpp"
 #include "drone_msgs/msg/point_list.hpp"
@@ -60,9 +60,9 @@ public:
    */
   static void setCameraInfo(const CameraInfo& info);
 private:
-  static std::optional<CameraInfo> s_camera_info;
+  static std::optional<CameraInfo> sCameraInfo;
 };
 
 } // namespace slam
 
-#endif  // OBSERVATION_BUILDER_HPP_
+#endif  // SLAM__OBSERVATION__OBSERVATION_BUILDER_HPP_

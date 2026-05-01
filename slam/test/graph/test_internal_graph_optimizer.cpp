@@ -13,7 +13,7 @@ static MotionConstraint makeMotion(
   const Eigen::Quaterniond& orientation = Eigen::Quaterniond::Identity())
 {
   MotionConstraint m;
-  m.delta_position = delta;
+  m.deltaPosition = delta;
   m.orientation = orientation;
   return m;
 }
@@ -428,7 +428,7 @@ TEST(InternalGraphOptimizerTest, OptimizeGraphAdjustsGlobalKeyframePoses)
 
   LoopClosureCandidate closureCandidate(3, 0, 0.0, false, 0.0);
   MotionConstraint closureMotion;
-  closureMotion.delta_position = Eigen::Vector3d::Zero();
+  closureMotion.deltaPosition = Eigen::Vector3d::Zero();
   closureMotion.orientation = Eigen::Quaterniond::Identity();
   LoopClosureValidationResult closureValidation(
     true, 4, 4, "", closureMotion, 1.0);
@@ -535,7 +535,7 @@ TEST(InternalGraphOptimizerTest, OptimizeGraphAnchorKeyframeIsPreservedUnderLoop
   const double anchorX = optimizer.getGraphState().keyframes.front().robot.pose.position.x;
 
   MotionConstraint loopMotion;
-  loopMotion.delta_position = Eigen::Vector3d::Zero();
+  loopMotion.deltaPosition = Eigen::Vector3d::Zero();
   loopMotion.orientation = Eigen::Quaterniond::Identity();
   ASSERT_TRUE(optimizer.commitLoopClosure(
     LoopClosureCandidate(3, 0, 0.0, false, 0.0),
@@ -591,7 +591,7 @@ TEST(InternalGraphOptimizerTest, OptimizeGraphLoopClosureReducesWeightedResidual
   optimizer.applyMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));
 
   MotionConstraint loopMotion;
-  loopMotion.delta_position = Eigen::Vector3d::Zero();
+  loopMotion.deltaPosition = Eigen::Vector3d::Zero();
   loopMotion.orientation = Eigen::Quaterniond::Identity();
   ASSERT_TRUE(optimizer.commitLoopClosure(
     LoopClosureCandidate(3, 0, 0.0, false, 0.0),
@@ -624,7 +624,7 @@ TEST(InternalGraphOptimizerTest, OptimizeGraphSymmetricCorrectionDistributedAcro
   optimizer.applyMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));  // kf 3
 
   MotionConstraint loopMotion;
-  loopMotion.delta_position = Eigen::Vector3d::Zero();
+  loopMotion.deltaPosition = Eigen::Vector3d::Zero();
   loopMotion.orientation = Eigen::Quaterniond::Identity();
   ASSERT_TRUE(optimizer.commitLoopClosure(
     LoopClosureCandidate(3, 0, 0.0, false, 0.0),
@@ -754,7 +754,7 @@ TEST(InternalGraphOptimizerTest, ResidualClampRevertsOnHighResidual)
   // Inject a contradictory loop closure: odometry says kf3 is at x=1.5,
   // but this edge claims the relative motion to kf0 is 50 m.
   MotionConstraint contradictory;
-  contradictory.delta_position = Eigen::Vector3d(50.0, 0.0, 0.0);
+  contradictory.deltaPosition = Eigen::Vector3d(50.0, 0.0, 0.0);
   contradictory.orientation = Eigen::Quaterniond::Identity();
 
   LoopClosureCandidate cand(activeId, 0, 0.5);

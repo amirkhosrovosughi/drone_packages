@@ -1,5 +1,5 @@
-#ifndef SLAM__MAP_
-#define SLAM__MAP_
+#ifndef SLAM__MAP__SLAM_MAP_HPP_
+#define SLAM__MAP__SLAM_MAP_HPP_
 
 #include <vector>
 #include <Eigen/Dense>
@@ -35,8 +35,6 @@ struct SlamMap
 
     /**
      * @brief Add a new landmark into the map.
-     * @param newLandmark State vector of the landmark
-     * @throws std::invalid_argument if dimension mismatch
      */
     void addLandmark(const Eigen::VectorXd& newLandmark);
 
@@ -127,4 +125,4 @@ struct SlamMap
 
 };
 
-#endif  // SLAM__MAP_
+#endif  // SLAM__MAP__SLAM_MAP_HPP_

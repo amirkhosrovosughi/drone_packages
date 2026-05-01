@@ -1,5 +1,5 @@
-#ifndef SLAM__GRAPH_SLAM_BACKEND_HPP_
-#define SLAM__GRAPH_SLAM_BACKEND_HPP_
+#ifndef SLAM__PIPELINE__GRAPH_SLAM_PIPELINE_HPP_
+#define SLAM__PIPELINE__GRAPH_SLAM_PIPELINE_HPP_
 
 #include <memory>
 
@@ -52,4 +52,4 @@ private:
 
 }  // namespace slam
 
-#endif  // SLAM__GRAPH_SLAM_BACKEND_HPP_
+#endif  // SLAM__PIPELINE__GRAPH_SLAM_PIPELINE_HPP_

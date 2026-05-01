@@ -18,10 +18,6 @@ public:
 
     /**
      * @brief Attempt to produce a world-frame landmark hypothesis.
-     *
-     * @param measurement Raw measurement that could not be inverted directly.
-     * @param robotPose Current robot pose.
-     * @return Landmark position hypothesis when available; std::nullopt otherwise.
      */
     virtual std::optional<Position> initialize(
         const Measurement& measurement,

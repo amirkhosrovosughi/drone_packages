@@ -1,5 +1,5 @@
-#ifndef DEF_SLAM_GRAPH_HPP_
-#define DEF_SLAM_GRAPH_HPP_
+#ifndef SLAM__COMMON__DEF_SLAM_GRAPH_HPP_
+#define SLAM__COMMON__DEF_SLAM_GRAPH_HPP_
 
 #include <string>
 #include <vector>
@@ -125,7 +125,7 @@ struct GraphState {
 
     GraphState() {}
 
-    bool is_valid() const { return true; }
+    bool isValid() const { return true; }
 };
 
 inline MapSummary graphStateToMapSummary(const GraphState& graph)
@@ -147,4 +147,4 @@ inline MapSummary graphStateToMapSummary(const GraphState& graph)
     return summary;
 }
 
-#endif // DEF_SLAM_GRAPH_HPP_
+#endif  // SLAM__COMMON__DEF_SLAM_GRAPH_HPP_

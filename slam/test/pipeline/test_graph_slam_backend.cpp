@@ -39,9 +39,9 @@ public:
 
     const int fromId = graph.activeKeyframeId;
 
-    graph.robot.pose.position.x += motion.delta_position.x();
-    graph.robot.pose.position.y += motion.delta_position.y();
-    graph.robot.pose.position.z += motion.delta_position.z();
+    graph.robot.pose.position.x += motion.deltaPosition.x();
+    graph.robot.pose.position.y += motion.deltaPosition.y();
+    graph.robot.pose.position.z += motion.deltaPosition.z();
     graph.robot.pose.quaternion.w = motion.orientation.w();
     graph.robot.pose.quaternion.x = motion.orientation.x();
     graph.robot.pose.quaternion.y = motion.orientation.y();
@@ -155,7 +155,7 @@ static MotionConstraint makeMotion(
   const Eigen::Quaterniond& orientation = Eigen::Quaterniond::Identity())
 {
   MotionConstraint m;
-  m.delta_position = delta;
+  m.deltaPosition = delta;
   m.orientation = orientation;
   return m;
 }

@@ -24,8 +24,8 @@ void BBoxMeasurementModel::assertCameraInfoAvailable() const
 }
 
 Measurement BBoxMeasurementModel::predict(
-    const Pose& robot_pose,
-    const Position& landmark_position)
+    const Pose& robotPose,
+    const Position& landmarkPosition)
 {
     assertCameraInfoAvailable();
 
@@ -37,24 +37,24 @@ Measurement BBoxMeasurementModel::predict(
      * World -> Robot -> Camera
      * ------------------------------- */
 
-    Eigen::Vector4d p_w;
-    p_w << landmark_position.x,
-           landmark_position.y,
-           landmark_position.z,
-           1.0;
+    Eigen::Vector4d pWorld;
+    pWorld << landmarkPosition.x,
+              landmarkPosition.y,
+              landmarkPosition.z,
+              1.0;
 
     // World -> Robot
-    Eigen::Matrix4d T_wr = robot_pose.getTransformationMatrix();
+    Eigen::Matrix4d tWorldRobot = robotPose.getTransformationMatrix();
 
     // Robot -> Camera (extrinsics)
-    const Eigen::Matrix4d& T_rc = cam.extrinsics;
+    const Eigen::Matrix4d& tRobotCamera = cam.extrinsics;
 
     // World -> Camera
-    Eigen::Vector4d p_c = T_rc.inverse() * T_wr.inverse() * p_w;
+    Eigen::Vector4d pCamera = tRobotCamera.inverse() * tWorldRobot.inverse() * pWorld;
 
-    double X = p_c.x();
-    double Y = p_c.y();
-    double Z = p_c.z();
+    double X = pCamera.x();
+    double Y = pCamera.y();
+    double Z = pCamera.z();
 
     if (Z <= 0.0)
     {
@@ -66,12 +66,12 @@ Measurement BBoxMeasurementModel::predict(
      * ------------------------------- */
 
     // Normalized image coordinates
-    double u_n = X / Z;
-    double v_n = Y / Z;
+    double uNorm = X / Z;
+    double vNorm = Y / Z;
 
     // Bearings (camera frame)
-    double yaw   = std::atan(u_n);
-    double pitch = std::atan(v_n);
+    double yaw   = std::atan(uNorm);
+    double pitch = std::atan(vNorm);
 
     z_hat.payload = Eigen::VectorXd(2);
     z_hat.payload << yaw, pitch;
@@ -107,7 +107,7 @@ Eigen::MatrixXd BBoxMeasurementModel::measurementNoise() const
 }
 
 std::optional<Position> BBoxMeasurementModel::inverse(
-    const Pose& robot_pose, const Measurement&) const
+    const Pose& /*robotPose*/, const Measurement&) const
 {
     // Bearing-only → cannot initialize landmark depth
     return std::nullopt;
