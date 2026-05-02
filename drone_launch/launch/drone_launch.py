@@ -1,11 +1,17 @@
 # drone_launch.launch.py
 
 import launch
+from datetime import datetime
+from launch.actions import SetEnvironmentVariable
 from launch_ros.actions import Node
 
 
 def generate_launch_description():
+    run_id = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+
     return launch.LaunchDescription([
+        SetEnvironmentVariable('DATA_LOGGER_RUN_ID', run_id),
+
         # TF publisher node
         Node(
             package='tf2_ros',

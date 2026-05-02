@@ -19,21 +19,65 @@ void DataLogger::initialize()
 
   if (!_initialized)
   {
-    // Session folder: ~/ros_data_logging/YYYY-MM-DD_HH-MM-SS
-    auto now = std::chrono::system_clock::now();
-    auto now_time = std::chrono::system_clock::to_time_t(now);
-    std::stringstream ss;
-    ss << std::put_time(std::localtime(&now_time), "%Y-%m-%d_%H-%M-%S");
-    std::string folder_name = ss.str();
+    // Use a launch-provided run id when available so all nodes share one log folder.
+    std::string run_id;
+    const char * run_id_env = std::getenv("DATA_LOGGER_RUN_ID");
+
+    if (run_id_env != nullptr && std::string(run_id_env).size() > 0)
+    {
+      run_id = run_id_env;
+    }
+    else
+    {
+      // Fallback: one folder per process initialization.
+      auto now = std::chrono::system_clock::now();
+      auto now_time = std::chrono::system_clock::to_time_t(now);
+      std::stringstream ss;
+      ss << std::put_time(std::localtime(&now_time), "%Y-%m-%d_%H-%M-%S");
+      run_id = ss.str();
+    }
 
     std::filesystem::path base_folder = std::filesystem::path(std::getenv("HOME")) / "ros_data_logging";
-    _sessionFolder = base_folder / folder_name;
+
+#if DATA_LOGGER_KEEP_HISTORY
+    _sessionFolder = base_folder / run_id;
+#else
+    _sessionFolder = base_folder / "latest";
+#endif
 
     std::cout << "[DataLogger] session folder: " << _sessionFolder << std::endl;
 
     try
     {
       std::filesystem::create_directories(_sessionFolder);
+
+#if !DATA_LOGGER_KEEP_HISTORY
+      // Clear stale files only once per run id to avoid deleting files from peers in the same launch.
+      std::filesystem::path marker_path = _sessionFolder / ".run_id";
+      std::string previous_run_id;
+
+      if (std::filesystem::exists(marker_path))
+      {
+        std::ifstream marker_in(marker_path);
+        std::getline(marker_in, previous_run_id);
+      }
+
+      if (previous_run_id != run_id)
+      {
+        for (const auto & entry : std::filesystem::directory_iterator(_sessionFolder))
+        {
+          if (entry.path().filename() == ".run_id")
+          {
+            continue;
+          }
+          std::filesystem::remove_all(entry.path());
+        }
+
+        std::ofstream marker_out(marker_path, std::ios::trunc);
+        marker_out << run_id;
+      }
+#endif
+
       _initialized = true;
     }
     catch (const std::exception & e)
@@ -102,14 +146,8 @@ void DataLogger::createFileIfNeeded(const std::string & key)
 {
   if (_files.find(key) == _files.end())
   {
-    // New file name: key_YYYY-MM-DD_HH-MM-SS.csv
-    auto now = std::chrono::system_clock::now();
-    auto now_time = std::chrono::system_clock::to_time_t(now);
-    std::stringstream ss;
-    ss << key << "_";
-    ss << std::put_time(std::localtime(&now_time), "%Y-%m-%d_%H-%M-%S") << ".csv";
-
-    std::filesystem::path file_path = _sessionFolder / ss.str();
+    // Use stable filenames so each key always maps to one CSV per run folder.
+    std::filesystem::path file_path = _sessionFolder / (key + ".csv");
 
     try
     {

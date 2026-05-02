@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.8)
 project(data_logging_utils)
 
+option(DATA_LOGGER_KEEP_HISTORY "Keep per-run history folders under ~/ros_data_logging" OFF)
+
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
@@ -11,6 +13,12 @@ find_package(ament_cmake REQUIRED)
 add_library(${PROJECT_NAME}
   src/data_logger.cpp
 )
+
+if(DATA_LOGGER_KEEP_HISTORY)
+  target_compile_definitions(${PROJECT_NAME} PUBLIC DATA_LOGGER_KEEP_HISTORY=1)
+else()
+  target_compile_definitions(${PROJECT_NAME} PUBLIC DATA_LOGGER_KEEP_HISTORY=0)
+endif()
 
 include_directories(include)
 
