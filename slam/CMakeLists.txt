@@ -25,7 +25,7 @@ if(_slam_pipeline_count EQUAL 0)
     set(SLAM_EKF ON)
   elseif(SLAM_DEFAULT_PIPELINE STREQUAL "GRAPH")
     set(SLAM_GRAPH ON)
-  elseif(SLAM+_DEFAULT_PIPELINE STREQUAL "FAST_SLAM")
+  elseif(SLAM_DEFAULT_PIPELINE STREQUAL "FAST_SLAM")
     set(SLAM_FAST_SLAM ON)
   else()
     message(FATAL_ERROR
