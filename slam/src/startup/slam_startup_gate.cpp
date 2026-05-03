@@ -7,8 +7,10 @@ SlamStartupGate::StateTransition SlamStartupGate::configure(
   _dropInputWhileWaitingGpsInit = config.dropInputWhileWaitingGpsInit;
   _allowDegradedNoGps = config.allowDegradedNoGps;
   _gpsInitTimeoutSec = config.gpsInitTimeoutSec;
-  _gpsStartupSession = std::move(config.gpsStartupSession);
   _startupBeginTime = startupBeginTime;
+
+#ifdef USE_GPS
+  _gpsStartupSession = std::move(config.gpsStartupSession);
 
   if (config.gpsRequiredInit)
   {
@@ -17,6 +19,7 @@ SlamStartupGate::StateTransition SlamStartupGate::configure(
       RuntimeState::WaitGpsInit,
       "GPS-enabled startup: waiting for valid GPS initialization sample before SLAM input flow.");
   }
+#endif
 
   _mode = StartupMode::GpsDisabled;
   return setRuntimeState(
@@ -40,6 +43,7 @@ bool SlamStartupGate::canProcessSlamInput() const
   return !_dropInputWhileWaitingGpsInit;
 }
 
+#ifdef USE_GPS
 bool SlamStartupGate::requiresGpsSubscription() const
 {
   return _mode == StartupMode::GpsRequiredInit;
@@ -90,6 +94,7 @@ SlamStartupGate::GpsSampleResult SlamStartupGate::onGpsSample(
 
   return result;
 }
+#endif  // USE_GPS
 
 SlamStartupGate::WatchdogResult SlamStartupGate::onWatchdogTick(const rclcpp::Time& now)
 {

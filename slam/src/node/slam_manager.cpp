@@ -80,6 +80,9 @@ void SlamManager::configureStartupContract()
       config.warningMessage.c_str());
   }
 
+#ifdef USE_GPS
+  _gpsFusionEnabled = config.gpsFusionEnabled;
+#endif
   SlamStartupGate::logTransition(
     this->get_logger(),
     _startupGate->configure(std::move(config), this->now()));
@@ -96,6 +99,7 @@ void SlamManager::createSubscribers()
   {
     _gpsManager = std::make_unique<GpsManager>(
       *_startupGate, _gpsLocalFrame, *_slam,
+      _gpsFusionEnabled,
       this->get_logger(), this->get_clock());
 
     _gpsSub = this->create_subscription<px4_msgs::msg::SensorGps>(

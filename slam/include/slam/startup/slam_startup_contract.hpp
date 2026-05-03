@@ -6,16 +6,22 @@
 
 #include <rclcpp/rclcpp.hpp>
 
+#ifdef USE_GPS
 #include "startup/gps_startup_session.hpp"
+#endif
 
 struct SlamStartupContractConfig
 {
-  bool gpsRequiredInit = false;
   bool dropInputWhileWaitingGpsInit = true;
   bool allowDegradedNoGps = false;
   double gpsInitTimeoutSec = 15.0;
-  std::unique_ptr<GpsStartupSession> gpsStartupSession;
   std::string warningMessage;
+
+#ifdef USE_GPS
+  bool gpsRequiredInit = false;
+  bool gpsFusionEnabled = false;
+  std::unique_ptr<GpsStartupSession> gpsStartupSession;
+#endif
 };
 
 namespace startup

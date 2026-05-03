@@ -13,15 +13,12 @@
 #include "pipeline/slam_pipeline.hpp"
 #include "common/slam_logger.hpp"
 #include "common/def_slam_core.hpp"
+#include "measurement/measurement_factory.hpp"
+#include "startup/slam_startup_gate.hpp"
 #ifdef USE_GPS
 #include "gps/gps_local_frame.hpp"
 #include "gps/gps_manager.hpp"
-#endif
-#include "measurement/measurement_factory.hpp"
-#include "startup/slam_startup_gate.hpp"
 
-
-#ifdef USE_GPS
 #include <px4_msgs/msg/sensor_gps.hpp>
 #endif
 #include "sensor_msgs/msg/camera_info.hpp"
@@ -156,6 +153,7 @@ private:
 #ifdef USE_GPS
   GpsLocalFrame _gpsLocalFrame; ///< Helper storing the GPS anchor and projecting future samples to ENU.
   std::unique_ptr<GpsManager> _gpsManager; ///< GPS signal handler (startup gating + post-init projection).
+  bool _gpsFusionEnabled = false; ///< Whether live GPS samples are routed to pipeline fusion after anchor creation.
 #endif
 };
 

@@ -7,7 +7,9 @@
 
 #include <rclcpp/rclcpp.hpp>
 
+#ifdef USE_GPS
 #include <px4_msgs/msg/sensor_gps.hpp>
+#endif
 
 #include "startup/slam_startup_contract.hpp"
 
@@ -35,6 +37,7 @@ public:
     std::string reason;
   };
 
+#ifdef USE_GPS
   struct GpsSampleResult
   {
     enum class Status
@@ -52,6 +55,7 @@ public:
     std::optional<GpsReference> reference;
     StateTransition transition;
   };
+#endif
 
   struct WatchdogResult
   {
@@ -66,11 +70,14 @@ public:
 
   bool shouldDropSlamInput() const;
   bool canProcessSlamInput() const;
+
+#ifdef USE_GPS
   bool requiresGpsSubscription() const;
 
   GpsSampleResult onGpsSample(
     const px4_msgs::msg::SensorGps& msg,
     const rclcpp::Time& receiveTime);
+#endif
 
   WatchdogResult onWatchdogTick(const rclcpp::Time& now);
 
@@ -89,7 +96,9 @@ private:
   bool _dropInputWhileWaitingGpsInit = true;
   bool _allowDegradedNoGps = false;
   double _gpsInitTimeoutSec = 15.0;
+#ifdef USE_GPS
   std::unique_ptr<GpsStartupSession> _gpsStartupSession;
+#endif
 };
 
 #endif  // SLAM__NODE__SLAM_STARTUP_GATE_HPP_

@@ -7,10 +7,6 @@ SlamStartupContractConfig loadContractFromNode(rclcpp::Node& node)
 {
   SlamStartupContractConfig config;
 
-  const std::string mode = node.declare_parameter<std::string>(
-    "startup.integration_mode",
-    "gps_disabled");
-
   config.dropInputWhileWaitingGpsInit = node.declare_parameter<bool>(
     "startup.drop_input_while_waiting_gps_init",
     config.dropInputWhileWaitingGpsInit);
@@ -21,19 +17,37 @@ SlamStartupContractConfig loadContractFromNode(rclcpp::Node& node)
     "startup.gps_init_timeout_sec",
     config.gpsInitTimeoutSec);
 
-  if (mode == "gps_required_init")
-  {
-    config.gpsRequiredInit = true;
-    config.gpsStartupSession = createGpsStartupSessionFromNodeParameters(node);
-    return config;
-  }
+#ifdef USE_GPS
+  config.gpsRequiredInit = node.declare_parameter<bool>(
+    "startup.enable_gps_initialization",
+    false);
+  config.gpsFusionEnabled = node.declare_parameter<bool>(
+    "startup.enable_gps_fusion",
+    false);
 
-  if (mode != "gps_disabled")
+  if (config.gpsRequiredInit)
   {
-    config.warningMessage =
-      "Unknown startup.integration_mode='" + mode +
-      "'. Falling back to 'gps_disabled'.";
+    config.gpsStartupSession = createGpsStartupSessionFromNodeParameters(node);
   }
+  else
+  {
+    const std::string mode = node.declare_parameter<std::string>(
+      "startup.integration_mode",
+      "gps_disabled");
+
+    if (mode == "gps_required_init")
+    {
+      config.gpsRequiredInit = true;
+      config.gpsStartupSession = createGpsStartupSessionFromNodeParameters(node);
+    }
+    else if (mode != "gps_disabled")
+    {
+      config.warningMessage =
+        "Unknown startup.integration_mode='" + mode +
+        "'. Falling back to 'gps_disabled'.";
+    }
+  }
+#endif
 
   return config;
 }

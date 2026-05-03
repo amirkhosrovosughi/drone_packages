@@ -76,5 +76,9 @@ def generate_launch_description():
             executable='slam',
             name='slam',
             output='screen',
+            parameters=[{
+                'startup.enable_gps_initialization': True,
+                'startup.enable_gps_fusion': True,
+            }],
         ),
     ])

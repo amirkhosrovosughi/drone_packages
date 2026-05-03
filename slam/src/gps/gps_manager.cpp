@@ -8,11 +8,13 @@ GpsManager::GpsManager(
   SlamStartupGate& startupGate,
   GpsLocalFrame& gpsLocalFrame,
   slam::SlamPipeline& pipeline,
+  bool fusionEnabled,
   rclcpp::Logger logger,
   rclcpp::Clock::SharedPtr clock)
 : _startupGate(startupGate)
 , _gpsLocalFrame(gpsLocalFrame)
 , _pipeline(pipeline)
+, _fusionEnabled(fusionEnabled)
 , _logger(logger)
 , _clock(clock)
 {
@@ -31,6 +33,12 @@ void GpsManager::onSample(
       projectedPosition.x(),
       projectedPosition.y(),
       projectedPosition.z());
+
+    if (_fusionEnabled)
+    {
+      // TODO(phase5): feed projectedPosition as EKF GPS measurement update
+      // _pipeline.processGpsMeasurement(projectedPosition, msg.eph, msg.epv);
+    }
     return;
   }
 

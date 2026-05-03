@@ -31,6 +31,7 @@ public:
     SlamStartupGate& startupGate,
     GpsLocalFrame& gpsLocalFrame,
     slam::SlamPipeline& pipeline,
+    bool fusionEnabled,
     rclcpp::Logger logger,
     rclcpp::Clock::SharedPtr clock);
 
@@ -54,6 +55,7 @@ private:
   SlamStartupGate& _startupGate;
   GpsLocalFrame& _gpsLocalFrame;
   slam::SlamPipeline& _pipeline;
+  bool _fusionEnabled;
   rclcpp::Logger _logger;
   rclcpp::Clock::SharedPtr _clock;
 };

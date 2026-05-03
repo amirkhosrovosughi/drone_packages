@@ -313,23 +313,31 @@ if(BUILD_TESTING)
       src/graph/internal_graph_optimizer.cpp
   )
 
-  add_slam_gtest(test_gps_local_frame
-    SOURCES
-      test/gps/test_gps_local_frame.cpp
-      src/gps/gps_local_frame.cpp
-    DEPS
-      px4_msgs
-      common_utilities
-  )
+  if(USE_GPS)
+    add_slam_gtest(test_gps_local_frame
+      SOURCES
+        test/gps/test_gps_local_frame.cpp
+        src/gps/gps_local_frame.cpp
+      DEPS
+        px4_msgs
+        common_utilities
+    )
+    if(TARGET test_gps_local_frame)
+      target_compile_definitions(test_gps_local_frame PRIVATE USE_GPS)
+    endif()
 
-  add_slam_gtest(test_slam_startup_gate
-    SOURCES
-      test/startup/test_slam_startup_gate.cpp
-      src/startup/slam_startup_gate.cpp
-      src/startup/gps_startup_session.cpp
-      src/startup/gps_startup_initializer.cpp
-    DEPS
-      rclcpp
-      px4_msgs
-  )
+    add_slam_gtest(test_slam_startup_gate
+      SOURCES
+        test/startup/test_slam_startup_gate.cpp
+        src/startup/slam_startup_gate.cpp
+        src/startup/gps_startup_session.cpp
+        src/startup/gps_startup_initializer.cpp
+      DEPS
+        rclcpp
+        px4_msgs
+    )
+    if(TARGET test_slam_startup_gate)
+      target_compile_definitions(test_slam_startup_gate PRIVATE USE_GPS)
+    endif()
+  endif()
 endif()
