@@ -31,6 +31,7 @@ public:
   void processObservation(const Observations& o) override;
   MapSummary getMap() const override;
   void setLogger(LoggerPtr logger) override;
+  void applyStartupAnchor(const LocalFrameAnchor& anchor) override;
   void setScheduler(std::shared_ptr<OptimizationScheduler> scheduler);
   void setWatchdog(std::shared_ptr<OptimizationWatchdog> watchdog);
   OptimizationMetrics watchdogMetrics() const;

@@ -80,6 +80,7 @@ set(SOURCES
   src/node/slam_node.cpp
   src/node/slam_manager.cpp
   src/gps/gps_local_frame.cpp
+  src/gps/gps_manager.cpp
   src/startup/gps_startup_initializer.cpp
   src/startup/gps_startup_session.cpp
   src/startup/slam_startup_contract.cpp

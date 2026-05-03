@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <sstream>
 
 namespace
 {
@@ -25,6 +26,7 @@ GpsInitializationOutcome GpsStartupInitializer::ingest(
     outcome.rejected = true;
     outcome.reason = rejectReason;
     outcome.acceptedSampleCount = _samples.size();
+    outcome.metrics = buildMetrics(0.0);
     return outcome;
   }
 
@@ -34,22 +36,34 @@ GpsInitializationOutcome GpsStartupInitializer::ingest(
   sample.latitudeDeg = msg.latitude_deg;
   sample.longitudeDeg = msg.longitude_deg;
   sample.altitudeM = msg.altitude_msl_m;
+  sample.eph = msg.eph;
+  sample.epv = msg.epv;
   sample.speedMps = msg.vel_m_s;
+  sample.fixType = msg.fix_type;
   sample.receiveTime = receiveTime;
   _samples.push_back(sample);
 
   outcome.acceptedSampleCount = _samples.size();
 
+  const double maxDispersionM = computeMaxDispersionMeters();
+  outcome.metrics = buildMetrics(maxDispersionM);
+
   if (static_cast<int>(_samples.size()) < _policy.minSamples)
   {
+    outcome.reason = "GPS init collecting accepted samples.";
     return outcome;
   }
 
-  const double maxDispersionM = computeMaxDispersionMeters();
   if (!std::isfinite(maxDispersionM) || maxDispersionM > _policy.stationaryMaxDispersionM)
   {
     outcome.rejected = true;
-    outcome.reason = "GPS init sample cluster dispersion is too high.";
+    std::ostringstream oss;
+    oss << "GPS init sample cluster dispersion is too high ("
+        << maxDispersionM
+        << " m > "
+        << _policy.stationaryMaxDispersionM
+        << " m).";
+    outcome.reason = oss.str();
     outcome.acceptedSampleCount = _samples.size();
     _samples.clear();
     return outcome;
@@ -57,6 +71,7 @@ GpsInitializationOutcome GpsStartupInitializer::ingest(
 
   outcome = buildReadyOutcome();
   outcome.ready = true;
+  outcome.metrics = buildMetrics(maxDispersionM);
   return outcome;
 }
 
@@ -73,7 +88,13 @@ bool GpsStartupInitializer::isSampleAcceptable(
   {
     if (reason)
     {
-      *reason = "GPS fix type below required threshold.";
+      std::ostringstream oss;
+      oss << "GPS fix type below required threshold ("
+          << static_cast<int>(msg.fix_type)
+          << " < "
+          << _policy.requiredFixType
+          << ").";
+      *reason = oss.str();
     }
     return false;
   }
@@ -82,7 +103,13 @@ bool GpsStartupInitializer::isSampleAcceptable(
   {
     if (reason)
     {
-      *reason = "GPS eph exceeds allowed threshold.";
+      std::ostringstream oss;
+      oss << "GPS eph exceeds allowed threshold ("
+          << msg.eph
+          << " > "
+          << _policy.maxEph
+          << ").";
+      *reason = oss.str();
     }
     return false;
   }
@@ -91,7 +118,13 @@ bool GpsStartupInitializer::isSampleAcceptable(
   {
     if (reason)
     {
-      *reason = "GPS epv exceeds allowed threshold.";
+      std::ostringstream oss;
+      oss << "GPS epv exceeds allowed threshold ("
+          << msg.epv
+          << " > "
+          << _policy.maxEpv
+          << ").";
+      *reason = oss.str();
     }
     return false;
   }
@@ -100,7 +133,13 @@ bool GpsStartupInitializer::isSampleAcceptable(
   {
     if (reason)
     {
-      *reason = "GPS speed is too high for stationary initialization.";
+      std::ostringstream oss;
+      oss << "GPS speed is too high for stationary initialization ("
+          << msg.vel_m_s
+          << " m/s > "
+          << _policy.stationaryMaxSpeedMps
+          << " m/s).";
+      *reason = oss.str();
     }
     return false;
   }
@@ -172,6 +211,65 @@ double GpsStartupInitializer::computeMaxDispersionMeters() const
   }
 
   return maxDistance;
+}
+
+double GpsStartupInitializer::computeWindowDurationSec() const
+{
+  if (_samples.size() < 2)
+  {
+    return 0.0;
+  }
+
+  const rclcpp::Time minTime = _samples.front().receiveTime;
+  const rclcpp::Time maxTime = _samples.back().receiveTime;
+  return (maxTime - minTime).seconds();
+}
+
+GpsInitializationMetrics GpsStartupInitializer::buildMetrics(double maxDispersionM) const
+{
+  GpsInitializationMetrics metrics;
+  metrics.acceptedSampleCount = _samples.size();
+  metrics.minSamplesRequired = static_cast<std::size_t>(std::max(0, _policy.minSamples));
+  metrics.windowDurationSec = computeWindowDurationSec();
+  metrics.maxWindowSec = _policy.maxWindowSec;
+  metrics.maxDispersionM = maxDispersionM;
+  metrics.dispersionThresholdM = _policy.stationaryMaxDispersionM;
+  metrics.ephThreshold = _policy.maxEph;
+  metrics.epvThreshold = _policy.maxEpv;
+  metrics.speedThresholdMps = _policy.stationaryMaxSpeedMps;
+  metrics.requiredFixType = _policy.requiredFixType;
+  metrics.useAverage = _policy.useAverage;
+
+  if (_samples.empty())
+  {
+    return metrics;
+  }
+
+  double ephSum = 0.0;
+  double epvSum = 0.0;
+  double speedSum = 0.0;
+  double ephMax = _samples.front().eph;
+  double epvMax = _samples.front().epv;
+  double speedMax = std::abs(_samples.front().speedMps);
+
+  for (const Sample& sample : _samples)
+  {
+    ephSum += sample.eph;
+    epvSum += sample.epv;
+    speedSum += std::abs(sample.speedMps);
+    ephMax = std::max(ephMax, sample.eph);
+    epvMax = std::max(epvMax, sample.epv);
+    speedMax = std::max(speedMax, std::abs(sample.speedMps));
+  }
+
+  const double count = static_cast<double>(_samples.size());
+  metrics.meanEph = ephSum / count;
+  metrics.maxEph = ephMax;
+  metrics.meanEpv = epvSum / count;
+  metrics.maxEpv = epvMax;
+  metrics.meanSpeedMps = speedSum / count;
+  metrics.maxSpeedMps = speedMax;
+  return metrics;
 }
 
 double GpsStartupInitializer::planarDistanceMeters(

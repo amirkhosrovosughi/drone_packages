@@ -91,6 +91,10 @@ void SlamManager::createSubscribers()
 
   if (_startupGate && _startupGate->requiresGpsSubscription())
   {
+    _gpsManager = std::make_unique<GpsManager>(
+      *_startupGate, _gpsLocalFrame, *_slam,
+      this->get_logger(), this->get_clock());
+
     _gpsSub = this->create_subscription<px4_msgs::msg::SensorGps>(
       GPS_TOPIC,
       qos,
@@ -172,85 +176,10 @@ void SlamManager::odometryCallback(
 void SlamManager::gpsCallback(
   const px4_msgs::msg::SensorGps::SharedPtr msg)
 {
-  if (!_startupGate)
+  if (_gpsManager)
   {
-    return;
+    _gpsManager->onSample(*msg, this->now());
   }
-
-  if (_gpsLocalFrame.hasAnchor())
-  {
-    const Eigen::Vector3d projectedPosition = _gpsLocalFrame.toEnu(*msg);
-    RCLCPP_DEBUG(
-      this->get_logger(),
-      "GPS sample projected to local ENU: x=%.3f y=%.3f z=%.3f",
-      projectedPosition.x(),
-      projectedPosition.y(),
-      projectedPosition.z());
-    return;
-  }
-
-  const SlamStartupGate::GpsSampleResult result =
-    _startupGate->onGpsSample(*msg, this->now());
-
-  SlamStartupGate::logTransition(this->get_logger(), result.transition);
-
-  if (result.status == SlamStartupGate::GpsSampleResult::Status::Rejected)
-  {
-    RCLCPP_DEBUG(
-      this->get_logger(),
-      "GPS init sample rejected: %s",
-      result.reason.c_str());
-    return;
-  }
-
-  if (result.status == SlamStartupGate::GpsSampleResult::Status::Pending)
-  {
-    RCLCPP_DEBUG(
-      this->get_logger(),
-      "GPS init pending: accepted samples=%zu",
-      result.acceptedSampleCount);
-    return;
-  }
-
-  if (result.status != SlamStartupGate::GpsSampleResult::Status::Ready ||
-      !result.reference.has_value())
-  {
-    return;
-  }
-
-  const GpsReference& reference = *result.reference;
-
-  initializeLocalFrameAnchor(reference, *msg);
-
-  RCLCPP_INFO(
-    this->get_logger(),
-    "GPS init complete with %zu samples: lat=%.10f lon=%.10f alt=%.3f",
-    result.acceptedSampleCount,
-    reference.latitudeDeg,
-    reference.longitudeDeg,
-    reference.altitudeM);
-}
-
-void SlamManager::initializeLocalFrameAnchor(
-  const GpsReference& reference,
-  const px4_msgs::msg::SensorGps& msg)
-{
-  LocalFrameAnchor anchor;
-  anchor.anchorReference = reference;
-  anchor.initialEnuPosition = Eigen::Vector3d::Zero();
-  anchor.anchorTimestampUs = msg.timestamp;
-
-  // TODO(avosughi): Verify whether msg.timestamp, timestamp_sample, time_utc_usec,
-  // or ROS receive time is the correct anchor timebase for later GPS fusion.
-  _gpsLocalFrame.setAnchor(anchor);
-
-  RCLCPP_INFO(
-    this->get_logger(),
-    "Local GPS anchor created: lat=%.10f lon=%.10f alt=%.3f timestamp_us=%llu",
-    anchor.anchorReference.latitudeDeg,
-    anchor.anchorReference.longitudeDeg,
-    anchor.anchorReference.altitudeM,
-    static_cast<unsigned long long>(anchor.anchorTimestampUs));
 }
 
 void SlamManager::feature3dPointCallback(

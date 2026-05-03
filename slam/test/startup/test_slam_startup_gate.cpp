@@ -193,6 +193,112 @@ TEST(SlamStartupGateTest, GpsRequired_NoDropInput_AllowsProcessingWhileWaiting)
   EXPECT_FALSE(gate.shouldDropSlamInput());
 }
 
+// ---- tests: initializer/session metrics and reasons ------------------------
+
+TEST(SlamStartupGateTest, Initializer_Pending_ReturnsMetricsAndPendingReason)
+{
+  GpsInitializationPolicy policy;
+  policy.minSamples = 3;
+  policy.maxWindowSec = kPolicyWindowSec;
+  policy.requiredFixType = kPolicyRequiredFixType;
+  policy.maxEph = kPolicyMaxEph;
+  policy.maxEpv = kPolicyMaxEpv;
+  policy.stationaryMaxSpeedMps = kPolicyMaxSpeedMps;
+  policy.stationaryMaxDispersionM = kPolicyMaxDispersionM;
+  policy.useAverage = true;
+
+  GpsStartupInitializer initializer(policy);
+  const GpsInitializationOutcome outcome =
+    initializer.ingest(makeGoodSample(), makeTime(kSampleT0));
+
+  EXPECT_FALSE(outcome.ready);
+  EXPECT_FALSE(outcome.rejected);
+  EXPECT_EQ(outcome.acceptedSampleCount, 1u);
+  EXPECT_EQ(outcome.reason, "GPS init collecting accepted samples.");
+  EXPECT_EQ(outcome.metrics.acceptedSampleCount, 1u);
+  EXPECT_EQ(outcome.metrics.minSamplesRequired, 3u);
+  EXPECT_DOUBLE_EQ(outcome.metrics.ephThreshold, kPolicyMaxEph);
+  EXPECT_DOUBLE_EQ(outcome.metrics.epvThreshold, kPolicyMaxEpv);
+  EXPECT_DOUBLE_EQ(outcome.metrics.speedThresholdMps, kPolicyMaxSpeedMps);
+}
+
+TEST(SlamStartupGateTest, Initializer_RejectFixType_ReasonContainsActualAndThreshold)
+{
+  GpsInitializationPolicy policy;
+  policy.minSamples = kMinSamplesForReady;
+  policy.maxWindowSec = kPolicyWindowSec;
+  policy.requiredFixType = kPolicyRequiredFixType;
+  policy.maxEph = kPolicyMaxEph;
+  policy.maxEpv = kPolicyMaxEpv;
+  policy.stationaryMaxSpeedMps = kPolicyMaxSpeedMps;
+  policy.stationaryMaxDispersionM = kPolicyMaxDispersionM;
+  policy.useAverage = true;
+
+  GpsStartupInitializer initializer(policy);
+  px4_msgs::msg::SensorGps badSample = makeGoodSample();
+  badSample.fix_type = kBadFixType;
+
+  const GpsInitializationOutcome outcome =
+    initializer.ingest(badSample, makeTime(kSampleT0));
+
+  EXPECT_TRUE(outcome.rejected);
+  EXPECT_NE(outcome.reason.find("fix type below required threshold"), std::string::npos);
+  EXPECT_NE(outcome.reason.find("2 < 3"), std::string::npos);
+}
+
+TEST(SlamStartupGateTest, Session_PropagatesPendingReasonAndMetrics)
+{
+  GpsInitializationPolicy policy;
+  policy.minSamples = 3;
+  policy.maxWindowSec = kPolicyWindowSec;
+  policy.requiredFixType = kPolicyRequiredFixType;
+  policy.maxEph = kPolicyMaxEph;
+  policy.maxEpv = kPolicyMaxEpv;
+  policy.stationaryMaxSpeedMps = kPolicyMaxSpeedMps;
+  policy.stationaryMaxDispersionM = kPolicyMaxDispersionM;
+  policy.useAverage = true;
+
+  GpsStartupSession session(
+    std::make_unique<GpsStartupInitializer>(policy));
+
+  const GpsStartupSession::Result result =
+    session.ingestSample(makeGoodSample(), makeTime(kSampleT0));
+
+  EXPECT_EQ(result.status, GpsStartupSession::ResultStatus::Pending);
+  EXPECT_EQ(result.reason, "GPS init collecting accepted samples.");
+  ASSERT_TRUE(result.metrics.has_value());
+  EXPECT_EQ(result.metrics->acceptedSampleCount, 1u);
+  EXPECT_EQ(result.metrics->minSamplesRequired, 3u);
+}
+
+TEST(SlamStartupGateTest, Session_Ready_PropagatesComputedMetrics)
+{
+  GpsInitializationPolicy policy;
+  policy.minSamples = 2;
+  policy.maxWindowSec = kPolicyWindowSec;
+  policy.requiredFixType = kPolicyRequiredFixType;
+  policy.maxEph = kPolicyMaxEph;
+  policy.maxEpv = kPolicyMaxEpv;
+  policy.stationaryMaxSpeedMps = kPolicyMaxSpeedMps;
+  policy.stationaryMaxDispersionM = kPolicyMaxDispersionM;
+  policy.useAverage = true;
+
+  GpsStartupSession session(
+    std::make_unique<GpsStartupInitializer>(policy));
+
+  (void)session.ingestSample(makeGoodSample(), makeTime(kSampleT0));
+  const GpsStartupSession::Result ready =
+    session.ingestSample(makeGoodSample(), makeTime(kSampleT1));
+
+  EXPECT_EQ(ready.status, GpsStartupSession::ResultStatus::Ready);
+  ASSERT_TRUE(ready.metrics.has_value());
+  EXPECT_EQ(ready.metrics->acceptedSampleCount, 2u);
+  EXPECT_GE(ready.metrics->windowDurationSec, 0.0);
+  EXPECT_DOUBLE_EQ(ready.metrics->meanEph, kGoodEph);
+  EXPECT_DOUBLE_EQ(ready.metrics->meanEpv, kGoodEpv);
+  EXPECT_DOUBLE_EQ(ready.metrics->maxSpeedMps, kZeroSpeed);
+}
+
 // ---- tests: GPS sample ingestion --------------------------------------------
 
 TEST(SlamStartupGateTest, GpsRequired_FirstSampleBeforeMinCount_IsPending)

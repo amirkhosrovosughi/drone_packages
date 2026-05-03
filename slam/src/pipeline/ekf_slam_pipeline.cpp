@@ -68,6 +68,28 @@ void EkfSlamPipeline::setLogger(LoggerPtr logger)
   _association->setLogger(logger);
 }
 
+void EkfSlamPipeline::applyStartupAnchor(const LocalFrameAnchor& anchor)
+{
+  std::lock_guard<std::mutex> lock(_mutex);
+  if (_logger)
+  {
+    _logger->logInfo(
+      "EKF startup anchor aligned (no-op for now): lat=",
+      anchor.anchorReference.latitudeDeg,
+      ", lon=",
+      anchor.anchorReference.longitudeDeg,
+      ", alt=",
+      anchor.anchorReference.altitudeM,
+      ", initial_enu=[",
+      anchor.initialEnuPosition.x(),
+      ", ",
+      anchor.initialEnuPosition.y(),
+      ", ",
+      anchor.initialEnuPosition.z(),
+      "]");
+  }
+}
+
 /**
  * @brief Internal EKF prediction step.
  */

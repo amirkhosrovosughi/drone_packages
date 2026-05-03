@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 
@@ -27,6 +28,7 @@ public:
   {
     ResultStatus status = ResultStatus::Pending;
     std::size_t acceptedSampleCount = 0;
+    std::optional<GpsInitializationMetrics> metrics;
     std::string reason;
   };
 

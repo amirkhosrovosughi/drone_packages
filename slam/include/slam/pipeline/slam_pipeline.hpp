@@ -37,6 +37,18 @@ public:
   virtual void processObservation(const Observations& o) = 0;
   virtual MapSummary getMap() const = 0;
   virtual void setLogger(LoggerPtr logger) = 0;
+
+  /**
+   * @brief Align pipeline startup frame with the accepted GPS local anchor.
+   *
+   * Default behavior is no-op so existing backends remain source-compatible.
+   * Backends can override this to initialize internal state consistently with
+   * the startup local frame before GPS fusion is introduced.
+   */
+  virtual void applyStartupAnchor(const LocalFrameAnchor& anchor)
+  {
+    (void)anchor;
+  }
   // TODO: Not ROS-agnostic to be changed later
   // should be replaced with:
   // struct BackendLogger {

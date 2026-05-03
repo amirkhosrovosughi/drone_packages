@@ -66,6 +66,7 @@ SlamStartupGate::GpsSampleResult SlamStartupGate::onGpsSample(
   const GpsStartupSession::Result sessionResult =
     _gpsStartupSession->ingestSample(msg, receiveTime);
   result.acceptedSampleCount = sessionResult.acceptedSampleCount;
+  result.metrics = sessionResult.metrics;
 
   if (sessionResult.status == GpsStartupSession::ResultStatus::Rejected)
   {
@@ -77,6 +78,7 @@ SlamStartupGate::GpsSampleResult SlamStartupGate::onGpsSample(
   if (sessionResult.status != GpsStartupSession::ResultStatus::Ready)
   {
     result.status = GpsSampleResult::Status::Pending;
+    result.reason = sessionResult.reason;
     return result;
   }
 

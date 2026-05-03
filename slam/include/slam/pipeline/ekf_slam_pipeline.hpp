@@ -51,6 +51,8 @@ public:
 
   void setLogger(LoggerPtr logger) override;
 
+  void applyStartupAnchor(const LocalFrameAnchor& anchor) override;
+
 private:
   void onBackendUpdate(const MapSummary& map);
   void updateFilter(const MotionConstraint& m);

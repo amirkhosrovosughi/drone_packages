@@ -20,6 +20,7 @@ GpsStartupSession::Result GpsStartupSession::ingestSample(
 
   const GpsInitializationOutcome outcome = _initializer->ingest(msg, receiveTime);
   result.acceptedSampleCount = outcome.acceptedSampleCount;
+  result.metrics = outcome.metrics;
 
   if (outcome.rejected)
   {
@@ -31,6 +32,7 @@ GpsStartupSession::Result GpsStartupSession::ingestSample(
   if (!outcome.ready)
   {
     result.status = ResultStatus::Pending;
+    result.reason = outcome.reason;
     return result;
   }
 

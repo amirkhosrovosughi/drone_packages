@@ -21,6 +21,27 @@ struct GpsInitializationPolicy
   bool useAverage = true;
 };
 
+struct GpsInitializationMetrics
+{
+  std::size_t acceptedSampleCount = 0;
+  std::size_t minSamplesRequired = 0;
+  double windowDurationSec = 0.0;
+  double maxWindowSec = 0.0;
+  double maxDispersionM = 0.0;
+  double dispersionThresholdM = 0.0;
+  double meanEph = 0.0;
+  double maxEph = 0.0;
+  double ephThreshold = 0.0;
+  double meanEpv = 0.0;
+  double maxEpv = 0.0;
+  double epvThreshold = 0.0;
+  double meanSpeedMps = 0.0;
+  double maxSpeedMps = 0.0;
+  double speedThresholdMps = 0.0;
+  int requiredFixType = 0;
+  bool useAverage = true;
+};
+
 struct GpsInitializationOutcome
 {
   bool ready = false;
@@ -29,6 +50,7 @@ struct GpsInitializationOutcome
   double latitudeDeg = 0.0;
   double longitudeDeg = 0.0;
   double altitudeM = 0.0;
+  GpsInitializationMetrics metrics;
   std::string reason;
 };
 
@@ -49,7 +71,10 @@ private:
     double latitudeDeg;
     double longitudeDeg;
     double altitudeM;
+    double eph;
+    double epv;
     double speedMps;
+    int fixType;
     rclcpp::Time receiveTime;
   };
 
@@ -60,6 +85,10 @@ private:
   void trimToWindow(const rclcpp::Time& now);
 
   double computeMaxDispersionMeters() const;
+
+  double computeWindowDurationSec() const;
+
+  GpsInitializationMetrics buildMetrics(double maxDispersionM) const;
 
   static double planarDistanceMeters(
     double latRefDeg,

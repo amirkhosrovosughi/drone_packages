@@ -48,6 +48,7 @@ public:
     Status status = Status::Ignored;
     std::size_t acceptedSampleCount = 0;
     std::string reason;
+    std::optional<GpsInitializationMetrics> metrics;
     std::optional<GpsReference> reference;
     StateTransition transition;
   };

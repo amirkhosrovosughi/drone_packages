@@ -85,6 +85,27 @@ void GraphSlamPipeline::setLogger(LoggerPtr logger)
   }
 }
 
+void GraphSlamPipeline::applyStartupAnchor(const LocalFrameAnchor& anchor)
+{
+  if (_logger)
+  {
+    _logger->logInfo(
+      "Graph startup anchor aligned (no-op for now): lat=",
+      anchor.anchorReference.latitudeDeg,
+      ", lon=",
+      anchor.anchorReference.longitudeDeg,
+      ", alt=",
+      anchor.anchorReference.altitudeM,
+      ", initial_enu=[",
+      anchor.initialEnuPosition.x(),
+      ", ",
+      anchor.initialEnuPosition.y(),
+      ", ",
+      anchor.initialEnuPosition.z(),
+      "]");
+  }
+}
+
 void GraphSlamPipeline::setScheduler(std::shared_ptr<OptimizationScheduler> scheduler)
 {
   if (scheduler)
