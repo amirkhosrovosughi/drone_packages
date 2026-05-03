@@ -79,6 +79,10 @@ include_directories(include/${PROJECT_NAME})
 set(SOURCES
   src/node/slam_node.cpp
   src/node/slam_manager.cpp
+  src/startup/gps_startup_initializer.cpp
+  src/startup/gps_startup_session.cpp
+  src/startup/slam_startup_contract.cpp
+  src/startup/slam_startup_gate.cpp
   src/pipeline/pipeline_factory.cpp
   src/pipeline/ekf_slam_pipeline.cpp
   src/pipeline/graph_slam_backend.cpp
@@ -287,5 +291,16 @@ if(BUILD_TESTING)
     SOURCES
       test/graph/test_internal_graph_optimizer.cpp
       src/graph/internal_graph_optimizer.cpp
+  )
+
+  add_slam_gtest(test_slam_startup_gate
+    SOURCES
+      test/startup/test_slam_startup_gate.cpp
+      src/startup/slam_startup_gate.cpp
+      src/startup/gps_startup_session.cpp
+      src/startup/gps_startup_initializer.cpp
+    DEPS
+      rclcpp
+      px4_msgs
   )
 endif()

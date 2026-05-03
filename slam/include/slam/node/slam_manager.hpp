@@ -3,6 +3,7 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <memory>
+#include <string>
 
 #include "tf2_ros/transform_listener.h"
 #include "tf2_ros/buffer.h"
@@ -12,9 +13,11 @@
 #include "pipeline/slam_pipeline.hpp"
 #include "common/slam_logger.hpp"
 #include "measurement/measurement_factory.hpp"
+#include "startup/slam_startup_gate.hpp"
 
 #include "sensor_msgs/msg/camera_info.hpp"
 #include <px4_msgs/msg/vehicle_odometry.hpp> 
+#include <px4_msgs/msg/sensor_gps.hpp>
 #include <drone_msgs/msg/point_list.hpp>
 #include <drone_msgs/msg/map_summary.hpp>
 
@@ -42,6 +45,11 @@ private:
   void createSubscribers();
 
   /**
+   * @brief Configure startup integration mode and state machine behavior.
+   */
+  void configureStartupContract();
+
+  /**
    * @brief Create ROS publishers.
    */
   void createPublishers();
@@ -57,6 +65,12 @@ private:
    */
   void odometryCallback(
     const px4_msgs::msg::VehicleOdometry::SharedPtr msg);
+
+  /**
+   * @brief GPS callback used for startup initialization gate.
+   */
+  void gpsCallback(
+    const px4_msgs::msg::SensorGps::SharedPtr msg);
 
   /**
    * @brief Feature observation callback.
@@ -100,16 +114,23 @@ private:
    */
   void initializeCameraInfo();
 
+  /**
+   * @brief Startup watchdog callback for degraded fallback handling.
+   */
+  void startupWatchdogCallback();
+
 private:
   std::shared_ptr<slam::SlamPipeline> _slam; ///< Active SLAM pipeline
   std::shared_ptr<MeasurementFactory> _measurementFactory; ///< Measurement factory for pipeline
   rclcpp::Subscription<px4_msgs::msg::VehicleOdometry>::SharedPtr _odomSub; ///< Odometry subscriber
+  rclcpp::Subscription<px4_msgs::msg::SensorGps>::SharedPtr _gpsSub; ///< GPS subscriber used for startup gating
   rclcpp::Subscription<drone_msgs::msg::PointList>::SharedPtr _obs3dPointSub; ///< Observation 3D coordinate subscriber
   rclcpp::Subscription<vision_msgs::msg::Detection3DArray>::SharedPtr _obsBboxSub; ///< Observation bbox subscriber
   rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr _cameraIntrinsicSubscriber; ///< Subscriber for camera intrinsic information
   rclcpp::Publisher<drone_msgs::msg::MapSummary>::SharedPtr _mapPub; ///< Map publisher
   rclcpp::TimerBase::SharedPtr _cameraExtrinsicTimer; ///< Timer for sensor transform update
   rclcpp::TimerBase::SharedPtr _mapPubTimer; ///< Timer for publish map tasks.
+  rclcpp::TimerBase::SharedPtr _startupWatchdogTimer; ///< Timer for startup state transitions
 
   std::unique_ptr<tf2_ros::Buffer> _tfBuffer; ///< TF buffer
   std::shared_ptr<tf2_ros::TransformListener> _tfListener; ///< TF listener
@@ -118,6 +139,8 @@ private:
   CameraInfo _cameraInfo; ///< Camera intrinsic and extrinsic information
   bool _cameraIntrinsicLoaded = false; ///< Flag indicating if camera intrinsic parameters are loaded
   bool _cameraExtrinsicLoaded = false; ///< Flag indicating if camera extrinsic parameters are loaded
+
+  std::unique_ptr<SlamStartupGate> _startupGate; ///< Startup gate managing GPS init state and SLAM input gating.
 };
 
 #endif  // SLAM__NODE__SLAM_MANAGER_HPP_

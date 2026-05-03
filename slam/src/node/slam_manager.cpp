@@ -4,6 +4,7 @@
 
 #include "pipeline/pipeline_factory.hpp"
 #include "observation/observation_builder.hpp"
+#include "startup/slam_startup_contract.hpp"
 
 #include "common_utilities/transform_util.hpp"
 #include "common/ros_slam_logger.hpp"
@@ -11,11 +12,22 @@
 static constexpr const char* FROM_FRAME = "base_link";
 static constexpr const char* TO_FRAME   = "camera_frame";
 static constexpr int ROBOT_ID = 1;
+static constexpr const char* GPS_TOPIC = "/fmu/out/vehicle_gps_position";
+static constexpr const char* ODOM_TOPIC = "/fmu/out/vehicle_odometry";
+static constexpr const char* FEATURE_POINT_TOPIC = "/feature/coordinate/baseLink";
+static constexpr const char* FEATURE_BBOX_TOPIC = "/feature/bbox/cameraFrame";
+static constexpr const char* CAMERA_INFO_TOPIC = "/camera_info";
+static constexpr const char* MAP_TOPIC = "/slam/map";
+static constexpr std::chrono::milliseconds CAMERA_EXTRINSIC_TIMER_PERIOD_MS{100};
+static constexpr std::chrono::milliseconds MAP_PUBLISH_TIMER_PERIOD_MS{500};
+static constexpr std::chrono::milliseconds STARTUP_WATCHDOG_TIMER_PERIOD_MS{500};
 
 SlamManager::SlamManager()
 : Node("slam_manager")
 {
   _logger = std::make_shared<RosSlamLogger>(this->get_logger());
+
+  configureStartupContract();
 
   _measurementFactory = std::make_shared<MeasurementFactory>();
   _slam = slam::createPipeline(_logger, _measurementFactory);
@@ -30,11 +42,11 @@ SlamManager::SlamManager()
   _tfListener = std::make_shared<tf2_ros::TransformListener>(*_tfBuffer);
 
   _cameraExtrinsicTimer = this->create_wall_timer(
-    std::chrono::milliseconds(100),
+    CAMERA_EXTRINSIC_TIMER_PERIOD_MS,
     std::bind(&SlamManager::updateCameraExtrinsic, this));
 
   _mapPubTimer = this->create_wall_timer(
-    std::chrono::milliseconds(500),
+    MAP_PUBLISH_TIMER_PERIOD_MS,
     [this]()
     {
       auto snapshot = _slam->getMap();
@@ -45,6 +57,30 @@ SlamManager::SlamManager()
       publishMap(snapshot);
     }
   );
+
+  _startupWatchdogTimer = this->create_wall_timer(
+    STARTUP_WATCHDOG_TIMER_PERIOD_MS,
+    std::bind(&SlamManager::startupWatchdogCallback, this));
+}
+
+void SlamManager::configureStartupContract()
+{
+  SlamStartupContractConfig config =
+    startup::loadContractFromNode(*this);
+
+  _startupGate = std::make_unique<SlamStartupGate>();
+
+  if (!config.warningMessage.empty())
+  {
+    RCLCPP_WARN(
+      this->get_logger(),
+      "%s",
+      config.warningMessage.c_str());
+  }
+
+  SlamStartupGate::logTransition(
+    this->get_logger(),
+    _startupGate->configure(std::move(config), this->now()));
 }
 
 void SlamManager::createSubscribers()
@@ -53,23 +89,31 @@ void SlamManager::createSubscribers()
                .best_effort()
                .transient_local();
 
+  if (_startupGate && _startupGate->requiresGpsSubscription())
+  {
+    _gpsSub = this->create_subscription<px4_msgs::msg::SensorGps>(
+      GPS_TOPIC,
+      qos,
+      std::bind(&SlamManager::gpsCallback, this, std::placeholders::_1));
+  }
+
   _odomSub = this->create_subscription<px4_msgs::msg::VehicleOdometry>(
-    "/fmu/out/vehicle_odometry",
+    ODOM_TOPIC,
     qos,
     std::bind(&SlamManager::odometryCallback, this, std::placeholders::_1));
 
   _obs3dPointSub = this->create_subscription<drone_msgs::msg::PointList>(
-    "/feature/coordinate/baseLink",
+    FEATURE_POINT_TOPIC,
     10,
     std::bind(&SlamManager::feature3dPointCallback, this, std::placeholders::_1));
 
   _obsBboxSub = this->create_subscription<vision_msgs::msg::Detection3DArray>(
-    "/feature/bbox/cameraFrame",
+    FEATURE_BBOX_TOPIC,
     10,
     std::bind(&SlamManager::featureBboxCallback, this, std::placeholders::_1));
 
   _cameraIntrinsicSubscriber = this->create_subscription<sensor_msgs::msg::CameraInfo>(
-    "/camera_info",
+    CAMERA_INFO_TOPIC,
     10,
     std::bind(&SlamManager::cameraIntrinsicCallback, this, std::placeholders::_1));
 }
@@ -77,13 +121,18 @@ void SlamManager::createSubscribers()
 void SlamManager::createPublishers()
 {
   _mapPub = this->create_publisher<drone_msgs::msg::MapSummary>(
-    "/slam/map",
+    MAP_TOPIC,
     10);
 }
 
 void SlamManager::odometryCallback(
   const px4_msgs::msg::VehicleOdometry::SharedPtr msg)
 {
+  if (_startupGate && _startupGate->shouldDropSlamInput())
+  {
+    return;
+  }
+
   MotionConstraint motion;
 
   // Convert NED → ENU
@@ -120,9 +169,62 @@ void SlamManager::odometryCallback(
   _lastPositionEnu = posEnu;
 }
 
+void SlamManager::gpsCallback(
+  const px4_msgs::msg::SensorGps::SharedPtr msg)
+{
+  if (!_startupGate)
+  {
+    return;
+  }
+
+  const SlamStartupGate::GpsSampleResult result =
+    _startupGate->onGpsSample(*msg, this->now());
+
+  SlamStartupGate::logTransition(this->get_logger(), result.transition);
+
+  if (result.status == SlamStartupGate::GpsSampleResult::Status::Rejected)
+  {
+    RCLCPP_DEBUG(
+      this->get_logger(),
+      "GPS init sample rejected: %s",
+      result.reason.c_str());
+    return;
+  }
+
+  if (result.status == SlamStartupGate::GpsSampleResult::Status::Pending)
+  {
+    RCLCPP_DEBUG(
+      this->get_logger(),
+      "GPS init pending: accepted samples=%zu",
+      result.acceptedSampleCount);
+    return;
+  }
+
+  if (result.status != SlamStartupGate::GpsSampleResult::Status::Ready ||
+      !result.reference.has_value())
+  {
+    return;
+  }
+
+  const GpsReference& reference = *result.reference;
+
+  RCLCPP_INFO(
+    this->get_logger(),
+    "GPS init complete with %zu samples: lat=%.10f lon=%.10f alt=%.3f",
+    result.acceptedSampleCount,
+    reference.latitudeDeg,
+    reference.longitudeDeg,
+    reference.altitudeM);
+}
+
 void SlamManager::feature3dPointCallback(
     const drone_msgs::msg::PointList::SharedPtr msg)
 {
+  if (_startupGate && _startupGate->shouldDropSlamInput())
+    {
+      return;
+    }
+
     if (msg->header.stamp.sec == 0 && msg->header.stamp.nanosec == 0)
     {
       RCLCPP_WARN(this->get_logger(),
@@ -140,6 +242,11 @@ void SlamManager::feature3dPointCallback(
 void SlamManager::featureBboxCallback(
     const vision_msgs::msg::Detection3DArray::SharedPtr msg)
 {
+  if (_startupGate && _startupGate->shouldDropSlamInput())
+  {
+    return;
+  }
+
   if (msg->header.stamp.sec == 0 && msg->header.stamp.nanosec == 0)
     {
       RCLCPP_WARN(this->get_logger(),
@@ -287,3 +394,27 @@ double SlamManager::getCurrentTimeInSeconds()
   auto now = std::chrono::system_clock::now();
   return std::chrono::duration<double>(now.time_since_epoch()).count();
 }
+
+void SlamManager::startupWatchdogCallback()
+{
+  if (!_startupGate)
+  {
+    return;
+  }
+
+  const SlamStartupGate::WatchdogResult result =
+    _startupGate->onWatchdogTick(this->now());
+
+  SlamStartupGate::logTransition(this->get_logger(), result.transition);
+
+  if (result.shouldWarnBlocked)
+  {
+    RCLCPP_WARN_THROTTLE(
+      this->get_logger(),
+      *this->get_clock(),
+      5000,
+      "GPS initialization still pending (%.1fs elapsed). SLAM inputs are blocked.",
+      result.elapsedSec);
+  }
+}
+

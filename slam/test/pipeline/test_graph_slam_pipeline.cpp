@@ -145,7 +145,7 @@ public:
     }
 
     bool optimizeGraph(
-      const OptimizationConfig& config,
+      const OptimizationConfig& /*config*/,
       OptimizationResult* resultOut = nullptr) override
     {
       ++optimizeCallCount;
