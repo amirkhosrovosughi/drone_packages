@@ -13,14 +13,19 @@
 #include "pipeline/slam_pipeline.hpp"
 #include "common/slam_logger.hpp"
 #include "common/def_slam_core.hpp"
+#ifdef USE_GPS
 #include "gps/gps_local_frame.hpp"
 #include "gps/gps_manager.hpp"
+#endif
 #include "measurement/measurement_factory.hpp"
 #include "startup/slam_startup_gate.hpp"
 
+
+#ifdef USE_GPS
+#include <px4_msgs/msg/sensor_gps.hpp>
+#endif
 #include "sensor_msgs/msg/camera_info.hpp"
 #include <px4_msgs/msg/vehicle_odometry.hpp> 
-#include <px4_msgs/msg/sensor_gps.hpp>
 #include <drone_msgs/msg/point_list.hpp>
 #include <drone_msgs/msg/map_summary.hpp>
 
@@ -69,11 +74,13 @@ private:
   void odometryCallback(
     const px4_msgs::msg::VehicleOdometry::SharedPtr msg);
 
+#ifdef USE_GPS
   /**
    * @brief GPS callback — delegates to GpsManager.
    */
   void gpsCallback(
     const px4_msgs::msg::SensorGps::SharedPtr msg);
+#endif
 
   /**
    * @brief Feature observation callback.
@@ -126,7 +133,9 @@ private:
   std::shared_ptr<slam::SlamPipeline> _slam; ///< Active SLAM pipeline
   std::shared_ptr<MeasurementFactory> _measurementFactory; ///< Measurement factory for pipeline
   rclcpp::Subscription<px4_msgs::msg::VehicleOdometry>::SharedPtr _odomSub; ///< Odometry subscriber
+#ifdef USE_GPS
   rclcpp::Subscription<px4_msgs::msg::SensorGps>::SharedPtr _gpsSub; ///< GPS subscriber used for startup gating
+#endif
   rclcpp::Subscription<drone_msgs::msg::PointList>::SharedPtr _obs3dPointSub; ///< Observation 3D coordinate subscriber
   rclcpp::Subscription<vision_msgs::msg::Detection3DArray>::SharedPtr _obsBboxSub; ///< Observation bbox subscriber
   rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr _cameraIntrinsicSubscriber; ///< Subscriber for camera intrinsic information
@@ -144,8 +153,10 @@ private:
   bool _cameraExtrinsicLoaded = false; ///< Flag indicating if camera extrinsic parameters are loaded
 
   std::unique_ptr<SlamStartupGate> _startupGate; ///< Startup gate managing GPS init state and SLAM input gating.
+#ifdef USE_GPS
   GpsLocalFrame _gpsLocalFrame; ///< Helper storing the GPS anchor and projecting future samples to ENU.
   std::unique_ptr<GpsManager> _gpsManager; ///< GPS signal handler (startup gating + post-init projection).
+#endif
 };
 
 #endif  // SLAM__NODE__SLAM_MANAGER_HPP_

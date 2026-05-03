@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.8)
 project(slam)
 
+# Flag to enable GPS support (initialization gating + future fusion)
+option(USE_GPS "Compile with GPS support" ON)
+
 # Flag to select SLAM pipeline (exactly one must be enabled)
 option(SLAM_EKF "Build with EKF SLAM" OFF)
 option(SLAM_GRAPH "Build with Graph SLAM" OFF)
@@ -53,6 +56,12 @@ elseif(SLAM_FAST_SLAM)
   message(STATUS "FAST_SLAM pipeline selected. Current runtime path is not implemented yet; this selection is reserved for future work.")
 endif()
 
+if(USE_GPS)
+  message(STATUS "USE_GPS=ON: GPS initialization and fusion support enabled.")
+else()
+  message(STATUS "USE_GPS=OFF: GPS support excluded from build.")
+endif()
+
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
@@ -79,10 +88,6 @@ include_directories(include/${PROJECT_NAME})
 set(SOURCES
   src/node/slam_node.cpp
   src/node/slam_manager.cpp
-  src/gps/gps_local_frame.cpp
-  src/gps/gps_manager.cpp
-  src/startup/gps_startup_initializer.cpp
-  src/startup/gps_startup_session.cpp
   src/startup/slam_startup_contract.cpp
   src/startup/slam_startup_gate.cpp
   src/pipeline/pipeline_factory.cpp
@@ -108,10 +113,23 @@ set(SOURCES
   src/association/graph_nearest_neighbor_association.cpp
 )
 
+if(USE_GPS)
+  list(APPEND SOURCES
+    src/gps/gps_local_frame.cpp
+    src/gps/gps_manager.cpp
+    src/startup/gps_startup_initializer.cpp
+    src/startup/gps_startup_session.cpp
+  )
+endif()
+
 add_executable(${PROJECT_NAME} ${SOURCES})
 
 if(STORE_DEBUG_DATA)
   target_compile_definitions(${PROJECT_NAME} PRIVATE STORE_DEBUG_DATA)
+endif()
+
+if(USE_GPS)
+  target_compile_definitions(${PROJECT_NAME} PRIVATE USE_GPS)
 endif()
 
 ament_target_dependencies(${PROJECT_NAME}

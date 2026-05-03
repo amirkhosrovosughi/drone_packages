@@ -12,7 +12,6 @@
 static constexpr const char* FROM_FRAME = "base_link";
 static constexpr const char* TO_FRAME   = "camera_frame";
 static constexpr int ROBOT_ID = 1;
-static constexpr const char* GPS_TOPIC = "/fmu/out/vehicle_gps_position";
 static constexpr const char* ODOM_TOPIC = "/fmu/out/vehicle_odometry";
 static constexpr const char* FEATURE_POINT_TOPIC = "/feature/coordinate/baseLink";
 static constexpr const char* FEATURE_BBOX_TOPIC = "/feature/bbox/cameraFrame";
@@ -21,6 +20,9 @@ static constexpr const char* MAP_TOPIC = "/slam/map";
 static constexpr std::chrono::milliseconds CAMERA_EXTRINSIC_TIMER_PERIOD_MS{100};
 static constexpr std::chrono::milliseconds MAP_PUBLISH_TIMER_PERIOD_MS{500};
 static constexpr std::chrono::milliseconds STARTUP_WATCHDOG_TIMER_PERIOD_MS{500};
+#ifdef USE_GPS
+static constexpr const char* GPS_TOPIC = "/fmu/out/vehicle_gps_position";
+#endif
 
 SlamManager::SlamManager()
 : Node("slam_manager")
@@ -89,6 +91,7 @@ void SlamManager::createSubscribers()
                .best_effort()
                .transient_local();
 
+#ifdef USE_GPS
   if (_startupGate && _startupGate->requiresGpsSubscription())
   {
     _gpsManager = std::make_unique<GpsManager>(
@@ -100,6 +103,7 @@ void SlamManager::createSubscribers()
       qos,
       std::bind(&SlamManager::gpsCallback, this, std::placeholders::_1));
   }
+#endif
 
   _odomSub = this->create_subscription<px4_msgs::msg::VehicleOdometry>(
     ODOM_TOPIC,
@@ -173,6 +177,7 @@ void SlamManager::odometryCallback(
   _lastPositionEnu = posEnu;
 }
 
+#ifdef USE_GPS
 void SlamManager::gpsCallback(
   const px4_msgs::msg::SensorGps::SharedPtr msg)
 {
@@ -181,6 +186,7 @@ void SlamManager::gpsCallback(
     _gpsManager->onSample(*msg, this->now());
   }
 }
+#endif
 
 void SlamManager::feature3dPointCallback(
     const drone_msgs::msg::PointList::SharedPtr msg)
