@@ -10,14 +10,8 @@
 
 #include <px4_msgs/msg/sensor_gps.hpp>
 
+#include "common/def_slam_core.hpp"
 #include "startup/gps_startup_initializer.hpp"
-
-struct GpsReference
-{
-  double latitudeDeg = 0.0;
-  double longitudeDeg = 0.0;
-  double altitudeM = 0.0;
-};
 
 class GpsStartupSession
 {

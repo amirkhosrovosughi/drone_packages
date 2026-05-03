@@ -62,7 +62,6 @@ TEST(TransformUtilTest, NedToEnu_CustomVector) {
     EXPECT_NEAR(enu[2], -3.0f, 1e-5);  // -z → z
 }
 
-
 // 4. 2D Rotation by 90 degrees counter-clockwise
 TEST(TransformUtilTest, Rotate2D_90Degrees) {
     Eigen::Vector2f point(1.0f, 0.0f);

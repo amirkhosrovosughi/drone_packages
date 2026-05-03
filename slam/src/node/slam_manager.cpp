@@ -177,6 +177,18 @@ void SlamManager::gpsCallback(
     return;
   }
 
+  if (_gpsLocalFrame.hasAnchor())
+  {
+    const Eigen::Vector3d projectedPosition = _gpsLocalFrame.toEnu(*msg);
+    RCLCPP_DEBUG(
+      this->get_logger(),
+      "GPS sample projected to local ENU: x=%.3f y=%.3f z=%.3f",
+      projectedPosition.x(),
+      projectedPosition.y(),
+      projectedPosition.z());
+    return;
+  }
+
   const SlamStartupGate::GpsSampleResult result =
     _startupGate->onGpsSample(*msg, this->now());
 
@@ -208,6 +220,8 @@ void SlamManager::gpsCallback(
 
   const GpsReference& reference = *result.reference;
 
+  initializeLocalFrameAnchor(reference, *msg);
+
   RCLCPP_INFO(
     this->get_logger(),
     "GPS init complete with %zu samples: lat=%.10f lon=%.10f alt=%.3f",
@@ -215,6 +229,28 @@ void SlamManager::gpsCallback(
     reference.latitudeDeg,
     reference.longitudeDeg,
     reference.altitudeM);
+}
+
+void SlamManager::initializeLocalFrameAnchor(
+  const GpsReference& reference,
+  const px4_msgs::msg::SensorGps& msg)
+{
+  LocalFrameAnchor anchor;
+  anchor.anchorReference = reference;
+  anchor.initialEnuPosition = Eigen::Vector3d::Zero();
+  anchor.anchorTimestampUs = msg.timestamp;
+
+  // TODO(avosughi): Verify whether msg.timestamp, timestamp_sample, time_utc_usec,
+  // or ROS receive time is the correct anchor timebase for later GPS fusion.
+  _gpsLocalFrame.setAnchor(anchor);
+
+  RCLCPP_INFO(
+    this->get_logger(),
+    "Local GPS anchor created: lat=%.10f lon=%.10f alt=%.3f timestamp_us=%llu",
+    anchor.anchorReference.latitudeDeg,
+    anchor.anchorReference.longitudeDeg,
+    anchor.anchorReference.altitudeM,
+    static_cast<unsigned long long>(anchor.anchorTimestampUs));
 }
 
 void SlamManager::feature3dPointCallback(

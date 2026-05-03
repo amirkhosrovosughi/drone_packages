@@ -1,6 +1,7 @@
 #ifndef SLAM__COMMON__DEF_SLAM_CORE_HPP_
 #define SLAM__COMMON__DEF_SLAM_CORE_HPP_
 
+#include <cstdint>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -171,6 +172,31 @@ struct CameraInfo
     CameraIntrinsic intrinsic;
 
     CameraInfo() : extrinsics(CameraExtrinsics::Identity()), intrinsic(CameraIntrinsic()) {}
+};
+
+// ---------------------------------------------------------------------------
+// Geodetic / GPS types
+// ---------------------------------------------------------------------------
+
+struct GeodeticCoordinate
+{
+  double latitudeDeg = 0.0;
+  double longitudeDeg = 0.0;
+  double altitudeM = 0.0;
+};
+
+struct GpsReference
+{
+  double latitudeDeg = 0.0;
+  double longitudeDeg = 0.0;
+  double altitudeM = 0.0;
+};
+
+struct LocalFrameAnchor
+{
+  GpsReference anchorReference;
+  std::uint64_t anchorTimestampUs = 0;
+  Eigen::Vector3d initialEnuPosition = Eigen::Vector3d::Zero();
 };
 
 #endif  // SLAM__COMMON__DEF_SLAM_CORE_HPP_

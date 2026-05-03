@@ -12,6 +12,8 @@
 
 #include "pipeline/slam_pipeline.hpp"
 #include "common/slam_logger.hpp"
+#include "common/def_slam_core.hpp"
+#include "gps/gps_local_frame.hpp"
 #include "measurement/measurement_factory.hpp"
 #include "startup/slam_startup_gate.hpp"
 
@@ -71,6 +73,13 @@ private:
    */
   void gpsCallback(
     const px4_msgs::msg::SensorGps::SharedPtr msg);
+
+  /**
+   * @brief Initialize the local ENU anchor from accepted startup GPS data.
+   */
+  void initializeLocalFrameAnchor(
+    const GpsReference& reference,
+    const px4_msgs::msg::SensorGps& msg);
 
   /**
    * @brief Feature observation callback.
@@ -141,6 +150,7 @@ private:
   bool _cameraExtrinsicLoaded = false; ///< Flag indicating if camera extrinsic parameters are loaded
 
   std::unique_ptr<SlamStartupGate> _startupGate; ///< Startup gate managing GPS init state and SLAM input gating.
+  GpsLocalFrame _gpsLocalFrame; ///< Helper storing the GPS anchor and projecting future samples to ENU.
 };
 
 #endif  // SLAM__NODE__SLAM_MANAGER_HPP_
