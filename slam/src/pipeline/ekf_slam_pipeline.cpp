@@ -93,7 +93,11 @@ void EkfSlamPipeline::applyStartupAnchor(const LocalFrameAnchor& anchor)
 void EkfSlamPipeline::processGpsMeasurement(const GpsConstraint& constraint)
 {
   std::lock_guard<std::mutex> lock(_mutex);
-  _ekf->applyGpsCorrection(constraint);
+  AbsolutePositionConstraint c;
+  c.enuPosition = constraint.enuPosition;
+  c.sigmaXyM    = constraint.sigmaXyM;
+  c.sigmaZM     = constraint.sigmaZM;
+  _ekf->applyAbsolutePositionCorrection(c);
 }
 
 /**

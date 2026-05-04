@@ -1,4 +1,6 @@
 #include "filter/extended_kalman_filter.hpp"
+#include <algorithm>
+#include <cmath>
 #include <iostream>
 #include <thread>
 #include <future>
@@ -12,6 +14,26 @@ static const LogLevel HIGH_LEVEL = LogLevel::INFO;
 static const LogLevel LOW_LEVEL = LogLevel::DEBUG;
 static const std::string LOG_SUBSECTION = "[filter] - ";
 static const int LANDMARK_DIMENSION = 3;
+
+namespace
+{
+constexpr int kAbsPosObservedDim = 3;
+
+// Clamp bounds for absolute-position 1-sigma values (metres).
+constexpr double kAbsPosSigmaXyMinM = 0.2;
+constexpr double kAbsPosSigmaXyMaxM = 20.0;
+constexpr double kAbsPosSigmaZMinM  = 0.3;
+constexpr double kAbsPosSigmaZMaxM  = 30.0;
+
+double sanitizeAndClampSigma(double sigmaM, double minSigmaM, double maxSigmaM)
+{
+    if (!std::isfinite(sigmaM))
+    {
+        return maxSigmaM;
+    }
+    return std::clamp(sigmaM, minSigmaM, maxSigmaM);
+}
+}  // namespace
 
 ExtendedKalmanFilter::ExtendedKalmanFilter(
     std::shared_ptr<MotionModel> motionModel)
@@ -277,7 +299,7 @@ void ExtendedKalmanFilter::addLandmark(const AssignedMeasurement& meas)
     _slamMap->addLandmark(newLandmarkPosition.getPositionVector());
 }
 
-void ExtendedKalmanFilter::applyGpsCorrection(const GpsConstraint& constraint)
+void ExtendedKalmanFilter::applyAbsolutePositionCorrection(const AbsolutePositionConstraint& constraint)
 {
     // -----------------------------------------------------------------------
     // Full-joint EKF GPS position update
@@ -301,20 +323,37 @@ void ExtendedKalmanFilter::applyGpsCorrection(const GpsConstraint& constraint)
         const Eigen::MatrixXd mu_full = _slamMap->getMapMean();
         const int totalDim = static_cast<int>(mu_full.rows());
 
-        if (totalDim < robotDim)
+        if (robotDim < kAbsPosObservedDim)
         {
             _logger->log(HIGH_LEVEL, LOG_SUBSECTION,
-                "GPS correction skipped: state not yet initialized");
+                "Absolute position correction skipped: robot state dimension < 3");
             return;
         }
 
-        // Observation matrix H (3 x totalDim): selects first 3 robot components
-        Eigen::MatrixXd H = Eigen::MatrixXd::Zero(3, totalDim);
-        H.block<3, 3>(0, 0) = Eigen::Matrix3d::Identity();
+        if (totalDim < robotDim)
+        {
+            _logger->log(HIGH_LEVEL, LOG_SUBSECTION,
+                "Absolute position correction skipped: state not yet initialized");
+            return;
+        }
+
+        // Observation matrix H (3 x totalDim): selects robot position block only.
+        Eigen::MatrixXd H = Eigen::MatrixXd::Zero(kAbsPosObservedDim, totalDim);
+        H.block<kAbsPosObservedDim, kAbsPosObservedDim>(0, 0) =
+            Eigen::Matrix3d::Identity();
 
         // Measurement noise R
-        const double sxy2 = constraint.sigmaXyM * constraint.sigmaXyM;
-        const double sz2  = constraint.sigmaZM  * constraint.sigmaZM;
+        const double sigmaXyM = sanitizeAndClampSigma(
+            constraint.sigmaXyM,
+            kAbsPosSigmaXyMinM,
+            kAbsPosSigmaXyMaxM);
+        const double sigmaZM = sanitizeAndClampSigma(
+            constraint.sigmaZM,
+            kAbsPosSigmaZMinM,
+            kAbsPosSigmaZMaxM);
+
+        const double sxy2 = sigmaXyM * sigmaXyM;
+        const double sz2  = sigmaZM  * sigmaZM;
         Eigen::Matrix3d R = Eigen::Vector3d(sxy2, sxy2, sz2).asDiagonal();
 
         // Innovation covariance S
@@ -326,7 +365,7 @@ void ExtendedKalmanFilter::applyGpsCorrection(const GpsConstraint& constraint)
         if (!lu.isInvertible())
         {
             _logger->log(HIGH_LEVEL, LOG_SUBSECTION,
-                "GPS correction: innovation covariance S is singular, skipping");
+                "Absolute position correction: innovation covariance S is singular, skipping");
             return;
         }
 
@@ -349,10 +388,10 @@ void ExtendedKalmanFilter::applyGpsCorrection(const GpsConstraint& constraint)
         _slamMap->setMapCorrelation(P_new);
 
         _logger->log(HIGH_LEVEL, LOG_SUBSECTION,
-            "GPS correction applied: innovation=[",
+            "Absolute position correction applied: innovation=[",
             innovation.x(), ", ", innovation.y(), ", ", innovation.z(),
-            "], sigma_xy=", constraint.sigmaXyM,
-            ", sigma_z=", constraint.sigmaZM);
+            "], sigma_xy=", sigmaXyM,
+            ", sigma_z=", sigmaZM);
 
         map = summarizeMap();
     }

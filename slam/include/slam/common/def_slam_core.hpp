@@ -223,4 +223,21 @@ struct GpsConstraint
   bool          hasVelocity = false;
 };
 
+// ---------------------------------------------------------------------------
+// Sensor-agnostic absolute-position constraint in local ENU frame.
+//
+// Carries only the fields the estimator needs: position and 1-sigma
+// uncertainties.  Sensor-specific metadata (fix type, EPH/EPV, satellite
+// count) stays in GpsConstraint and never crosses the estimator boundary.
+//
+// Phase 8 note: when graph-SLAM GPS factors are added this struct will gain
+// a full 3×3 covariance matrix so both EKF and pose-graph can share one type.
+// ---------------------------------------------------------------------------
+struct AbsolutePositionConstraint
+{
+  Eigen::Vector3d enuPosition = Eigen::Vector3d::Zero();
+  double sigmaXyM = 1.0;  ///< 1-sigma horizontal uncertainty [m]
+  double sigmaZM  = 2.0;  ///< 1-sigma vertical uncertainty [m]
+};
+
 #endif  // SLAM__COMMON__DEF_SLAM_CORE_HPP_
