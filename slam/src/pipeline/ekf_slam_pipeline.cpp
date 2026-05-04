@@ -90,6 +90,12 @@ void EkfSlamPipeline::applyStartupAnchor(const LocalFrameAnchor& anchor)
   }
 }
 
+void EkfSlamPipeline::processGpsMeasurement(const GpsConstraint& constraint)
+{
+  std::lock_guard<std::mutex> lock(_mutex);
+  _ekf->applyGpsCorrection(constraint);
+}
+
 /**
  * @brief Internal EKF prediction step.
  */

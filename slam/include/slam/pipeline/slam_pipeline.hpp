@@ -49,6 +49,15 @@ public:
   {
     (void)anchor;
   }
+
+  /**
+   * @brief Fuse an absolute GPS position constraint into the pipeline.
+   * Default behavior is no-op; backends override to implement the update.
+   */
+  virtual void processGpsMeasurement(const GpsConstraint& constraint)
+  {
+    (void)constraint;
+  }
   // TODO: Not ROS-agnostic to be changed later
   // should be replaced with:
   // struct BackendLogger {

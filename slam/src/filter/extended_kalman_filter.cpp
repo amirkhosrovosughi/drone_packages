@@ -277,6 +277,92 @@ void ExtendedKalmanFilter::addLandmark(const AssignedMeasurement& meas)
     _slamMap->addLandmark(newLandmarkPosition.getPositionVector());
 }
 
+void ExtendedKalmanFilter::applyGpsCorrection(const GpsConstraint& constraint)
+{
+    // -----------------------------------------------------------------------
+    // Full-joint EKF GPS position update
+    //
+    // State layout: mu = [x, y, z, ...(robot)..., l0_x, l0_y, l0_z, ...]
+    // Measurement:  z  = enu_x, enu_y, enu_z  (3-vector)
+    // Observation:  H  = [I_3 | 0_{3 x (totalDim - 3)}]  selects robot x,y,z
+    // Noise:        R  = diag(sigmaXyM^2, sigmaXyM^2, sigmaZM^2)
+    //
+    // S = H P H^T + R
+    // K = P H^T S^{-1}           (totalDim x 3)
+    // mu_new = mu + K (z - H mu)
+    // P_new  = (I - K H) P       (Joseph form not needed: R is diagonal, S
+    //                             invertibility checked below)
+    // -----------------------------------------------------------------------
+    MapSummary map;
+    {
+        std::lock_guard<std::mutex> lock(_mutex);
+
+        const int robotDim = _motionModel->getStateDimension();
+        const Eigen::MatrixXd mu_full = _slamMap->getMapMean();
+        const int totalDim = static_cast<int>(mu_full.rows());
+
+        if (totalDim < robotDim)
+        {
+            _logger->log(HIGH_LEVEL, LOG_SUBSECTION,
+                "GPS correction skipped: state not yet initialized");
+            return;
+        }
+
+        // Observation matrix H (3 x totalDim): selects first 3 robot components
+        Eigen::MatrixXd H = Eigen::MatrixXd::Zero(3, totalDim);
+        H.block<3, 3>(0, 0) = Eigen::Matrix3d::Identity();
+
+        // Measurement noise R
+        const double sxy2 = constraint.sigmaXyM * constraint.sigmaXyM;
+        const double sz2  = constraint.sigmaZM  * constraint.sigmaZM;
+        Eigen::Matrix3d R = Eigen::Vector3d(sxy2, sxy2, sz2).asDiagonal();
+
+        // Innovation covariance S
+        Eigen::MatrixXd P_full = _slamMap->getMapCorrelation();
+        Eigen::Matrix3d S = H * P_full * H.transpose() + R;
+
+        // Guard against singular S
+        Eigen::FullPivLU<Eigen::Matrix3d> lu(S);
+        if (!lu.isInvertible())
+        {
+            _logger->log(HIGH_LEVEL, LOG_SUBSECTION,
+                "GPS correction: innovation covariance S is singular, skipping");
+            return;
+        }
+
+        const Eigen::Matrix3d S_inv = S.inverse();
+
+        // Kalman gain K (totalDim x 3)
+        const Eigen::MatrixXd K = P_full * H.transpose() * S_inv;
+
+        // Innovation  (z - H mu)
+        const Eigen::Vector3d z = constraint.enuPosition;
+        const Eigen::Vector3d innovation = z - H * mu_full;
+
+        // State update
+        const Eigen::MatrixXd mu_new = mu_full + K * innovation;
+        _slamMap->setMapMean(mu_new);
+
+        // Covariance update  P = (I - K H) P
+        const Eigen::MatrixXd IKH = Eigen::MatrixXd::Identity(totalDim, totalDim) - K * H;
+        Eigen::MatrixXd P_new = IKH * P_full;
+        _slamMap->setMapCorrelation(P_new);
+
+        _logger->log(HIGH_LEVEL, LOG_SUBSECTION,
+            "GPS correction applied: innovation=[",
+            innovation.x(), ", ", innovation.y(), ", ", innovation.z(),
+            "], sigma_xy=", constraint.sigmaXyM,
+            ", sigma_z=", constraint.sigmaZM);
+
+        map = summarizeMap();
+    }
+
+    if (_callback)
+    {
+        _callback(map);
+    }
+}
+
 MapSummary ExtendedKalmanFilter::summarizeMap()
 {
     MapSummary mapSummary;

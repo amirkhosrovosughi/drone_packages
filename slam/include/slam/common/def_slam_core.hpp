@@ -199,4 +199,28 @@ struct LocalFrameAnchor
   Eigen::Vector3d initialEnuPosition = Eigen::Vector3d::Zero();
 };
 
+// ---------------------------------------------------------------------------
+// GPS constraint (pipeline-facing, sensor-agnostic)
+//
+// enuPosition carries the absolute position in the local ENU frame established
+// by LocalFrameAnchor.  sigmaXyM / sigmaZM are 1-sigma metres derived from
+// PX4 EPH / EPV before the constraint reaches the pipeline.  The raw sensor
+// fields (fixType, eph, epv, satellitesUsed, velMps) are kept for diagnostics
+// and logging; the pipeline must not gate fusion on them — that decision
+// belongs to GpsManager.
+// ---------------------------------------------------------------------------
+struct GpsConstraint
+{
+  Eigen::Vector3d enuPosition = Eigen::Vector3d::Zero();
+  double sigmaXyM = 1.0;
+  double sigmaZM  = 2.0;
+  std::uint64_t timestampUs = 0;
+  std::uint8_t  fixType = 0;
+  float         eph = 999.f;
+  float         epv = 999.f;
+  std::uint8_t  satellitesUsed = 0;
+  float         velMps = 0.f;
+  bool          hasVelocity = false;
+};
+
 #endif  // SLAM__COMMON__DEF_SLAM_CORE_HPP_

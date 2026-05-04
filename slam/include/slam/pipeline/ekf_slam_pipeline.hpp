@@ -53,6 +53,8 @@ public:
 
   void applyStartupAnchor(const LocalFrameAnchor& anchor) override;
 
+  void processGpsMeasurement(const GpsConstraint& constraint) override;
+
 private:
   void onBackendUpdate(const MapSummary& map);
   void updateFilter(const MotionConstraint& m);

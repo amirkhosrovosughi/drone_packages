@@ -55,6 +55,15 @@ public:
 
     void reset();
 
+    /**
+     * @brief Fuse a GPS absolute-position fix into the full joint state.
+     *
+     * Applies a standard EKF update with H = [I₃ | 0] and
+     * R = diag(σ²ₓᵧ, σ²ₓᵧ, σ²_z) over the full (robot + landmark)
+     * covariance in one shot.  Must not be called before the first prediction.
+     */
+    void applyGpsCorrection(const GpsConstraint& constraint);
+
 private:
     /**
      * @brief Internal EKF prediction step.

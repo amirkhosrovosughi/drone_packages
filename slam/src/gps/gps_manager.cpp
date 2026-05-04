@@ -36,8 +36,18 @@ void GpsManager::onSample(
 
     if (_fusionEnabled)
     {
-      // TODO(phase5): feed projectedPosition as EKF GPS measurement update
-      // _pipeline.processGpsMeasurement(projectedPosition, msg.eph, msg.epv);
+      GpsConstraint constraint;
+      constraint.enuPosition    = projectedPosition;
+      constraint.sigmaXyM       = static_cast<double>(msg.eph);
+      constraint.sigmaZM        = static_cast<double>(msg.epv);
+      constraint.timestampUs    = msg.timestamp;
+      constraint.fixType        = msg.fix_type;
+      constraint.eph            = msg.eph;
+      constraint.epv            = msg.epv;
+      constraint.satellitesUsed = msg.satellites_used;
+      constraint.velMps         = msg.vel_m_s;
+      constraint.hasVelocity    = true;
+      _pipeline.processGpsMeasurement(constraint);
     }
     return;
   }
