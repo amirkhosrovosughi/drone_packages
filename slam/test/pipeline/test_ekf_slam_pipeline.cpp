@@ -261,6 +261,40 @@ TEST(EkfSlamPipelineTest, SetLoggerPropagatesToSubcomponents)
   EXPECT_EQ(assoc->loggerSet, logger);
 }
 
+TEST(EkfSlamPipelineTest, ProcessGpsMeasurementUpdatesMapViaEkf)
+{
+  constexpr double kTargetX = 1.5;
+  constexpr double kSigmaXyM = 0.3;
+  constexpr double kSigmaZM = 1.0;
+
+  auto motion = std::make_shared<PositionOnlyMotionModel>();
+  auto ekf = std::make_shared<ExtendedKalmanFilter>(motion);
+  auto assoc = std::make_shared<FakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+
+  EkfSlamPipeline pipeline(ekf, assoc, factory);
+  pipeline.setLogger(std::make_shared<MockSlamLogger>());
+  pipeline.initialize();
+
+  MotionConstraint zeroMotion;
+  zeroMotion.deltaPosition = Eigen::Vector3d::Zero();
+  zeroMotion.orientation = Eigen::Quaterniond::Identity();
+  pipeline.processMotion(zeroMotion);
+
+  const MapSummary before = pipeline.getMap();
+
+  GpsConstraint gps;
+  gps.enuPosition = Eigen::Vector3d(kTargetX, 0.0, 0.0);
+  gps.sigmaXyM = kSigmaXyM;
+  gps.sigmaZM = kSigmaZM;
+  pipeline.processGpsMeasurement(gps);
+
+  const MapSummary after = pipeline.getMap();
+  EXPECT_GT(after.robot.pose.position.x, before.robot.pose.position.x);
+  EXPECT_LT(std::abs(kTargetX - after.robot.pose.position.x),
+            std::abs(kTargetX - before.robot.pose.position.x));
+}
+
 TEST(EkfSlamPipelineTest, EndToEndObservationCreatesLandmarkAndResetClearsIt)
 {
   auto motion = std::make_shared<PositionOnlyMotionModel>();

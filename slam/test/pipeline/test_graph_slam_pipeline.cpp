@@ -274,6 +274,38 @@ TEST(GraphSlamPipelineTest, ResetClearsLoopClosureEdgesAndGetMapSucceeds)
   EXPECT_NO_THROW(pipeline.getMap());
 }
 
+TEST(GraphSlamPipelineTest, ProcessGpsMeasurementIsNoOpForGraphPipeline)
+{
+  auto association = std::make_shared<PipelineFakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+  auto optimizer = std::make_shared<PipelineFakeGraphOptimizer>();
+  auto frontend = std::make_shared<GraphSlamFrontend>(association, factory);
+  auto backend = std::make_shared<GraphSlamBackend>(optimizer);
+
+  GraphSlamPipeline pipeline(frontend, backend);
+  pipeline.initialize();
+
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(0.6, -0.2, 0.1)));
+  const MapSummary before = pipeline.getMap();
+  const std::size_t keyframesBefore = optimizer->graph.keyframes.size();
+  const std::size_t odometryEdgesBefore = optimizer->graph.odometryEdges.size();
+  const std::size_t loopEdgesBefore = optimizer->graph.loopClosureEdges.size();
+
+  GpsConstraint gps;
+  gps.enuPosition = Eigen::Vector3d(100.0, -50.0, 10.0);
+  gps.sigmaXyM = 0.2;
+  gps.sigmaZM = 0.5;
+  pipeline.processGpsMeasurement(gps);
+
+  const MapSummary after = pipeline.getMap();
+  EXPECT_EQ(optimizer->graph.keyframes.size(), keyframesBefore);
+  EXPECT_EQ(optimizer->graph.odometryEdges.size(), odometryEdgesBefore);
+  EXPECT_EQ(optimizer->graph.loopClosureEdges.size(), loopEdgesBefore);
+  EXPECT_DOUBLE_EQ(after.robot.pose.position.x, before.robot.pose.position.x);
+  EXPECT_DOUBLE_EQ(after.robot.pose.position.y, before.robot.pose.position.y);
+  EXPECT_DOUBLE_EQ(after.robot.pose.position.z, before.robot.pose.position.z);
+}
+
 TEST(GraphSlamPipelineTest, MotionAndObservationPathsUnaffectedByLoopClosureAdditions)
 {
   auto association = std::make_shared<PipelineFakeAssociation>();
