@@ -38,6 +38,12 @@ void GraphSlamPipeline::initialize()
       this->onFrontendMotionConstraint(motion);
     });
 
+  _frontend->setGpsPriorCallback(
+    [this](const AbsolutePositionConstraint& constraint)
+    {
+      _backend->applyGpsPrior(constraint);
+    });
+
   _frontend->setAssignedMeasurementsCallback(
     [this](const AssignedMeasurements& measurements)
     {
@@ -108,10 +114,7 @@ void GraphSlamPipeline::applyStartupAnchor(const LocalFrameAnchor& anchor)
 
 void GraphSlamPipeline::processGpsMeasurement(const GpsConstraint& constraint)
 {
-  // GPS absolute-position factors not yet integrated into the pose graph.
-  // When ready: add a GPS unary factor anchored to constraint.enuPosition
-  // with information matrix diag(1/sigmaXyM^2, 1/sigmaXyM^2) to the active keyframe.
-  (void)constraint;
+  _frontend->onGpsMeasurement(constraint);
 }
 
 void GraphSlamPipeline::setScheduler(std::shared_ptr<OptimizationScheduler> scheduler)

@@ -41,6 +41,15 @@ public:
   virtual void refineActiveKeyframe(const OptimizationConfig& config = OptimizationConfig()) = 0;
 
   /**
+   * @brief Record an absolute-position prior for the current active keyframe.
+   *
+   * The constraint (ENU position + sigma) is stored as a unary edge and
+   * included in the next global solve via buildSystemMatrices().
+   * Sensor identity (GPS, UWB, etc.) is irrelevant at this level.
+   */
+  virtual void applyGpsPrior(const AbsolutePositionConstraint& constraint) = 0;
+
+  /**
    * @brief Global graph optimization/solve.
    * Triggered on loop closure acceptance or fallback after N keyframes.
    * Returns false if solve was skipped or failed (e.g., timeout).

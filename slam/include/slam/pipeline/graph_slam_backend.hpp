@@ -24,6 +24,7 @@ public:
   void reset();
   void applyMotionConstraint(const MotionConstraint& motion);
   void applyObservationConstraint(const AssignedMeasurements& measurements);
+  void applyGpsPrior(const AbsolutePositionConstraint& constraint);
   std::vector<LoopClosureCandidate> findSpatialLoopClosureCandidates(
     double maxDistanceMeters,
     int minKeyframeSeparation) const;

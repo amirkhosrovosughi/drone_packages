@@ -2,7 +2,9 @@
 
 #include <chrono>
 #include <cmath>
+#include <string>
 #include <thread>
+#include <vector>
 
 #include <Eigen/Geometry>
 
@@ -18,6 +20,8 @@ constexpr double kTranslationThresholdM = 0.5;
 constexpr double kRotationThresholdRad = 10.0 * M_PI / 180.0;
 constexpr double kTranslationEpsilonM = 0.01;
 constexpr double kRotationEpsilonRad = 1.0 * M_PI / 180.0;
+constexpr double kGpsSigmaXy = 0.8;
+constexpr double kGpsSigmaZ  = 1.5;
 }
 
 class FakeAssociation : public BaseAssociation
@@ -64,6 +68,17 @@ static MotionConstraint makeMotion(
   m.deltaPosition = delta;
   m.orientation = orientation;
   return m;
+}
+
+static GpsConstraint makeGps(
+  double x, double y, double z,
+  double sigmaXy = kGpsSigmaXy, double sigmaZ = kGpsSigmaZ)
+{
+  GpsConstraint g;
+  g.enuPosition = Eigen::Vector3d(x, y, z);
+  g.sigmaXyM = sigmaXy;
+  g.sigmaZM  = sigmaZ;
+  return g;
 }
 
 TEST(GraphSlamFrontendTest, InitializeThrowsWhenDependenciesMissing)
@@ -222,6 +237,179 @@ TEST(GraphSlamFrontendTest, ObservationWithinWindowIsForwardedToAssociation)
   EXPECT_DOUBLE_EQ(association->lastMeasurements[0].payload(0), 4.0);
   EXPECT_DOUBLE_EQ(association->lastMeasurements[0].payload(1), 5.0);
   EXPECT_DOUBLE_EQ(association->lastMeasurements[0].payload(2), 6.0);
+}
+
+// ---------------------------------------------------------------------------
+// GPS prior buffer tests
+// ---------------------------------------------------------------------------
+
+TEST(GraphSlamFrontendTest, GpsPriorNotFiredWithoutKeyframeCommit)
+{
+  auto association = std::make_shared<FakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+  GraphSlamFrontend frontend(association, factory);
+
+  int gpsPriorCount = 0;
+  frontend.setGpsPriorCallback(
+    [&](const AbsolutePositionConstraint&) { gpsPriorCount += 1; });
+  frontend.setMotionConstraintCallback([](const MotionConstraint&) {});
+
+  frontend.onGpsMeasurement(makeGps(10.0, 5.0, 2.0));
+
+  // Motion below threshold — no keyframe commit.
+  frontend.onMotion(makeMotion(
+    Eigen::Vector3d(kTranslationThresholdM - kTranslationEpsilonM, 0.0, 0.0),
+    Eigen::Quaterniond::Identity()));
+
+  EXPECT_EQ(gpsPriorCount, 0);
+}
+
+TEST(GraphSlamFrontendTest, GpsPriorFiredAtKeyframeCommitWithCorrectValues)
+{
+  auto association = std::make_shared<FakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+  GraphSlamFrontend frontend(association, factory);
+
+  int gpsPriorCount = 0;
+  AbsolutePositionConstraint received;
+  frontend.setGpsPriorCallback(
+    [&](const AbsolutePositionConstraint& c)
+    {
+      gpsPriorCount += 1;
+      received = c;
+    });
+  frontend.setMotionConstraintCallback([](const MotionConstraint&) {});
+
+  constexpr double kX = 12.5, kY = -3.7, kZ = 1.2;
+  frontend.onGpsMeasurement(makeGps(kX, kY, kZ, kGpsSigmaXy, kGpsSigmaZ));
+  frontend.onMotion(makeMotion(
+    Eigen::Vector3d(kTranslationThresholdM + kTranslationEpsilonM, 0.0, 0.0),
+    Eigen::Quaterniond::Identity()));
+
+  ASSERT_EQ(gpsPriorCount, 1);
+  EXPECT_DOUBLE_EQ(received.enuPosition.x(), kX);
+  EXPECT_DOUBLE_EQ(received.enuPosition.y(), kY);
+  EXPECT_DOUBLE_EQ(received.enuPosition.z(), kZ);
+  EXPECT_DOUBLE_EQ(received.sigmaXyM, kGpsSigmaXy);
+  EXPECT_DOUBLE_EQ(received.sigmaZM, kGpsSigmaZ);
+}
+
+TEST(GraphSlamFrontendTest, GpsPriorFiredBeforeMotionCallback)
+{
+  auto association = std::make_shared<FakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+  GraphSlamFrontend frontend(association, factory);
+
+  std::vector<std::string> order;
+  frontend.setGpsPriorCallback(
+    [&](const AbsolutePositionConstraint&) { order.push_back("gps"); });
+  frontend.setMotionConstraintCallback(
+    [&](const MotionConstraint&) { order.push_back("motion"); });
+
+  frontend.onGpsMeasurement(makeGps(1.0, 2.0, 3.0));
+  frontend.onMotion(makeMotion(
+    Eigen::Vector3d(kTranslationThresholdM + kTranslationEpsilonM, 0.0, 0.0),
+    Eigen::Quaterniond::Identity()));
+
+  ASSERT_EQ(order.size(), 2u);
+  EXPECT_EQ(order[0], "gps");
+  EXPECT_EQ(order[1], "motion");
+}
+
+TEST(GraphSlamFrontendTest, GpsPriorBuffersOnlyLatestFixPerKeyframe)
+{
+  auto association = std::make_shared<FakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+  GraphSlamFrontend frontend(association, factory);
+
+  int gpsPriorCount = 0;
+  AbsolutePositionConstraint received;
+  frontend.setGpsPriorCallback(
+    [&](const AbsolutePositionConstraint& c)
+    {
+      gpsPriorCount += 1;
+      received = c;
+    });
+  frontend.setMotionConstraintCallback([](const MotionConstraint&) {});
+
+  // Two GPS fixes before a single keyframe commit — only the last must survive.
+  frontend.onGpsMeasurement(makeGps(1.0, 2.0, 3.0, 2.0, 4.0));
+  frontend.onGpsMeasurement(makeGps(10.0, 20.0, 30.0, 0.3, 0.6));
+
+  frontend.onMotion(makeMotion(
+    Eigen::Vector3d(kTranslationThresholdM + kTranslationEpsilonM, 0.0, 0.0),
+    Eigen::Quaterniond::Identity()));
+
+  ASSERT_EQ(gpsPriorCount, 1);
+  EXPECT_DOUBLE_EQ(received.enuPosition.x(), 10.0);
+  EXPECT_DOUBLE_EQ(received.enuPosition.y(), 20.0);
+  EXPECT_DOUBLE_EQ(received.enuPosition.z(), 30.0);
+  EXPECT_DOUBLE_EQ(received.sigmaXyM, 0.3);
+  EXPECT_DOUBLE_EQ(received.sigmaZM, 0.6);
+}
+
+TEST(GraphSlamFrontendTest, GpsPriorClearedAfterKeyframeCommit)
+{
+  auto association = std::make_shared<FakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+  GraphSlamFrontend frontend(association, factory);
+
+  int gpsPriorCount = 0;
+  frontend.setGpsPriorCallback(
+    [&](const AbsolutePositionConstraint&) { gpsPriorCount += 1; });
+  frontend.setMotionConstraintCallback([](const MotionConstraint&) {});
+
+  // Keyframe 1: GPS buffered — GPS callback must fire.
+  frontend.onGpsMeasurement(makeGps(5.0, 0.0, 0.0));
+  frontend.onMotion(makeMotion(
+    Eigen::Vector3d(kTranslationThresholdM + kTranslationEpsilonM, 0.0, 0.0),
+    Eigen::Quaterniond::Identity()));
+  ASSERT_EQ(gpsPriorCount, 1);
+
+  // Keyframe 2: no new GPS — GPS callback must NOT fire again.
+  frontend.onMotion(makeMotion(
+    Eigen::Vector3d(kTranslationThresholdM + kTranslationEpsilonM, 0.0, 0.0),
+    Eigen::Quaterniond::Identity()));
+  EXPECT_EQ(gpsPriorCount, 1);
+}
+
+TEST(GraphSlamFrontendTest, GpsPriorNoCallbackRegisteredDoesNotCrash)
+{
+  auto association = std::make_shared<FakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+  GraphSlamFrontend frontend(association, factory);
+
+  frontend.setMotionConstraintCallback([](const MotionConstraint&) {});
+  // Deliberately omit setGpsPriorCallback.
+
+  frontend.onGpsMeasurement(makeGps(3.0, 4.0, 5.0));
+
+  EXPECT_NO_THROW(
+    frontend.onMotion(makeMotion(
+      Eigen::Vector3d(kTranslationThresholdM + kTranslationEpsilonM, 0.0, 0.0),
+      Eigen::Quaterniond::Identity())));
+}
+
+TEST(GraphSlamFrontendTest, GpsPriorClearedOnReset)
+{
+  auto association = std::make_shared<FakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+  GraphSlamFrontend frontend(association, factory);
+
+  int gpsPriorCount = 0;
+  frontend.setGpsPriorCallback(
+    [&](const AbsolutePositionConstraint&) { gpsPriorCount += 1; });
+  frontend.setMotionConstraintCallback([](const MotionConstraint&) {});
+
+  frontend.onGpsMeasurement(makeGps(7.0, 8.0, 9.0));
+  frontend.reset();
+
+  // After reset the buffered prior must be discarded — no GPS callback on next keyframe.
+  frontend.onMotion(makeMotion(
+    Eigen::Vector3d(kTranslationThresholdM + kTranslationEpsilonM, 0.0, 0.0),
+    Eigen::Quaterniond::Identity()));
+
+  EXPECT_EQ(gpsPriorCount, 0);
 }
 
 }  // namespace slam

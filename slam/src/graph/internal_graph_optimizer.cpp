@@ -22,6 +22,12 @@ constexpr double kMaxLocalRefinementStepMeters = 0.15;
 constexpr double kGlobalAnchorWeight = 100.0;
 constexpr double kGlobalLoopClosureBaseWeight = 3.0;
 
+// GPS prior constants
+constexpr double kGpsNominalSigmaM  = 3.0;   // weight normalization reference
+constexpr double kGpsHuberDeltaM    = 5.0;   // residuals > 5 m are down-weighted
+constexpr double kGpsMinSigmaXyM    = 0.2;
+constexpr double kGpsMaxSigmaXyM    = 20.0;
+
 Eigen::Quaterniond poseQuaternionToEigen(const Pose& pose)
 {
   return Eigen::Quaterniond(
@@ -51,6 +57,37 @@ void InternalGraphOptimizer::reset()
   _graph.activeKeyframeId = 0;
   _graph.keyframes.emplace_back(_graph.activeKeyframeId, 0.0, _graph.robot);
   _lastRefinementTime = std::chrono::steady_clock::now();
+}
+
+double InternalGraphOptimizer::huberWeight(double residualNorm, double delta) const
+{
+  if (residualNorm <= delta)
+  {
+    return 1.0;
+  }
+  return delta / residualNorm;
+}
+
+double InternalGraphOptimizer::clampSigma(double sigma, double minS, double maxS) const
+{
+  if (!std::isfinite(sigma))
+  {
+    return maxS;
+  }
+  return std::max(minS, std::min(maxS, sigma));
+}
+
+void InternalGraphOptimizer::applyGpsPrior(const AbsolutePositionConstraint& constraint)
+{
+  std::lock_guard<std::mutex> lock(_mutex);
+  _graph.gpsPriorEdges.emplace_back(_graph.activeKeyframeId, constraint);
+  if (_logger)
+  {
+    _logger->logDebug(
+      "applyGpsPrior: stored prior for keyframe " +
+      std::to_string(_graph.activeKeyframeId) +
+      ", sigma_xy=" + std::to_string(constraint.sigmaXyM));
+  }
 }
 
 void InternalGraphOptimizer::applyMotion(const MotionConstraint& motion)
@@ -527,6 +564,32 @@ void InternalGraphOptimizer::buildSystemMatrices(
     gradient.segment<3>(toRow)   +=  loopWeight * residual;
     ++constraintCount;
   }
+
+  // GPS absolute-position priors (unary constraints).
+  // r_i = p_i - z,  w_i = (sigma0/sigma_xy)^2 * huber(||r_i|| / delta_huber)
+  for (const auto& edge : _graph.gpsPriorEdges)
+  {
+    const auto kfIt = idToIndex.find(edge.keyframeId);
+    if (kfIt == idToIndex.end())
+    {
+      continue;
+    }
+
+    const int row = kfIt->second * 3;
+    const Eigen::Vector3d kfPos =
+      _graph.keyframes[kfIt->second].robot.pose.position.getPositionVector();
+    const Eigen::Vector3d residual = kfPos - edge.constraint.enuPosition;
+
+    const double sigmaXy  = clampSigma(edge.constraint.sigmaXyM, kGpsMinSigmaXyM, kGpsMaxSigmaXyM);
+    const double sigmaRatio = kGpsNominalSigmaM / sigmaXy;
+    const double baseWeight = sigmaRatio * sigmaRatio;
+    const double robustW    = huberWeight(residual.norm(), kGpsHuberDeltaM);
+    const double w          = baseWeight * robustW;
+
+    hessian.block<3, 3>(row, row).diagonal().array() += w;
+    gradient.segment<3>(row) += w * residual;
+    ++constraintCount;
+  }
 }
 
 void InternalGraphOptimizer::applyKeyframeDelta(const Eigen::VectorXd& delta)
@@ -580,6 +643,25 @@ double InternalGraphOptimizer::computeWeightedResidual(
       kGlobalLoopClosureBaseWeight * supportScale * std::max(0.1, edge.inlierRatio);
     totalError +=
       loopWeight * ((toPos - fromPos) - edge.relativeMotion.deltaPosition).squaredNorm();
+  }
+
+  // GPS absolute-position priors.
+  // Uses the same weight as buildSystemMatrices (Huber-robust, sigma-normalized).
+  for (const auto& edge : _graph.gpsPriorEdges)
+  {
+    const auto kfIt = idToIndex.find(edge.keyframeId);
+    if (kfIt == idToIndex.end())
+    {
+      continue;
+    }
+    const Eigen::Vector3d kfPos =
+      _graph.keyframes[kfIt->second].robot.pose.position.getPositionVector();
+    const Eigen::Vector3d residual = kfPos - edge.constraint.enuPosition;
+
+    const double sigmaXy    = clampSigma(edge.constraint.sigmaXyM, kGpsMinSigmaXyM, kGpsMaxSigmaXyM);
+    const double sigmaRatio = kGpsNominalSigmaM / sigmaXy;
+    const double w          = sigmaRatio * sigmaRatio * huberWeight(residual.norm(), kGpsHuberDeltaM);
+    totalError += w * residual.squaredNorm();
   }
 
   return totalError;

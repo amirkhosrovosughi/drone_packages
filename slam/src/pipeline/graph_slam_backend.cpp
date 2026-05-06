@@ -37,6 +37,12 @@ void GraphSlamBackend::applyObservationConstraint(const AssignedMeasurements& me
   _optimizer->applyObservation(measurements);
 }
 
+void GraphSlamBackend::applyGpsPrior(const AbsolutePositionConstraint& constraint)
+{
+  std::lock_guard<std::mutex> lock(_mutex);
+  _optimizer->applyGpsPrior(constraint);
+}
+
 std::vector<LoopClosureCandidate> GraphSlamBackend::findSpatialLoopClosureCandidates(
   double maxDistanceMeters,
   int minKeyframeSeparation) const

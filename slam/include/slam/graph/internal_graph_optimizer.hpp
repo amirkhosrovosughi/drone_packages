@@ -44,6 +44,7 @@ public:
   bool optimizeGraph(
     const OptimizationConfig& config,
     OptimizationResult* resultOut = nullptr) override;
+  void applyGpsPrior(const AbsolutePositionConstraint& constraint) override;
   void setLogger(LoggerPtr logger) override;
 
 private:
@@ -91,6 +92,12 @@ private:
   // Compute total weighted edge residual squared-norm for convergence checks.
   double computeWeightedResidual(
     const std::unordered_map<int, int>& idToIndex) const;
+
+  // Huber robust weight: returns 1 inside delta, delta/||r|| outside.
+  double huberWeight(double residualNorm, double delta) const;
+
+  // Clamp and sanitize a sigma value to [minS, maxS]; non-finite maps to maxS.
+  double clampSigma(double sigma, double minS, double maxS) const;
 
   GraphState _graph;
   std::chrono::steady_clock::time_point _lastRefinementTime;

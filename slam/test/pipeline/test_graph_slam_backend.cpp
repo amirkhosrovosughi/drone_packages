@@ -135,11 +135,19 @@ public:
       return false;
     }
 
+    void applyGpsPrior(const AbsolutePositionConstraint& constraint) override
+    {
+      lastGpsPrior = constraint;
+      ++gpsPriorCallCount;
+    }
+
   bool initializeCalled = false;
   bool resetCalled = false;
   bool applyMotionCalled = false;
   bool applyMeasurementsCalled = false;
   bool commitCalled = false;
+  int gpsPriorCallCount = 0;
+  AbsolutePositionConstraint lastGpsPrior;
   LoggerPtr loggerSet;
   GraphState graph;
   std::vector<LoopClosureCandidate> candidates;
@@ -292,6 +300,41 @@ TEST(GraphSlamBackendTest, ValidateAndCommitFlowCommitsWhenAccepted)
   EXPECT_TRUE(validation.accepted);
   EXPECT_EQ(optimizer->lastCommittedCandidate.sourceKeyframeId, 8);
   EXPECT_EQ(optimizer->lastCommittedCandidate.targetKeyframeId, 2);
+}
+
+TEST(GraphSlamBackendTest, ApplyGpsPriorForwardsToOptimizer)
+{
+  auto optimizer = std::make_shared<FakeGraphOptimizer>();
+  GraphSlamBackend backend(optimizer);
+  backend.initialize();
+
+  AbsolutePositionConstraint constraint;
+  constraint.enuPosition = Eigen::Vector3d(5.0, -3.0, 1.5);
+  constraint.sigmaXyM = 0.6;
+  constraint.sigmaZM  = 1.2;
+  backend.applyGpsPrior(constraint);
+
+  EXPECT_EQ(optimizer->gpsPriorCallCount, 1);
+  EXPECT_DOUBLE_EQ(optimizer->lastGpsPrior.enuPosition.x(), 5.0);
+  EXPECT_DOUBLE_EQ(optimizer->lastGpsPrior.enuPosition.y(), -3.0);
+  EXPECT_DOUBLE_EQ(optimizer->lastGpsPrior.enuPosition.z(), 1.5);
+  EXPECT_DOUBLE_EQ(optimizer->lastGpsPrior.sigmaXyM, 0.6);
+  EXPECT_DOUBLE_EQ(optimizer->lastGpsPrior.sigmaZM, 1.2);
+}
+
+TEST(GraphSlamBackendTest, ApplyGpsPriorMultipleCallsAccumulateCount)
+{
+  auto optimizer = std::make_shared<FakeGraphOptimizer>();
+  GraphSlamBackend backend(optimizer);
+  backend.initialize();
+
+  AbsolutePositionConstraint c;
+  c.enuPosition = Eigen::Vector3d::Zero();
+  backend.applyGpsPrior(c);
+  backend.applyGpsPrior(c);
+  backend.applyGpsPrior(c);
+
+  EXPECT_EQ(optimizer->gpsPriorCallCount, 3);
 }
 
 }  // namespace slam

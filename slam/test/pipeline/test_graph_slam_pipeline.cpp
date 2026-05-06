@@ -157,9 +157,17 @@ public:
       return false;
     }
 
+    void applyGpsPrior(const AbsolutePositionConstraint& constraint) override
+    {
+      lastGpsPrior = constraint;
+      ++gpsPriorCallCount;
+    }
+
   mutable int validateCallCount = 0;
   mutable int commitCallCount = 0;
   int optimizeCallCount = 0;
+  int gpsPriorCallCount = 0;
+  AbsolutePositionConstraint lastGpsPrior;
   mutable LoopClosureCandidate lastValidatedCandidate;
   mutable LoopClosureCandidate lastCommittedCandidate;
   mutable LoopClosureValidationResult lastCommitValidation;
@@ -700,6 +708,107 @@ TEST(GraphSlamPipelineTest, OdometryAndRefinementContinueDuringCooldown)
     << "Odometry edges must continue to be added during cooldown";
   EXPECT_EQ(optimizer->graph.loopClosureEdges.size(), loopEdgesBefore)
     << "No additional loop closures should be committed during cooldown";
+}
+
+// ---------------------------------------------------------------------------
+// GPS prior pipeline routing tests
+// ---------------------------------------------------------------------------
+
+static GpsConstraint makeGps(
+  double x, double y, double z,
+  double sigmaXy = 1.0, double sigmaZ = 2.0)
+{
+  GpsConstraint g;
+  g.enuPosition = Eigen::Vector3d(x, y, z);
+  g.sigmaXyM = sigmaXy;
+  g.sigmaZM  = sigmaZ;
+  return g;
+}
+
+TEST(GraphSlamPipelineTest, ProcessGpsMeasurementReachesBackendAtKeyframeCommit)
+{
+  auto association = std::make_shared<PipelineFakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+  auto optimizer = std::make_shared<PipelineFakeGraphOptimizer>();
+  auto frontend = std::make_shared<GraphSlamFrontend>(association, factory);
+  auto backend = std::make_shared<GraphSlamBackend>(optimizer);
+
+  GraphSlamPipeline pipeline(frontend, backend);
+  pipeline.initialize();
+
+  pipeline.processGpsMeasurement(makeGps(10.0, 5.0, 2.0, 0.5, 1.0));
+  // 1.0 m > 0.5 m threshold — commits a keyframe.
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));
+
+  ASSERT_EQ(optimizer->gpsPriorCallCount, 1);
+  EXPECT_DOUBLE_EQ(optimizer->lastGpsPrior.enuPosition.x(), 10.0);
+  EXPECT_DOUBLE_EQ(optimizer->lastGpsPrior.enuPosition.y(), 5.0);
+  EXPECT_DOUBLE_EQ(optimizer->lastGpsPrior.enuPosition.z(), 2.0);
+  EXPECT_DOUBLE_EQ(optimizer->lastGpsPrior.sigmaXyM, 0.5);
+  EXPECT_DOUBLE_EQ(optimizer->lastGpsPrior.sigmaZM, 1.0);
+}
+
+TEST(GraphSlamPipelineTest, ProcessGpsMeasurementNotForwardedWithoutKeyframeCommit)
+{
+  auto association = std::make_shared<PipelineFakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+  auto optimizer = std::make_shared<PipelineFakeGraphOptimizer>();
+  auto frontend = std::make_shared<GraphSlamFrontend>(association, factory);
+  auto backend = std::make_shared<GraphSlamBackend>(optimizer);
+
+  GraphSlamPipeline pipeline(frontend, backend);
+  pipeline.initialize();
+
+  pipeline.processGpsMeasurement(makeGps(10.0, 5.0, 2.0));
+  // 0.3 m < 0.5 m threshold — no keyframe commit.
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(0.3, 0.0, 0.0)));
+
+  EXPECT_EQ(optimizer->gpsPriorCallCount, 0);
+}
+
+TEST(GraphSlamPipelineTest, ProcessGpsMeasurementFiredOncePerKeyframeAcrossMultipleKeyframes)
+{
+  auto association = std::make_shared<PipelineFakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+  auto optimizer = std::make_shared<PipelineFakeGraphOptimizer>();
+  auto frontend = std::make_shared<GraphSlamFrontend>(association, factory);
+  auto backend = std::make_shared<GraphSlamBackend>(optimizer);
+
+  GraphSlamPipeline pipeline(frontend, backend);
+  pipeline.initialize();
+
+  pipeline.processGpsMeasurement(makeGps(1.0, 0.0, 0.0));
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));
+  EXPECT_EQ(optimizer->gpsPriorCallCount, 1);
+
+  pipeline.processGpsMeasurement(makeGps(2.0, 0.0, 0.0));
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));
+  EXPECT_EQ(optimizer->gpsPriorCallCount, 2);
+}
+
+TEST(GraphSlamPipelineTest, ProcessGpsMeasurementOnlyLatestFixReachesBackend)
+{
+  auto association = std::make_shared<PipelineFakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+  auto optimizer = std::make_shared<PipelineFakeGraphOptimizer>();
+  auto frontend = std::make_shared<GraphSlamFrontend>(association, factory);
+  auto backend = std::make_shared<GraphSlamBackend>(optimizer);
+
+  GraphSlamPipeline pipeline(frontend, backend);
+  pipeline.initialize();
+
+  // Two GPS fixes arrive before a single keyframe commit.
+  pipeline.processGpsMeasurement(makeGps(1.0, 2.0, 3.0, 2.0, 4.0));    // early, coarse
+  pipeline.processGpsMeasurement(makeGps(10.0, 20.0, 30.0, 0.3, 0.6)); // late, precise
+
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));
+
+  ASSERT_EQ(optimizer->gpsPriorCallCount, 1);
+  EXPECT_DOUBLE_EQ(optimizer->lastGpsPrior.enuPosition.x(), 10.0);
+  EXPECT_DOUBLE_EQ(optimizer->lastGpsPrior.enuPosition.y(), 20.0);
+  EXPECT_DOUBLE_EQ(optimizer->lastGpsPrior.enuPosition.z(), 30.0);
+  EXPECT_DOUBLE_EQ(optimizer->lastGpsPrior.sigmaXyM, 0.3);
+  EXPECT_DOUBLE_EQ(optimizer->lastGpsPrior.sigmaZM, 0.6);
 }
 
 }  // namespace slam

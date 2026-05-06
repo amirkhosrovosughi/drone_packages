@@ -7,6 +7,7 @@
 #include <chrono>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <unordered_set>
 
 #include "association/base_association.hpp"
@@ -48,11 +49,16 @@ public:
   bool isLoopClosureEnabled() const;
   void onKeyframeAccepted();
 
+  void onGpsMeasurement(const GpsConstraint& constraint);
+
   void setMotionConstraintCallback(
     std::function<void(const MotionConstraint&)> callback);
 
   void setAssignedMeasurementsCallback(
     std::function<void(const AssignedMeasurements&)> callback);
+
+  void setGpsPriorCallback(
+    std::function<void(const AbsolutePositionConstraint&)> callback);
 
 private:
   enum class ObservationStreamType
@@ -76,6 +82,9 @@ private:
 
   std::function<void(const MotionConstraint&)> _motionConstraintCallback;
   std::function<void(const AssignedMeasurements&)> _assignedMeasurementsCallback;
+  std::function<void(const AbsolutePositionConstraint&)> _gpsPriorCallback;
+
+  std::optional<AbsolutePositionConstraint> _pendingGpsPrior;
 
   std::unique_ptr<FrontendHealthMonitor> _healthMonitor;
   std::atomic<std::size_t> _pendingMeasurementAttemptCount{0};

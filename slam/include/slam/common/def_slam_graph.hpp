@@ -114,6 +114,17 @@ struct GraphLoopClosureEdge {
           inlierRatio(inlierRatio) {}
 };
 
+/// Absolute position prior tied to a single keyframe.
+/// Sensor-agnostic: produced by GPS, UWB, or any absolute localization source.
+struct GraphGpsPriorEdge {
+    int keyframeId = 0;
+    AbsolutePositionConstraint constraint;
+
+    GraphGpsPriorEdge() = default;
+    GraphGpsPriorEdge(int keyframeId, const AbsolutePositionConstraint& constraint)
+        : keyframeId(keyframeId), constraint(constraint) {}
+};
+
 struct GraphState {
     RobotState robot;
     std::vector<GraphKeyframeNode> keyframes;
@@ -121,6 +132,7 @@ struct GraphState {
     std::vector<GraphOdometryEdge> odometryEdges;
     std::vector<GraphObservationEdge> observationEdges;
     std::vector<GraphLoopClosureEdge> loopClosureEdges;
+    std::vector<GraphGpsPriorEdge> gpsPriorEdges;
     int activeKeyframeId = 0;
 
     GraphState() {}

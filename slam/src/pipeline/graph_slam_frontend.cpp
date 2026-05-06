@@ -52,6 +52,7 @@ void GraphSlamFrontend::reset()
   _lastKeyframeOrientation = Eigen::Quaterniond::Identity();
   _hasOrientationReference = false;
   _pendingMeasurementAttemptCount.store(0);
+  _pendingGpsPrior.reset();
   closeObservationWindow();
   _healthMonitor->reset();
 }
@@ -98,8 +99,26 @@ void GraphSlamFrontend::onMotion(const MotionConstraint& motion)
     _receivedObservationGroupIds.clear();
   }
 
+  if (shouldCommitKeyframe && _gpsPriorCallback && _pendingGpsPrior.has_value())
+  {
+    const double gpsSigmaXy = _pendingGpsPrior->sigmaXyM;
+    _gpsPriorCallback(*_pendingGpsPrior);
+    _pendingGpsPrior.reset();
+    RCLCPP_INFO(
+      rclcpp::get_logger("slam"),
+      "GPS prior edge applied at keyframe commit (sigma_xy=%.3f m)",
+      gpsSigmaXy);
+  }
+
   if (shouldCommitKeyframe && _motionConstraintCallback)
   {
+    RCLCPP_INFO(
+      rclcpp::get_logger("slam"),
+      "Keyframe committed (translation=%.3f m, rotation=%.3f deg, "
+      "has_gps=%s)",
+      translationDelta,
+      rotationDelta * 180.0 / M_PI,
+      (_pendingGpsPrior.has_value()) ? "yes" : "no");
     _motionConstraintCallback(keyframeMotion);
   }
 }
@@ -186,6 +205,22 @@ void GraphSlamFrontend::setMotionConstraintCallback(
   std::function<void(const MotionConstraint&)> callback)
 {
   _motionConstraintCallback = std::move(callback);
+}
+
+void GraphSlamFrontend::setGpsPriorCallback(
+  std::function<void(const AbsolutePositionConstraint&)> callback)
+{
+  _gpsPriorCallback = std::move(callback);
+}
+
+void GraphSlamFrontend::onGpsMeasurement(const GpsConstraint& constraint)
+{
+  AbsolutePositionConstraint c;
+  c.enuPosition = constraint.enuPosition;
+  c.sigmaXyM    = constraint.sigmaXyM;
+  c.sigmaZM     = constraint.sigmaZM;
+  std::lock_guard<std::mutex> lock(_mutex);
+  _pendingGpsPrior = c;  // overwrite: only the most recent fix per keyframe is kept
 }
 
 void GraphSlamFrontend::setAssignedMeasurementsCallback(
