@@ -211,7 +211,6 @@ protected:
         const Eigen::Vector3d& rayOriginWorld,
         const Eigen::Vector3d& rayDirectionWorld,
         AssignedMeasurements& assignedMeasurements,
-        const Pose& robotPose,
         int* landmarkId = nullptr);
 
     /**
@@ -266,8 +265,7 @@ protected:
     void updateBearingTriangulationFromRay(
         TentativeLandmark& candidate,
         const Eigen::Vector3d& rayOriginWorld,
-        const Eigen::Vector3d& rayDirectionWorld,
-        const Pose& robotPose);
+        const Eigen::Vector3d& rayDirectionWorld);
 
     /**
      * @brief Initialize landmark estimate from measurement or fallback strategy.

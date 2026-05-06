@@ -258,8 +258,7 @@ void NearestNeighborAssociation::processBearingMeasurement(
             measurement,
             rayOriginWorld,
             rayDirectionWorld,
-            assignedMeasurements,
-            _robotPose);
+            assignedMeasurements);
         return;
     }
 
@@ -268,7 +267,6 @@ void NearestNeighborAssociation::processBearingMeasurement(
     bool foundComparableLandmark = false;
     std::size_t nearestIndex = startingLandmarkIndex;
     Measurement nearestPredictedMeasurement;
-    bool hasNearestPredictedMeasurement = false;
 
     for (std::size_t i = startingLandmarkIndex; i < _landmarks.size(); ++i)
     {
@@ -296,7 +294,6 @@ void NearestNeighborAssociation::processBearingMeasurement(
                 shortestDistance = distance;
                 nearestIndex = i;
                 nearestPredictedMeasurement = predicted;
-                hasNearestPredictedMeasurement = true;
             }
             else if (distance < secondShortestDistance)
             {
@@ -339,7 +336,6 @@ void NearestNeighborAssociation::processBearingMeasurement(
             rayOriginWorld,
             rayDirectionWorld,
             assignedMeasurements,
-            _robotPose,
             &landmarkId);
     }
 
@@ -483,7 +479,6 @@ void NearestNeighborAssociation::trackOrConfirmTentativeBearingLandmark(
     const Eigen::Vector3d& rayOriginWorld,
     const Eigen::Vector3d& rayDirectionWorld,
     AssignedMeasurements& assignedMeasurements,
-    const Pose& robotPose,
     int* landmarkId)
 {
     const int tentativeCandidateId =
@@ -495,7 +490,7 @@ void NearestNeighborAssociation::trackOrConfirmTentativeBearingLandmark(
         candidate.consistentObservations++;
         candidate.missedFrames = 0;
         candidate.seenInCurrentFrame = true;
-        updateBearingTriangulationFromRay(candidate, rayOriginWorld, rayDirectionWorld, robotPose);
+        updateBearingTriangulationFromRay(candidate, rayOriginWorld, rayDirectionWorld);
 
         if (landmarkId)
         {
@@ -551,7 +546,7 @@ void NearestNeighborAssociation::trackOrConfirmTentativeBearingLandmark(
     candidate.seenInCurrentFrame = true;
     const double initialVariance = UNDER_CONSTRAINED_GATING_DISTANCE * UNDER_CONSTRAINED_GATING_DISTANCE;
     candidate.variance = Variance2D(initialVariance, 0.0, initialVariance);
-    updateBearingTriangulationFromRay(candidate, rayOriginWorld, rayDirectionWorld, robotPose);
+    updateBearingTriangulationFromRay(candidate, rayOriginWorld, rayDirectionWorld);
 
     if (landmarkId)
     {
@@ -661,14 +656,13 @@ void NearestNeighborAssociation::updateBearingTriangulation(
         return;
     }
 
-    updateBearingTriangulationFromRay(candidate, rayOriginWorld, rayDirectionWorld, robotPose);
+    updateBearingTriangulationFromRay(candidate, rayOriginWorld, rayDirectionWorld);
 }
 
 void NearestNeighborAssociation::updateBearingTriangulationFromRay(
     TentativeLandmark& candidate,
     const Eigen::Vector3d& rayOriginWorld,
-    const Eigen::Vector3d& rayDirectionWorld,
-    const Pose& robotPose)
+    const Eigen::Vector3d& rayDirectionWorld)
 {
     if (!candidate.isUnderConstrained)
     {

@@ -104,21 +104,22 @@ void GraphSlamFrontend::onMotion(const MotionConstraint& motion)
     const double gpsSigmaXy = _pendingGpsPrior->sigmaXyM;
     _gpsPriorCallback(*_pendingGpsPrior);
     _pendingGpsPrior.reset();
-    RCLCPP_INFO(
-      rclcpp::get_logger("slam"),
-      "GPS prior edge applied at keyframe commit (sigma_xy=%.3f m)",
-      gpsSigmaXy);
+    if (_logger)
+    {
+      _logger->logInfo(
+        "Phase 8: GPS prior edge applied at keyframe commit, sigma_xy_m=", gpsSigmaXy);
+    }
   }
 
   if (shouldCommitKeyframe && _motionConstraintCallback)
   {
-    RCLCPP_INFO(
-      rclcpp::get_logger("slam"),
-      "Keyframe committed (translation=%.3f m, rotation=%.3f deg, "
-      "has_gps=%s)",
-      translationDelta,
-      rotationDelta * 180.0 / M_PI,
-      (_pendingGpsPrior.has_value()) ? "yes" : "no");
+    if (_logger)
+    {
+      _logger->logInfo(
+        "Phase 8: Keyframe committed, translation_m=", translationDelta,
+        ", rotation_deg=", rotationDelta * 180.0 / M_PI,
+        ", pending_gps_after_apply=", _pendingGpsPrior.has_value() ? "true" : "false");
+    }
     _motionConstraintCallback(keyframeMotion);
   }
 }
