@@ -57,6 +57,7 @@ void GraphSlamPipeline::reset()
 {
   _backend->reset();
   _frontend->reset();
+  _gpsMeasurementGate.reset();
   _keyframeCount = 0;
   if (_scheduler)
   {
@@ -83,6 +84,7 @@ MapSummary GraphSlamPipeline::getMap() const
 void GraphSlamPipeline::setLogger(LoggerPtr logger)
 {
   _logger = logger;
+  _gpsMeasurementGate.setLogger(logger);
   _frontend->setLogger(logger);
   _backend->setLogger(logger);
   if (_watchdog)
@@ -114,7 +116,12 @@ void GraphSlamPipeline::applyStartupAnchor(const LocalFrameAnchor& anchor)
 
 void GraphSlamPipeline::processGpsMeasurement(const GpsConstraint& constraint)
 {
-  _frontend->onGpsMeasurement(constraint);
+  const MapSummary mapState = _backend->getMap();
+  const Eigen::Vector3d predictedEnuPosition = mapState.robot.pose.position.getPositionVector();
+  if (_gpsMeasurementGate.shouldAccept(constraint, predictedEnuPosition))
+  {
+    _frontend->onGpsMeasurement(constraint);
+  }
 }
 
 void GraphSlamPipeline::setScheduler(std::shared_ptr<OptimizationScheduler> scheduler)
@@ -248,6 +255,11 @@ OptimizationMetrics GraphSlamPipeline::watchdogMetrics() const
 FrontendHealthMetrics GraphSlamPipeline::frontendHealthMetrics() const
 {
   return _frontend->healthMetrics();
+}
+
+GpsMeasurementGateHealth GraphSlamPipeline::gpsMeasurementGateHealth() const
+{
+  return _gpsMeasurementGate.health();
 }
 
 void GraphSlamPipeline::checkAndExecuteOptimization(bool loopClosureAccepted)

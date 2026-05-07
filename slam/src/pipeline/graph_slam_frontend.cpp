@@ -107,7 +107,7 @@ void GraphSlamFrontend::onMotion(const MotionConstraint& motion)
     if (_logger)
     {
       _logger->logInfo(
-        "Phase 8: GPS prior edge applied at keyframe commit, sigma_xy_m=", gpsSigmaXy);
+        "GPS prior edge applied at keyframe commit, sigma_xy_m=", gpsSigmaXy);
     }
   }
 
@@ -116,7 +116,7 @@ void GraphSlamFrontend::onMotion(const MotionConstraint& motion)
     if (_logger)
     {
       _logger->logInfo(
-        "Phase 8: Keyframe committed, translation_m=", translationDelta,
+        "Keyframe committed, translation_m=", translationDelta,
         ", rotation_deg=", rotationDelta * 180.0 / M_PI,
         ", pending_gps_after_apply=", _pendingGpsPrior.has_value() ? "true" : "false");
     }
@@ -218,10 +218,10 @@ void GraphSlamFrontend::onGpsMeasurement(const GpsConstraint& constraint)
 {
   AbsolutePositionConstraint c;
   c.enuPosition = constraint.enuPosition;
-  c.sigmaXyM    = constraint.sigmaXyM;
-  c.sigmaZM     = constraint.sigmaZM;
+  c.sigmaXyM = constraint.sigmaXyM;
+  c.sigmaZM = constraint.sigmaZM;
   std::lock_guard<std::mutex> lock(_mutex);
-  _pendingGpsPrior = c;  // overwrite: only the most recent fix per keyframe is kept
+  _pendingGpsPrior = c;
 }
 
 void GraphSlamFrontend::setAssignedMeasurementsCallback(

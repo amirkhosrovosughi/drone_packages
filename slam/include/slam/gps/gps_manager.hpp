@@ -19,7 +19,7 @@
  *  - During startup: feeds samples to SlamStartupGate and triggers local-frame
  *    anchor creation once quality criteria are met.
  *  - After startup: projects live GPS samples to local ENU via GpsLocalFrame
- *    (Phase 5 pipeline fusion will extend this path).
+ *    (Pipeline fusion will extend this path).
  *
  * Extracted from SlamManager::gpsCallback to keep GPS-domain logic in one place
  * and make SlamManager::gpsCallback a thin 1-line delegate.

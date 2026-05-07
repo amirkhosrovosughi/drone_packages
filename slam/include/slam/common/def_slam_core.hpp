@@ -6,6 +6,8 @@
 
 #include <Eigen/Dense>
 
+#include "common/def_slam_gps.hpp"
+
 // Structure for Position
 struct Position {
     double x;
@@ -172,72 +174,6 @@ struct CameraInfo
     CameraIntrinsic intrinsic;
 
     CameraInfo() : extrinsics(CameraExtrinsics::Identity()), intrinsic(CameraIntrinsic()) {}
-};
-
-// ---------------------------------------------------------------------------
-// Geodetic / GPS types
-// ---------------------------------------------------------------------------
-
-struct GeodeticCoordinate
-{
-  double latitudeDeg = 0.0;
-  double longitudeDeg = 0.0;
-  double altitudeM = 0.0;
-};
-
-struct GpsReference
-{
-  double latitudeDeg = 0.0;
-  double longitudeDeg = 0.0;
-  double altitudeM = 0.0;
-};
-
-struct LocalFrameAnchor
-{
-  GpsReference anchorReference;
-  std::uint64_t anchorTimestampUs = 0;
-  Eigen::Vector3d initialEnuPosition = Eigen::Vector3d::Zero();
-};
-
-// ---------------------------------------------------------------------------
-// GPS constraint (pipeline-facing, sensor-agnostic)
-//
-// enuPosition carries the absolute position in the local ENU frame established
-// by LocalFrameAnchor.  sigmaXyM / sigmaZM are 1-sigma metres derived from
-// PX4 EPH / EPV before the constraint reaches the pipeline.  The raw sensor
-// fields (fixType, eph, epv, satellitesUsed, velMps) are kept for diagnostics
-// and logging; the pipeline must not gate fusion on them — that decision
-// belongs to GpsManager.
-// ---------------------------------------------------------------------------
-struct GpsConstraint
-{
-  Eigen::Vector3d enuPosition = Eigen::Vector3d::Zero();
-  double sigmaXyM = 1.0;
-  double sigmaZM  = 2.0;
-  std::uint64_t timestampUs = 0;
-  std::uint8_t  fixType = 0;
-  float         eph = 999.f;
-  float         epv = 999.f;
-  std::uint8_t  satellitesUsed = 0;
-  float         velMps = 0.f;
-  bool          hasVelocity = false;
-};
-
-// ---------------------------------------------------------------------------
-// Sensor-agnostic absolute-position constraint in local ENU frame.
-//
-// Carries only the fields the estimator needs: position and 1-sigma
-// uncertainties.  Sensor-specific metadata (fix type, EPH/EPV, satellite
-// count) stays in GpsConstraint and never crosses the estimator boundary.
-//
-// Phase 8 note: when graph-SLAM GPS factors are added this struct will gain
-// a full 3×3 covariance matrix so both EKF and pose-graph can share one type.
-// ---------------------------------------------------------------------------
-struct AbsolutePositionConstraint
-{
-  Eigen::Vector3d enuPosition = Eigen::Vector3d::Zero();
-  double sigmaXyM = 1.0;  ///< 1-sigma horizontal uncertainty [m]
-  double sigmaZM  = 2.0;  ///< 1-sigma vertical uncertainty [m]
 };
 
 #endif  // SLAM__COMMON__DEF_SLAM_CORE_HPP_

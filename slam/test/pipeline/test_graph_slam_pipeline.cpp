@@ -6,6 +6,7 @@
 #include <Eigen/Geometry>
 
 #include "association/base_association.hpp"
+#include "common/mock_slam_logger.hpp"
 #include "graph/graph_optimizer.hpp"
 #include "graph/internal_graph_optimizer.hpp"
 #include "pipeline/graph_slam_backend.hpp"
@@ -809,6 +810,244 @@ TEST(GraphSlamPipelineTest, ProcessGpsMeasurementOnlyLatestFixReachesBackend)
   EXPECT_DOUBLE_EQ(optimizer->lastGpsPrior.enuPosition.z(), 30.0);
   EXPECT_DOUBLE_EQ(optimizer->lastGpsPrior.sigmaXyM, 0.3);
   EXPECT_DOUBLE_EQ(optimizer->lastGpsPrior.sigmaZM, 0.6);
+}
+
+// ---------------------------------------------------------------------------
+// GPS runtime quality gating — graph pipeline tests
+// ---------------------------------------------------------------------------
+//
+// Default GpsRuntimeGateConfig thresholds:
+//   minFixType             = 3
+//   maxEphM                = 2.5
+//   maxEpvM                = 4.0
+//   maxInnovationM         = 12.0
+//   badStreakWarnThreshold = 3
+//
+// To escape the default-metadata bypass all test helpers set satellitesUsed=4
+// (any non-sentinel field value disables the bypass).
+// ---------------------------------------------------------------------------
+
+namespace
+{
+
+constexpr uint8_t kGoodFixTypeGraph = 3;   // == minFixType → accepted
+constexpr uint8_t kBadFixTypeGraph  = 2;   // <  minFixType → rejected
+constexpr float   kGoodEphGraph     = 1.0f;
+constexpr float   kGoodEpvGraph     = 2.0f;
+constexpr uint8_t kSatellitesUsedGraph = 4;
+
+GpsConstraint makeBadQualityGpsGraph(const Eigen::Vector3d& pos = Eigen::Vector3d::Zero())
+{
+  GpsConstraint g;
+  g.enuPosition    = pos;
+  g.sigmaXyM       = 0.5;
+  g.sigmaZM        = 1.0;
+  g.fixType        = kBadFixTypeGraph;
+  g.eph            = kGoodEphGraph;
+  g.epv            = kGoodEpvGraph;
+  g.satellitesUsed = kSatellitesUsedGraph;
+  return g;
+}
+
+GpsConstraint makeGoodQualityGpsGraph(const Eigen::Vector3d& pos = Eigen::Vector3d::Zero())
+{
+  GpsConstraint g;
+  g.enuPosition    = pos;
+  g.sigmaXyM       = 0.5;
+  g.sigmaZM        = 1.0;
+  g.fixType        = kGoodFixTypeGraph;
+  g.eph            = kGoodEphGraph;
+  g.epv            = kGoodEpvGraph;
+  g.satellitesUsed = kSatellitesUsedGraph;
+  return g;
+}
+
+}  // namespace
+
+TEST(GraphSlamPipelineTest, GpsRejectedByGateDoesNotReachFrontendOrOptimizer)
+{
+  auto association = std::make_shared<PipelineFakeAssociation>();
+  auto factory     = std::make_shared<MeasurementFactory>();
+  auto optimizer   = std::make_shared<PipelineFakeGraphOptimizer>();
+  auto frontend    = std::make_shared<GraphSlamFrontend>(association, factory);
+  auto backend     = std::make_shared<GraphSlamBackend>(optimizer);
+
+  GraphSlamPipeline pipeline(frontend, backend);
+  pipeline.setLogger(std::make_shared<MockSlamLogger>());
+  pipeline.initialize();
+
+  // Rejected GPS + keyframe-triggering motion → optimizer must NOT see a GPS prior.
+  EXPECT_NO_THROW(
+    pipeline.processGpsMeasurement(makeBadQualityGpsGraph(Eigen::Vector3d(5.0, 0.0, 0.0))));
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));
+
+  EXPECT_EQ(optimizer->gpsPriorCallCount, 0);
+}
+
+TEST(GraphSlamPipelineTest, GpsRejectedByGateDoesNotAbortMotionOrObservationPaths)
+{
+  auto association = std::make_shared<PipelineFakeAssociation>();
+  auto factory     = std::make_shared<MeasurementFactory>();
+  auto optimizer   = std::make_shared<PipelineFakeGraphOptimizer>();
+  auto frontend    = std::make_shared<GraphSlamFrontend>(association, factory);
+  auto backend     = std::make_shared<GraphSlamBackend>(optimizer);
+
+  GraphSlamPipeline pipeline(frontend, backend);
+  pipeline.setLogger(std::make_shared<MockSlamLogger>());
+  pipeline.initialize();
+
+  const std::size_t keyframesBefore = optimizer->graph.keyframes.size();
+  const std::size_t odometryBefore  = optimizer->graph.odometryEdges.size();
+
+  EXPECT_NO_THROW(pipeline.processGpsMeasurement(makeBadQualityGpsGraph()));
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));
+
+  association->assignedToEmit = AssignedMeasurements{makeAssignedMeasurement(501)};
+  EXPECT_NO_THROW(pipeline.processObservation(
+    Observations{Observation(1.0, Point3D{Eigen::Vector3d(0.5, 0.0, 0.0)})}));
+
+  EXPECT_GT(optimizer->graph.keyframes.size(), keyframesBefore)
+    << "Keyframes must accumulate even when GPS is rejected by the gate";
+  EXPECT_GT(optimizer->graph.odometryEdges.size(), odometryBefore)
+    << "Odometry edges must accumulate even when GPS is rejected by the gate";
+}
+
+TEST(GraphSlamPipelineTest, GpsAcceptedByGateForwardedToFrontendAndReachesBackend)
+{
+  auto association = std::make_shared<PipelineFakeAssociation>();
+  auto factory     = std::make_shared<MeasurementFactory>();
+  auto optimizer   = std::make_shared<PipelineFakeGraphOptimizer>();
+  auto frontend    = std::make_shared<GraphSlamFrontend>(association, factory);
+  auto backend     = std::make_shared<GraphSlamBackend>(optimizer);
+
+  GraphSlamPipeline pipeline(frontend, backend);
+  pipeline.setLogger(std::make_shared<MockSlamLogger>());
+  pipeline.initialize();
+
+  // Good GPS near origin → gate accepts (innovation well below maxInnovationM).
+  pipeline.processGpsMeasurement(
+    makeGoodQualityGpsGraph(Eigen::Vector3d(0.5, 0.0, 0.0)));
+  // 1.0 m motion → keyframe committed → GPS prior must reach optimizer.
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));
+
+  EXPECT_EQ(optimizer->gpsPriorCallCount, 1);
+  EXPECT_EQ(pipeline.gpsMeasurementGateHealth().acceptedCount, 1u);
+  EXPECT_EQ(pipeline.gpsMeasurementGateHealth().rejectedCount, 0u);
+}
+
+TEST(GraphSlamPipelineTest, GpsDegradedModeDoesNotPreventKeyframeCommit)
+{
+  constexpr std::size_t kBadStreakWarnThreshold = 3;  // default config value
+  constexpr std::size_t kRejectCount = kBadStreakWarnThreshold;
+
+  auto association = std::make_shared<PipelineFakeAssociation>();
+  auto factory     = std::make_shared<MeasurementFactory>();
+  auto optimizer   = std::make_shared<PipelineFakeGraphOptimizer>();
+  auto frontend    = std::make_shared<GraphSlamFrontend>(association, factory);
+  auto backend     = std::make_shared<GraphSlamBackend>(optimizer);
+
+  GraphSlamPipeline pipeline(frontend, backend);
+  pipeline.setLogger(std::make_shared<MockSlamLogger>());
+  pipeline.initialize();
+
+  // Enter degraded mode.
+  for (std::size_t i = 0; i < kRejectCount; ++i)
+  {
+    pipeline.processGpsMeasurement(makeBadQualityGpsGraph());
+  }
+  ASSERT_TRUE(pipeline.gpsMeasurementGateHealth().inDegradedMode);
+
+  const std::size_t keyframesBefore = optimizer->graph.keyframes.size();
+  // Motion must still commit a keyframe even when GPS is in degraded mode.
+  pipeline.processMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0)));
+
+  EXPECT_GT(optimizer->graph.keyframes.size(), keyframesBefore)
+    << "Keyframe commit must not be blocked when GPS gate is in degraded mode";
+}
+
+TEST(GraphSlamPipelineTest, ConsecutiveGpsRejectsAccumulateStreakWithoutPipelineAbort)
+{
+  constexpr std::size_t kRejectCount = 6;
+
+  auto association = std::make_shared<PipelineFakeAssociation>();
+  auto factory     = std::make_shared<MeasurementFactory>();
+  auto optimizer   = std::make_shared<PipelineFakeGraphOptimizer>();
+  auto frontend    = std::make_shared<GraphSlamFrontend>(association, factory);
+  auto backend     = std::make_shared<GraphSlamBackend>(optimizer);
+
+  GraphSlamPipeline pipeline(frontend, backend);
+  pipeline.setLogger(std::make_shared<MockSlamLogger>());
+  pipeline.initialize();
+
+  for (std::size_t i = 0; i < kRejectCount; ++i)
+  {
+    EXPECT_NO_THROW(pipeline.processGpsMeasurement(makeBadQualityGpsGraph()));
+    EXPECT_NO_THROW(pipeline.processMotion(makeMotion(Eigen::Vector3d(1.0, 0.0, 0.0))));
+  }
+
+  const GpsMeasurementGateHealth h = pipeline.gpsMeasurementGateHealth();
+  EXPECT_EQ(h.rejectedCount, kRejectCount);
+  EXPECT_EQ(h.acceptedCount, 0u);
+  EXPECT_EQ(h.currentBadStreak, kRejectCount);
+  // Optimizer must still have processed all motions.
+  EXPECT_GE(optimizer->graph.keyframes.size(), kRejectCount);
+}
+
+TEST(GraphSlamPipelineTest, GpsRecoveryAfterBadStreakResetsStreakAndGateAcceptsAgain)
+{
+  constexpr std::size_t kBadStreakWarnThreshold = 3;  // default config value
+  constexpr std::size_t kRejectCount = kBadStreakWarnThreshold;
+
+  auto association = std::make_shared<PipelineFakeAssociation>();
+  auto factory     = std::make_shared<MeasurementFactory>();
+  auto optimizer   = std::make_shared<PipelineFakeGraphOptimizer>();
+  auto frontend    = std::make_shared<GraphSlamFrontend>(association, factory);
+  auto backend     = std::make_shared<GraphSlamBackend>(optimizer);
+
+  GraphSlamPipeline pipeline(frontend, backend);
+  pipeline.setLogger(std::make_shared<MockSlamLogger>());
+  pipeline.initialize();
+
+  for (std::size_t i = 0; i < kRejectCount; ++i)
+  {
+    pipeline.processGpsMeasurement(makeBadQualityGpsGraph());
+  }
+  ASSERT_TRUE(pipeline.gpsMeasurementGateHealth().inDegradedMode);
+
+  // Good GPS close to current robot position (origin) → accepted.
+  pipeline.processGpsMeasurement(makeGoodQualityGpsGraph());
+
+  const GpsMeasurementGateHealth h = pipeline.gpsMeasurementGateHealth();
+  EXPECT_EQ(h.currentBadStreak, 0u);
+  EXPECT_EQ(h.acceptedCount, 1u);
+  EXPECT_FALSE(h.inDegradedMode);
+}
+
+TEST(GraphSlamPipelineTest, GpsGateResetClearsHealthCounters)
+{
+  auto association = std::make_shared<PipelineFakeAssociation>();
+  auto factory     = std::make_shared<MeasurementFactory>();
+  auto optimizer   = std::make_shared<PipelineFakeGraphOptimizer>();
+  auto frontend    = std::make_shared<GraphSlamFrontend>(association, factory);
+  auto backend     = std::make_shared<GraphSlamBackend>(optimizer);
+
+  GraphSlamPipeline pipeline(frontend, backend);
+  pipeline.setLogger(std::make_shared<MockSlamLogger>());
+  pipeline.initialize();
+
+  pipeline.processGpsMeasurement(makeBadQualityGpsGraph());
+  pipeline.processGpsMeasurement(makeGoodQualityGpsGraph());
+  ASSERT_EQ(pipeline.gpsMeasurementGateHealth().rejectedCount, 1u);
+  ASSERT_EQ(pipeline.gpsMeasurementGateHealth().acceptedCount, 1u);
+
+  pipeline.reset();
+
+  const GpsMeasurementGateHealth h = pipeline.gpsMeasurementGateHealth();
+  EXPECT_EQ(h.acceptedCount, 0u);
+  EXPECT_EQ(h.rejectedCount, 0u);
+  EXPECT_EQ(h.currentBadStreak, 0u);
+  EXPECT_EQ(h.maxBadStreak, 0u);
+  EXPECT_FALSE(h.inDegradedMode);
 }
 
 }  // namespace slam

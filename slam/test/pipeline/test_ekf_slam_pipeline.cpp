@@ -575,4 +575,249 @@ INSTANTIATE_TEST_SUITE_P(
         std::make_tuple(M_PI_2, 0.0, -0.005),
         std::make_tuple(M_PI, 0.003, 0.003)));
 
+// ---------------------------------------------------------------------------
+// GPS runtime quality gating — pipeline-level tests
+// ---------------------------------------------------------------------------
+//
+// The default GpsRuntimeGateConfig thresholds used below:
+//   minFixType              = 3
+//   maxEphM                 = 2.5
+//   maxEpvM                 = 4.0
+//   maxInnovationM          = 12.0
+//   badStreakWarnThreshold  = 3
+//
+// To escape the default-metadata bypass (which passes any constraint where
+// fixType==0, satellitesUsed==0, !hasVelocity, eph≈999, epv≈999), tests set
+// at least one field to a non-sentinel value (satellitesUsed=4).
+// ---------------------------------------------------------------------------
+
+namespace
+{
+
+constexpr uint8_t kGoodFixType = 3;   // == minFixType → accepted
+constexpr uint8_t kBadFixType  = 2;   // < minFixType  → rejected
+constexpr float   kGoodEph     = 1.0f;
+constexpr float   kGoodEpv     = 2.0f;
+constexpr uint8_t kSatellitesUsed = 4;  // non-zero → bypasses default-metadata bypass
+
+GpsConstraint makeBadQualityGpsEkf(const Eigen::Vector3d& pos = Eigen::Vector3d::Zero())
+{
+  GpsConstraint g;
+  g.enuPosition    = pos;
+  g.sigmaXyM       = 0.5;
+  g.sigmaZM        = 1.0;
+  g.fixType        = kBadFixType;
+  g.eph            = kGoodEph;
+  g.epv            = kGoodEpv;
+  g.satellitesUsed = kSatellitesUsed;
+  return g;
+}
+
+GpsConstraint makeGoodQualityGpsEkf(const Eigen::Vector3d& pos = Eigen::Vector3d::Zero())
+{
+  GpsConstraint g;
+  g.enuPosition    = pos;
+  g.sigmaXyM       = 0.5;
+  g.sigmaZM        = 1.0;
+  g.fixType        = kGoodFixType;
+  g.eph            = kGoodEph;
+  g.epv            = kGoodEpv;
+  g.satellitesUsed = kSatellitesUsed;
+  return g;
+}
+
+}  // namespace
+
+TEST(EkfSlamPipelineTest, GpsRejectedByGateDoesNotAbortMotionOrObservationProcessing)
+{
+  auto motion = std::make_shared<PositionOnlyMotionModel>();
+  auto ekf    = std::make_shared<SpyExtendedKalmanFilter>(motion);
+  auto assoc  = std::make_shared<FakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+
+  EkfSlamPipeline pipeline(ekf, assoc, factory);
+  pipeline.setLogger(std::make_shared<MockSlamLogger>());
+
+  // GPS with fixType below minimum — should be rejected by the gate.
+  EXPECT_NO_THROW(pipeline.processGpsMeasurement(makeBadQualityGpsEkf()));
+
+  // Motion and observation pipelines must continue unaffected.
+  MotionConstraint mc;
+  mc.deltaPosition = Eigen::Vector3d(0.5, 0.0, 0.0);
+  mc.orientation   = Eigen::Quaterniond::Identity();
+  EXPECT_NO_THROW(pipeline.processMotion(mc));
+  EXPECT_TRUE(ekf->predictionCalled);
+
+  Observation obs(0.0, Point3D{Eigen::Vector3d(1.0, 0.0, 1.0)});
+  EXPECT_NO_THROW(pipeline.processObservation(Observations{obs}));
+  EXPECT_TRUE(assoc->onReceiveCalled);
+}
+
+TEST(EkfSlamPipelineTest, GpsAcceptedByGateStillUpdatesEkfPosition)
+{
+  constexpr double kTargetX = 2.0;
+
+  auto motion  = std::make_shared<PositionOnlyMotionModel>();
+  auto ekf     = std::make_shared<ExtendedKalmanFilter>(motion);
+  auto assoc   = std::make_shared<FakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+
+  EkfSlamPipeline pipeline(ekf, assoc, factory);
+  pipeline.setLogger(std::make_shared<MockSlamLogger>());
+  pipeline.initialize();
+
+  MotionConstraint mc;
+  mc.deltaPosition = Eigen::Vector3d::Zero();
+  mc.orientation   = Eigen::Quaterniond::Identity();
+  pipeline.processMotion(mc);
+
+  const MapSummary before = pipeline.getMap();
+
+  // Good quality GPS close to origin → accepted, innovation well below maxInnovationM.
+  pipeline.processGpsMeasurement(makeGoodQualityGpsEkf(Eigen::Vector3d(kTargetX, 0.0, 0.0)));
+
+  const MapSummary after = pipeline.getMap();
+  EXPECT_GT(after.robot.pose.position.x, before.robot.pose.position.x);
+  EXPECT_LT(
+    std::abs(kTargetX - after.robot.pose.position.x),
+    std::abs(kTargetX - before.robot.pose.position.x));
+
+  // Health must record exactly one accepted measurement.
+  EXPECT_EQ(pipeline.gpsMeasurementGateHealth().acceptedCount, 1u);
+  EXPECT_EQ(pipeline.gpsMeasurementGateHealth().rejectedCount, 0u);
+}
+
+TEST(EkfSlamPipelineTest, ConsecutiveGpsRejectsDoNotAbortPipelineAndStreakAccumulates)
+{
+  constexpr std::size_t kRejectCount = 5;
+
+  auto motion  = std::make_shared<PositionOnlyMotionModel>();
+  auto ekf     = std::make_shared<ExtendedKalmanFilter>(motion);
+  auto assoc   = std::make_shared<FakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+
+  EkfSlamPipeline pipeline(ekf, assoc, factory);
+  pipeline.setLogger(std::make_shared<MockSlamLogger>());
+  pipeline.initialize();
+
+  MotionConstraint mc;
+  mc.deltaPosition = Eigen::Vector3d::Zero();
+  mc.orientation   = Eigen::Quaterniond::Identity();
+  pipeline.processMotion(mc);
+
+  for (std::size_t i = 0; i < kRejectCount; ++i)
+  {
+    EXPECT_NO_THROW(pipeline.processGpsMeasurement(makeBadQualityGpsEkf()));
+    EXPECT_NO_THROW(pipeline.processMotion(mc));
+  }
+
+  const GpsMeasurementGateHealth h = pipeline.gpsMeasurementGateHealth();
+  EXPECT_EQ(h.rejectedCount, kRejectCount);
+  EXPECT_EQ(h.acceptedCount, 0u);
+  EXPECT_EQ(h.currentBadStreak, kRejectCount);
+  EXPECT_GT(h.maxBadStreak, 0u);
+}
+
+TEST(EkfSlamPipelineTest, GpsRecoveryAfterBadStreakResetsStreakAndRecordsAccept)
+{
+  constexpr std::size_t kBadStreakWarnThreshold = 3;  // default config value
+  constexpr std::size_t kRejectCount = kBadStreakWarnThreshold;
+
+  auto motion  = std::make_shared<PositionOnlyMotionModel>();
+  auto ekf     = std::make_shared<ExtendedKalmanFilter>(motion);
+  auto assoc   = std::make_shared<FakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+
+  EkfSlamPipeline pipeline(ekf, assoc, factory);
+  pipeline.setLogger(std::make_shared<MockSlamLogger>());
+  pipeline.initialize();
+
+  MotionConstraint mc;
+  mc.deltaPosition = Eigen::Vector3d::Zero();
+  mc.orientation   = Eigen::Quaterniond::Identity();
+  pipeline.processMotion(mc);
+
+  // Drive streak to degraded threshold.
+  for (std::size_t i = 0; i < kRejectCount; ++i)
+  {
+    pipeline.processGpsMeasurement(makeBadQualityGpsEkf());
+  }
+  ASSERT_TRUE(pipeline.gpsMeasurementGateHealth().inDegradedMode);
+
+  // One good sample — gate must accept, streak resets to 0.
+  pipeline.processGpsMeasurement(makeGoodQualityGpsEkf());
+
+  const GpsMeasurementGateHealth h = pipeline.gpsMeasurementGateHealth();
+  EXPECT_EQ(h.currentBadStreak, 0u);
+  EXPECT_EQ(h.acceptedCount, 1u);
+  EXPECT_FALSE(h.inDegradedMode);
+}
+
+TEST(EkfSlamPipelineTest, GpsGateHealthCountsMatchExpectedAcceptsAndRejects)
+{
+  constexpr std::size_t kRejectCount = 3;
+  constexpr std::size_t kAcceptCount = 2;
+
+  auto motion  = std::make_shared<PositionOnlyMotionModel>();
+  auto ekf     = std::make_shared<ExtendedKalmanFilter>(motion);
+  auto assoc   = std::make_shared<FakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+
+  EkfSlamPipeline pipeline(ekf, assoc, factory);
+  pipeline.setLogger(std::make_shared<MockSlamLogger>());
+  pipeline.initialize();
+
+  MotionConstraint mc;
+  mc.deltaPosition = Eigen::Vector3d::Zero();
+  mc.orientation   = Eigen::Quaterniond::Identity();
+  pipeline.processMotion(mc);
+
+  for (std::size_t i = 0; i < kRejectCount; ++i)
+  {
+    pipeline.processGpsMeasurement(makeBadQualityGpsEkf());
+  }
+  for (std::size_t i = 0; i < kAcceptCount; ++i)
+  {
+    pipeline.processGpsMeasurement(makeGoodQualityGpsEkf());
+  }
+
+  const GpsMeasurementGateHealth h = pipeline.gpsMeasurementGateHealth();
+  EXPECT_EQ(h.rejectedCount, kRejectCount);
+  EXPECT_EQ(h.acceptedCount, kAcceptCount);
+  EXPECT_EQ(h.currentBadStreak, 0u);  // last sample was accepted, streak reset
+  EXPECT_EQ(h.maxBadStreak, kRejectCount);
+}
+
+TEST(EkfSlamPipelineTest, GpsResetClearsGateHealthCounters)
+{
+  auto motion  = std::make_shared<PositionOnlyMotionModel>();
+  auto ekf     = std::make_shared<ExtendedKalmanFilter>(motion);
+  auto assoc   = std::make_shared<FakeAssociation>();
+  auto factory = std::make_shared<MeasurementFactory>();
+
+  EkfSlamPipeline pipeline(ekf, assoc, factory);
+  pipeline.setLogger(std::make_shared<MockSlamLogger>());
+  pipeline.initialize();
+
+  MotionConstraint mc;
+  mc.deltaPosition = Eigen::Vector3d::Zero();
+  mc.orientation   = Eigen::Quaterniond::Identity();
+  pipeline.processMotion(mc);
+
+  // Accumulate some gate state.
+  pipeline.processGpsMeasurement(makeBadQualityGpsEkf());
+  pipeline.processGpsMeasurement(makeGoodQualityGpsEkf());
+  ASSERT_EQ(pipeline.gpsMeasurementGateHealth().rejectedCount, 1u);
+  ASSERT_EQ(pipeline.gpsMeasurementGateHealth().acceptedCount, 1u);
+
+  pipeline.reset();
+
+  const GpsMeasurementGateHealth h = pipeline.gpsMeasurementGateHealth();
+  EXPECT_EQ(h.acceptedCount, 0u);
+  EXPECT_EQ(h.rejectedCount, 0u);
+  EXPECT_EQ(h.currentBadStreak, 0u);
+  EXPECT_EQ(h.maxBadStreak, 0u);
+  EXPECT_FALSE(h.inDegradedMode);
+}
+
 }  // namespace slam

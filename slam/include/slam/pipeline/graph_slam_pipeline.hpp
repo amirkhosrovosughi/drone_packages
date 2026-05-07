@@ -3,6 +3,7 @@
 
 #include <memory>
 
+#include "gps/gps_measurement_gate.hpp"
 #include "pipeline/graph_slam_backend.hpp"
 #include "pipeline/graph_slam_frontend.hpp"
 #include "pipeline/optimization_scheduler.hpp"
@@ -37,6 +38,7 @@ public:
   void setWatchdog(std::shared_ptr<OptimizationWatchdog> watchdog);
   OptimizationMetrics watchdogMetrics() const;
   FrontendHealthMetrics frontendHealthMetrics() const;
+  GpsMeasurementGateHealth gpsMeasurementGateHealth() const override;
 
 private:
   bool processLoopClosureCandidates();
@@ -48,6 +50,7 @@ private:
   std::shared_ptr<GraphSlamBackend> _backend;
   std::shared_ptr<OptimizationScheduler> _scheduler;
   std::shared_ptr<OptimizationWatchdog> _watchdog;
+  GpsMeasurementGate _gpsMeasurementGate;
   int _keyframeCount = 0;
   LoggerPtr _logger;
 };

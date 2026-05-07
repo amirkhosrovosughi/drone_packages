@@ -64,6 +64,7 @@ void EkfSlamPipeline::processObservation(const Observations& o)
 void EkfSlamPipeline::setLogger(LoggerPtr logger)
 {
   _logger = logger;
+  _gpsMeasurementGate.setLogger(logger);
   _ekf->setLogger(logger);
   _association->setLogger(logger);
 }
@@ -93,6 +94,12 @@ void EkfSlamPipeline::applyStartupAnchor(const LocalFrameAnchor& anchor)
 void EkfSlamPipeline::processGpsMeasurement(const GpsConstraint& constraint)
 {
   std::lock_guard<std::mutex> lock(_mutex);
+  const Eigen::Vector3d predictedEnuPosition = _ekf->getMap().robot.pose.position.getPositionVector();
+  if (!_gpsMeasurementGate.shouldAccept(constraint, predictedEnuPosition))
+  {
+    return;
+  }
+
   AbsolutePositionConstraint c;
   c.enuPosition = constraint.enuPosition;
   c.sigmaXyM    = constraint.sigmaXyM;
@@ -132,6 +139,12 @@ void EkfSlamPipeline::reset()
 {
   std::lock_guard<std::mutex> lock(_mutex);
   _ekf->reset();
+  _gpsMeasurementGate.reset();
+}
+
+GpsMeasurementGateHealth EkfSlamPipeline::gpsMeasurementGateHealth() const
+{
+  return _gpsMeasurementGate.health();
 }
 
 } // namespace slam

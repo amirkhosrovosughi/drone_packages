@@ -98,6 +98,8 @@ set(SOURCES
   src/pipeline/frontend_health_monitor.cpp
   src/pipeline/optimization_scheduler.cpp
   src/pipeline/optimization_watchdog.cpp
+  src/gps/gps_measurement_gate.cpp
+  src/gps/gps_runtime_gate.cpp
   src/filter/extended_kalman_filter.cpp
   src/graph/internal_graph_optimizer.cpp
   src/map/slam_map.cpp
@@ -251,6 +253,8 @@ if(BUILD_TESTING)
     SOURCES
       test/pipeline/test_ekf_slam_pipeline.cpp
       src/pipeline/ekf_slam_pipeline.cpp
+      src/gps/gps_measurement_gate.cpp
+      src/gps/gps_runtime_gate.cpp
       src/filter/extended_kalman_filter.cpp
       src/association/nearest_neighbor_association.cpp
       src/association/ekf_nearest_neighbor_association.cpp
@@ -283,6 +287,8 @@ if(BUILD_TESTING)
     SOURCES
       test/pipeline/test_graph_slam_pipeline.cpp
       src/pipeline/graph_slam_pipeline.cpp
+      src/gps/gps_measurement_gate.cpp
+      src/gps/gps_runtime_gate.cpp
       src/pipeline/frontend_health_monitor.cpp
       src/pipeline/graph_slam_backend.cpp
       src/pipeline/graph_slam_frontend.cpp
@@ -311,6 +317,13 @@ if(BUILD_TESTING)
     SOURCES
       test/graph/test_internal_graph_optimizer.cpp
       src/graph/internal_graph_optimizer.cpp
+  )
+
+  add_slam_gtest(test_gps_measurement_gate
+    SOURCES
+      test/gps/test_gps_measurement_gate.cpp
+      src/gps/gps_measurement_gate.cpp
+      src/gps/gps_runtime_gate.cpp
   )
 
   if(USE_GPS)

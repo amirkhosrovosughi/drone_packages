@@ -58,12 +58,19 @@ public:
   {
     (void)constraint;
   }
-  // TODO: Not ROS-agnostic to be changed later
-  // should be replaced with:
-  // struct BackendLogger {
-  //   virtual void info(std::string_view) = 0;
-  //   virtual void warn(std::string_view) = 0;
-  // };
+
+  /**
+   * @brief Return GPS measurement gate health counters.
+   *
+   * Returns zero-valued health by default so backends without a GPS gate
+   * remain source-compatible.  Backends with a GpsMeasurementGate override
+   * this to expose accepted/rejected counts, current streak, and degraded
+   * mode flag.
+   */
+  virtual GpsMeasurementGateHealth gpsMeasurementGateHealth() const
+  {
+    return GpsMeasurementGateHealth{};
+  }
 
   /**
    * @brief Register a callback to be invoked when the map is updated.

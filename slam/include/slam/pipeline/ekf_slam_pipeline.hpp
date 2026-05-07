@@ -4,6 +4,7 @@
 #include <memory>
 #include <mutex>
 
+#include "gps/gps_measurement_gate.hpp"
 #include "pipeline/slam_pipeline.hpp"
 #include "common/slam_logger.hpp"
 
@@ -55,6 +56,8 @@ public:
 
   void processGpsMeasurement(const GpsConstraint& constraint) override;
 
+  GpsMeasurementGateHealth gpsMeasurementGateHealth() const override;
+
 private:
   void onBackendUpdate(const MapSummary& map);
   void updateFilter(const MotionConstraint& m);
@@ -65,6 +68,7 @@ private:
   std::shared_ptr<MeasurementFactory> _measurementFactory; ///< Measurement factory
   bool _hasMotion = false; ///< Motion received flag
   bool _hasObservation = false; ///< Observation received flag
+  GpsMeasurementGate _gpsMeasurementGate;
   std::mutex _mutex; ///< Synchronization
   LoggerPtr _logger; ///< Logger instance
 };
