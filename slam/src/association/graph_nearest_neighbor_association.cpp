@@ -17,11 +17,6 @@ static const double GRAPH_BEARING_GATING_DISTANCE = 0.25;  // ~14.3 deg in yaw/p
 // Bearing relaxed fallback: larger gate to manage dynamic objects in graph
 static const double GRAPH_BEARING_RELAXED_FALLBACK_DISTANCE = 0.45;  // ~25.8 deg
 
-// Graph confirms candidates quickly and relies on backend optimization to refine them.
-static const int GRAPH_MIN_CONFIRMATION_OBSERVATIONS = 2;  // Fewer required (graph more robust)
-static const double GRAPH_MAX_TENTATIVE_COVARIANCE_TRACE = 0.30;
-static const double GRAPH_UNDER_CONSTRAINED_MAX_COVARIANCE_TRACE = 1.20;
-
 // Triangulation quality gates retained for geometry estimation, but Graph can
 // choose to skip requiring them at confirmation via the pipeline hook.
 static const std::size_t GRAPH_MIN_TRIANGULATION_OBSERVATIONS = 4;
@@ -39,6 +34,19 @@ constexpr double kGraphUnderConstrainedGatingDistance = 2.0;
 constexpr double kGraphBearingDirectionGateRadians = 0.16;
 constexpr double kGraphTriangulatedRayDistanceGateMeters = 0.5;
 }  // namespace
+
+GraphNearestNeighborAssociation::GraphNearestNeighborAssociation()
+  : GraphNearestNeighborAssociation(
+      slam::makeGraphAssociationConfirmationConfig(slam::AssociationProfileMode::Baseline))
+{
+}
+
+GraphNearestNeighborAssociation::GraphNearestNeighborAssociation(
+    const slam::AssociationConfirmationConfig& confirmationConfig)
+    : NearestNeighborAssociation(std::make_shared<GraphBearingInitializationStrategy>())
+    , _confirmationConfig(confirmationConfig)
+{
+}
 
 void GraphNearestNeighborAssociation::processPointMeasurement(
     const Measurement& measurement,
@@ -235,17 +243,17 @@ double GraphNearestNeighborAssociation::getBearingRelaxedFallbackDistance() cons
 
 int GraphNearestNeighborAssociation::getMinConfirmationObservations() const
 {
-    return GRAPH_MIN_CONFIRMATION_OBSERVATIONS;
+    return _confirmationConfig.minConfirmationObservations;
 }
 
 double GraphNearestNeighborAssociation::getMaxTentativeCovarianceTrace() const
 {
-    return GRAPH_MAX_TENTATIVE_COVARIANCE_TRACE;
+    return _confirmationConfig.maxTentativeCovarianceTrace;
 }
 
 double GraphNearestNeighborAssociation::getUnderConstrainedMaxCovarianceTrace() const
 {
-    return GRAPH_UNDER_CONSTRAINED_MAX_COVARIANCE_TRACE;
+    return _confirmationConfig.underConstrainedMaxCovarianceTrace;
 }
 
 std::size_t GraphNearestNeighborAssociation::getMinTriangulationObservations() const

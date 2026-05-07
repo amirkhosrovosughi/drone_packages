@@ -18,7 +18,8 @@ namespace slam
      */
     std::shared_ptr<SlamPipeline> createPipeline(
         LoggerPtr logger,
-        std::shared_ptr<MeasurementFactory> measurementFactory);
+        std::shared_ptr<MeasurementFactory> measurementFactory,
+        bool gpsFusionEnabled = false);
 
 } // namespace slam
 

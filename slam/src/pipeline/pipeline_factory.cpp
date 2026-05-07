@@ -22,24 +22,32 @@ namespace slam
 
     std::shared_ptr<SlamPipeline> createPipeline(
         LoggerPtr logger,
-        std::shared_ptr<MeasurementFactory> measurementFactory)
+        std::shared_ptr<MeasurementFactory> measurementFactory,
+        bool gpsFusionEnabled)
     {
         if (!measurementFactory)
         {
             throw std::invalid_argument("MeasurementFactory must not be null.");
         }
 
+        const AssociationProfileMode associationProfileMode =
+            gpsFusionEnabled
+                ? AssociationProfileMode::GpsEnabled
+                : AssociationProfileMode::Baseline;
+
 #if defined(EKF)
         auto motionModel = std::make_shared<PositionOnlyMotionModel>();
         auto ekf = std::make_shared<ExtendedKalmanFilter>(motionModel);
-        auto association = std::make_shared<EkfNearestNeighborAssociation>();
+        auto association = std::make_shared<EkfNearestNeighborAssociation>(
+            makeEkfAssociationConfirmationConfig(associationProfileMode));
 
         association->setLogger(logger);
         ekf->setLogger(logger);
 
         return std::make_shared<EkfSlamPipeline>(ekf, association, measurementFactory);
 #elif defined(GRAPH)
-        auto association = std::make_shared<GraphNearestNeighborAssociation>();
+    auto association = std::make_shared<GraphNearestNeighborAssociation>(
+        makeGraphAssociationConfirmationConfig(associationProfileMode));
         auto optimizer = std::make_shared<InternalGraphOptimizer>();
 
         association->setLogger(logger);

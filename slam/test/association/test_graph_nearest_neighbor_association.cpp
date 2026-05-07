@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include "association/association_profile.hpp"
 #include "association/graph_nearest_neighbor_association.hpp"
 #include "measurement/point3d_measurement_model.hpp"
 #include "common/mock_slam_logger.hpp"
@@ -300,4 +301,50 @@ TEST(GraphNearestNeighborAssociationTest, AmbiguityGateAcceptsClearMatch)
     ASSERT_EQ(fut.wait_for(std::chrono::seconds(2)), std::future_status::ready);
     const auto result = fut.get();
     EXPECT_FALSE(result.empty()) << "Clear unambiguous match should be accepted";
+}
+
+// Duplicate suppression gate must stay strict regardless of association profile.
+// This verifies behavior parity between Baseline and GpsEnabled modes.
+TEST(GraphNearestNeighborAssociationTest, DuplicateSuppressionUnchangedAcrossProfiles)
+{
+    auto runOnce = [](slam::AssociationProfileMode mode) {
+        auto logger = std::make_shared<MockSlamLogger>();
+        GraphNearestNeighborAssociation assoc(
+            slam::makeGraphAssociationConfirmationConfig(mode));
+        assoc.setLogger(logger);
+
+        // Force ambiguous nearest-neighbor outcome so control reaches duplicate
+        // suppression path in processPointMeasurement.
+        assoc.setAmbiguityGate(true, 0.3);
+
+        MapSummary map;
+        map.robot = RobotState();
+        Landmark l1;
+        l1.id = 0;
+        l1.position = Position(-0.05, 0.0, 5.0);
+        Landmark l2;
+        l2.id = 1;
+        l2.position = Position(0.05, 0.0, 5.0);
+        map.landmarks.push_back(l1);
+        map.landmarks.push_back(l2);
+        assoc.handleUpdate(map);
+
+        std::promise<AssignedMeasurements> prom;
+        auto fut = prom.get_future();
+        assoc.registerCallback([&prom](AssignedMeasurements am) {
+            try { prom.set_value(am); } catch (...) {}
+        });
+
+        // Midpoint: equal distance to both landmarks (0.05 m), which is
+        // within strict duplicate suppression gate (0.08 m).
+        assoc.onReceiveMeasurement({makePoint3DMeasurement(0.0, 0.0, 5.0)});
+        EXPECT_EQ(fut.wait_for(std::chrono::seconds(2)), std::future_status::ready);
+        return fut.get();
+    };
+
+    const AssignedMeasurements baselineResult = runOnce(slam::AssociationProfileMode::Baseline);
+    const AssignedMeasurements gpsEnabledResult = runOnce(slam::AssociationProfileMode::GpsEnabled);
+
+    EXPECT_TRUE(baselineResult.empty());
+    EXPECT_TRUE(gpsEnabledResult.empty());
 }

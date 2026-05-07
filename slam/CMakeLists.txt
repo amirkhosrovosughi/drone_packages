@@ -110,6 +110,7 @@ set(SOURCES
   src/measurement/bbox_measurement_model.cpp
   src/measurement/bearing_measurement_model.cpp
   src/association/joint_compatibility_association.cpp
+  src/association/association_profile.cpp
   src/association/nearest_neighbor_association.cpp
   src/association/ekf_nearest_neighbor_association.cpp
   src/association/graph_nearest_neighbor_association.cpp
@@ -219,6 +220,7 @@ if(BUILD_TESTING)
   add_slam_gtest(test_ekf_nearest_neighbor_association
     SOURCES
       test/association/test_ekf_nearest_neighbor_association.cpp
+      src/association/association_profile.cpp
       src/association/nearest_neighbor_association.cpp
       src/association/ekf_nearest_neighbor_association.cpp
       src/measurement/point3d_measurement_model.cpp
@@ -228,10 +230,17 @@ if(BUILD_TESTING)
   add_slam_gtest(test_graph_nearest_neighbor_association
     SOURCES
       test/association/test_graph_nearest_neighbor_association.cpp
+      src/association/association_profile.cpp
       src/association/nearest_neighbor_association.cpp
       src/association/graph_nearest_neighbor_association.cpp
       src/measurement/point3d_measurement_model.cpp
       src/measurement/bearing_measurement_model.cpp
+  )
+
+  add_slam_gtest(test_association_profile
+    SOURCES
+      test/association/test_association_profile.cpp
+      src/association/association_profile.cpp
   )
 
   add_slam_gtest(test_slam_map
@@ -256,6 +265,7 @@ if(BUILD_TESTING)
       src/gps/gps_measurement_gate.cpp
       src/gps/gps_runtime_gate.cpp
       src/filter/extended_kalman_filter.cpp
+      src/association/association_profile.cpp
       src/association/nearest_neighbor_association.cpp
       src/association/ekf_nearest_neighbor_association.cpp
       src/measurement/measurement_factory.cpp

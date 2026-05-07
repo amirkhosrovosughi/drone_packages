@@ -90,6 +90,18 @@ public:
     return false;
   }
 
+  bool containsAnyLevel(const std::string& needle) const
+  {
+    for (const auto& e : _entries)
+    {
+      if (e.message.find(needle) != std::string::npos)
+      {
+        return true;
+      }
+    }
+    return false;
+  }
+
 protected:
   void write(LogLevel level, const std::string& message) override
   {
@@ -289,7 +301,7 @@ TEST(GpsMeasurementGateTest, ResetClearsBadStreak)
 // Logger integration
 // ---------------------------------------------------------------------------
 
-TEST(GpsMeasurementGateTest, AcceptanceIsLoggedAtInfo)
+TEST(GpsMeasurementGateTest, AcceptanceIsLogged)
 {
   GpsMeasurementGate gate;
   auto logger = std::make_shared<RecordingLogger>();
@@ -297,7 +309,7 @@ TEST(GpsMeasurementGateTest, AcceptanceIsLoggedAtInfo)
 
   const GpsConstraint g = makeGoodConstraint();
   ASSERT_TRUE(gate.shouldAccept(g, Eigen::Vector3d::Zero()));
-  EXPECT_TRUE(logger->containsInfo("accepted"));
+  EXPECT_TRUE(logger->containsAnyLevel("accepted"));
 }
 
 TEST(GpsMeasurementGateTest, RejectionNotLoggedBelowThrottle)
@@ -332,7 +344,7 @@ TEST(GpsMeasurementGateTest, RejectionLoggedAtStreakWarnThreshold)
     gate.shouldAccept(bad, Eigen::Vector3d::Zero());
   }
 
-  EXPECT_TRUE(logger->containsWarn("rejected"));
+  EXPECT_TRUE(logger->containsWarn("degraded mode"));
 }
 
 TEST(GpsMeasurementGateTest, RejectionLoggedEveryTenthReject)

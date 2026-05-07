@@ -1,14 +1,15 @@
 #ifndef SLAM__GRAPH_NEAREST_NEIGHBOR_ASSOCIATION_HPP_
 #define SLAM__GRAPH_NEAREST_NEIGHBOR_ASSOCIATION_HPP_
 
+#include "association/association_profile.hpp"
 #include "association/graph_bearing_initialization_strategy.hpp"
 #include "association/nearest_neighbor_association.hpp"
 
 class GraphNearestNeighborAssociation : public NearestNeighborAssociation {
 public:
-    GraphNearestNeighborAssociation()
-        : NearestNeighborAssociation(std::make_shared<GraphBearingInitializationStrategy>())
-    {}
+    GraphNearestNeighborAssociation();
+    explicit GraphNearestNeighborAssociation(
+        const slam::AssociationConfirmationConfig& confirmationConfig);
 
     ~GraphNearestNeighborAssociation() override = default;
 
@@ -37,6 +38,8 @@ private:
     double getMinTriangulationParallaxRadians() const override;
     double getMinTriangulationBaselineMeters() const override;
     double getMaxTriangulationMeanRayResidual() const override;
+
+    slam::AssociationConfirmationConfig _confirmationConfig;
 };
 
 #endif  // SLAM__GRAPH_NEAREST_NEIGHBOR_ASSOCIATION_HPP_

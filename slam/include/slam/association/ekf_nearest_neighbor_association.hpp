@@ -1,12 +1,15 @@
 #ifndef SLAM__EKF_NEAREST_NEIGHBOR_ASSOCIATION_HPP_
 #define SLAM__EKF_NEAREST_NEIGHBOR_ASSOCIATION_HPP_
 
+#include "association/association_profile.hpp"
 #include "association/ekf_bearing_initialization_strategy.hpp"
 #include "association/nearest_neighbor_association.hpp"
 
 class EkfNearestNeighborAssociation : public NearestNeighborAssociation {
 public:
     EkfNearestNeighborAssociation();
+    explicit EkfNearestNeighborAssociation(
+        const slam::AssociationConfirmationConfig& confirmationConfig);
 
     ~EkfNearestNeighborAssociation() override = default;
 
@@ -35,6 +38,8 @@ private:
     double getMinTriangulationParallaxRadians() const override;
     double getMinTriangulationBaselineMeters() const override;
     double getMaxTriangulationMeanRayResidual() const override;
+
+    slam::AssociationConfirmationConfig _confirmationConfig;
 };
 
 #endif  // SLAM__EKF_NEAREST_NEIGHBOR_ASSOCIATION_HPP_

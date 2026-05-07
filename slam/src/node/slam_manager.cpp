@@ -32,7 +32,14 @@ SlamManager::SlamManager()
   configureStartupContract();
 
   _measurementFactory = std::make_shared<MeasurementFactory>();
-  _slam = slam::createPipeline(_logger, _measurementFactory);
+  bool gpsFusionEnabledForAssociationProfile = false;
+#ifdef USE_GPS
+  gpsFusionEnabledForAssociationProfile = _gpsFusionEnabled;
+#endif
+  _slam = slam::createPipeline(
+    _logger,
+    _measurementFactory,
+    gpsFusionEnabledForAssociationProfile);
   _slam->setLogger(_logger);
   _slam->initialize();
 

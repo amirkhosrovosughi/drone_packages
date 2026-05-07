@@ -17,11 +17,6 @@ static const double EKF_BEARING_GATING_DISTANCE = 0.22;  // ~12.6 deg in yaw/pit
 // Bearing relaxed fallback: larger gate to avoid duplicate creation
 static const double EKF_BEARING_RELAXED_FALLBACK_DISTANCE = 0.40;  // ~22.9 deg
 
-// Confirmation thresholds tuned for EKF covariance stability
-static const int EKF_MIN_CONFIRMATION_OBSERVATIONS = 8;
-static const double EKF_MAX_TENTATIVE_COVARIANCE_TRACE = 0.10;
-static const double EKF_UNDER_CONSTRAINED_MAX_COVARIANCE_TRACE = 0.35;
-
 // EKF bearing triangulation quality gates
 static const std::size_t EKF_MIN_TRIANGULATION_OBSERVATIONS = 4;
 static const double EKF_MIN_TRIANGULATION_PARALLAX_RADIANS = 0.08;
@@ -41,7 +36,15 @@ constexpr double kEkfVarianceEpsilon = 1e-6;
 }  // namespace
 
 EkfNearestNeighborAssociation::EkfNearestNeighborAssociation()
+    : EkfNearestNeighborAssociation(
+        slam::makeEkfAssociationConfirmationConfig(slam::AssociationProfileMode::Baseline))
+{
+}
+
+EkfNearestNeighborAssociation::EkfNearestNeighborAssociation(
+    const slam::AssociationConfirmationConfig& confirmationConfig)
     : NearestNeighborAssociation(std::make_shared<EkfBearingInitializationStrategy>())
+    , _confirmationConfig(confirmationConfig)
 {
     setAmbiguityGate(true, 0.08);
 }
@@ -279,17 +282,17 @@ double EkfNearestNeighborAssociation::getBearingRelaxedFallbackDistance() const
 
 int EkfNearestNeighborAssociation::getMinConfirmationObservations() const
 {
-    return EKF_MIN_CONFIRMATION_OBSERVATIONS;
+    return _confirmationConfig.minConfirmationObservations;
 }
 
 double EkfNearestNeighborAssociation::getMaxTentativeCovarianceTrace() const
 {
-    return EKF_MAX_TENTATIVE_COVARIANCE_TRACE;
+    return _confirmationConfig.maxTentativeCovarianceTrace;
 }
 
 double EkfNearestNeighborAssociation::getUnderConstrainedMaxCovarianceTrace() const
 {
-    return EKF_UNDER_CONSTRAINED_MAX_COVARIANCE_TRACE;
+    return _confirmationConfig.underConstrainedMaxCovarianceTrace;
 }
 
 std::size_t EkfNearestNeighborAssociation::getMinTriangulationObservations() const
